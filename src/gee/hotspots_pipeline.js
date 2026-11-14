@@ -18,7 +18,7 @@ var territories = ee.FeatureCollection(TERRITORIES_ASSET);
 
 // Máscara terrestre fija de referencia para expected_land_pixels_per_day
 var refLand = ee.ImageCollection(cfg.col).first().select('QA').bitwiseAnd(3).eq(2);
-var expectedByTerr = refLand.rename('expected').reduceRegions({
+var expectedByTerr = refLand.rename('expected_land_pixels_per_day').reduceRegions({
   collection: territories,
   reducer: ee.Reducer.sum(),
   scale: cfg.scale
@@ -45,7 +45,7 @@ var dailyFeatures = col.map(function(img) {
     scale: cfg.scale
   }).map(function(f) {
     var valid = ee.Number(f.get('valid_land_pixels'));
-    var expected = ee.Number(f.get('expected'));
+    var expected = ee.Number(f.get('expected_land_pixels_per_day'));
     var cov = ee.Algorithms.If(expected.gt(0), valid.divide(expected), null);
     return f.set({
       date: dateStr,
@@ -66,7 +66,7 @@ Export.table.toDrive({
   selectors: [
     'date', 'territory_type', 'territory_id', 'sensor',
     'fire_pixels_low', 'fire_pixels_nominal_high',
-    'valid_land_pixels', 'expected', 'observation_coverage',
+    'valid_land_pixels', 'expected_land_pixels_per_day', 'observation_coverage',
     'cloud_ok_lt30pct', 'source_product', 'processing_version'
   ]
 });

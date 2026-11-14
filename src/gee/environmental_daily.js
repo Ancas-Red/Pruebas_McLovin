@@ -58,17 +58,20 @@ var dailyRows = ee.FeatureCollection(dayOffsets.map(function(offset) {
   var hasLst = lstDayCol.size().gt(0);
   var lstImg = ee.Image(ee.Algorithms.If(hasLst, lstDayCol.first(), ee.Image.constant([0, 1]).rename(['t_suelo_c', 'lst_valid'])));
 
+  var lstEmpty = ee.Image.constant(0).updateMask(ee.Image.constant(0)).toFloat().rename('t_suelo_c')
+    .addBands(ee.Image.constant(0).toFloat().rename('lst_valid'));
+
   var lstClean = ee.Image(ee.Algorithms.If(hasLst, (function() {
     if (LST_SOURCE === 'MODIS') {
       var qcOk = lstImg.select('QC_Day').bitwiseAnd(3).eq(0);
-      var tSuelo = lstImg.select('LST_Day_1km').multiply(0.02).subtract(273.15).updateMask(qcOk).rename('t_suelo_c');
-      return ee.Image.cat([tSuelo, qcOk.unmask(0).rename('lst_valid')]);
+      var tSuelo = lstImg.select('LST_Day_1km').multiply(0.02).subtract(273.15).updateMask(qcOk).toFloat().rename('t_suelo_c');
+      return ee.Image.cat([tSuelo, qcOk.unmask(0).toFloat().rename('lst_valid')]);
     } else {
       var qcOkV = lstImg.select('QC').bitwiseAnd(3).eq(0);
-      var tSueloV = lstImg.select('LST_1KM').multiply(0.02).subtract(273.15).updateMask(qcOkV).rename('t_suelo_c');
-      return ee.Image.cat([tSueloV, qcOkV.unmask(0).rename('lst_valid')]);
+      var tSueloV = lstImg.select('LST_1KM').multiply(0.02).subtract(273.15).updateMask(qcOkV).toFloat().rename('t_suelo_c');
+      return ee.Image.cat([tSueloV, qcOkV.unmask(0).toFloat().rename('lst_valid')]);
     }
-  })(), ee.Image.constant([null, 0]).toFloat().rename(['t_suelo_c', 'lst_valid'])));
+  })(), lstEmpty));
 
   var combined = ee.Image.cat([tAmbC, rh, u10, v10, lstClean]);
 
