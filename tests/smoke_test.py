@@ -47,3 +47,21 @@ def test_daily_summary_activity_and_csv():
     r_csv = client.get("/api/v1/territories/province/1501/export.csv?from=2026-09-01&to=2026-09-30&sensor=MODIS_TERRA")
     assert r_csv.status_code == 200
     assert "t_suelo_c" in r_csv.text
+
+
+def test_metadata_metrics_env_and_comparison():
+    r_meta = client.get("/api/v1/metadata")
+    assert r_meta.status_code == 200
+    assert "available_periods_by_sensor" in r_meta.json()
+
+    r_env = client.get("/api/v1/territory-metrics?type=province&date=2026-09-15&metric=t_amb_c")
+    assert r_env.status_code == 200
+    assert len(r_env.json()["items"]) >= 1
+
+    r_cls = client.get("/api/v1/territory-metrics?type=province&date=2026-09-15&metric=conditions_classification")
+    assert r_cls.status_code == 200
+    assert len(r_cls.json()["items"]) >= 1
+
+    r_cmp = client.get("/api/v1/territories/province/1501/sensor-comparison?date=2026-09-15")
+    assert r_cmp.status_code == 200
+    assert r_cmp.json()["status"] in {"concordant_elevated", "concordant_not_elevated", "discordant", "single_sensor", "insufficient"}
