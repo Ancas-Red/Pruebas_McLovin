@@ -64,6 +64,8 @@ export interface SpreadResult {
   bands: { hours: number; areaHa: number }[];
   /** Superficie total alcanzada al horizonte, en hectareas. */
   totalAreaHa: number;
+  /** Recuadro que ocupa el frente. Sirve para encuadrar el mapa. */
+  reachedBounds: { south: number; west: number; north: number; east: number } | null;
   /** Velocidad de avance de cabeza, en m/min. */
   headRosMMin: number;
   /** Relacion largo/ancho de la elipse. */
@@ -350,13 +352,32 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
     }
   }
 
-  // Convertir a horas y resumir por bandas.
+  // Convertir a horas, resumir por bandas y medir el recuadro alcanzado.
   let reached = 0;
+  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
   for (let i = 0; i < n; i++) {
     if (arrival[i] === Infinity) continue;
     arrival[i] = arrival[i] / 60;
     reached++;
+    const r = (i / cols) | 0;
+    const c = i - r * cols;
+    if (r < minR) minR = r;
+    if (r > maxR) maxR = r;
+    if (c < minC) minC = c;
+    if (c > maxC) maxC = c;
   }
+
+  const latSpan = bounds.north - bounds.south;
+  const lonSpan = bounds.east - bounds.west;
+  const reachedBounds =
+    reached > 0
+      ? {
+          north: bounds.north - (minR / rows) * latSpan,
+          south: bounds.north - ((maxR + 1) / rows) * latSpan,
+          west: bounds.west + (minC / cols) * lonSpan,
+          east: bounds.west + ((maxC + 1) / cols) * lonSpan,
+        }
+      : null;
 
   const cellHa = (cellSizeM * cellSizeM) / 10_000;
   const bandHours = [1, 3, 6, 12, 24, 48].filter((h) => h <= horizonHours);
@@ -379,6 +400,7 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
     cellSizeM,
     bands,
     totalAreaHa: Math.round(reached * cellHa),
+    reachedBounds,
     headRosMMin: Math.round(Rhead * 100) / 100,
     lengthToBreadth: Math.round(LB * 100) / 100,
     assumptions: [

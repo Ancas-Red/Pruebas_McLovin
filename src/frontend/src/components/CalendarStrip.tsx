@@ -12,7 +12,7 @@ import type { DayPoint, MonthCell, Sensor } from "../api/types";
 import { SENSORS, SENSOR_META } from "../api/types";
 import { rampCss } from "../lib/spread";
 
-const M_SHORT = ["E", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const M_SHORT = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 const M_FULL = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
@@ -43,7 +43,9 @@ export function CalendarStrip(p: Props) {
     }
     return {
       byKey,
-      years: [...yearSet].sort((a, b) => b - a),
+      // Años en columnas, de izquierda a derecha: el eje horizontal es el tiempo
+      // y cada fila es un mes del año, que es como se lee la estacionalidad.
+      years: [...yearSet].sort((a, b) => a - b),
       max: Math.max(1, max),
     };
   }, [calendar]);
@@ -78,19 +80,21 @@ export function CalendarStrip(p: Props) {
         <div className="cal">
           <div
             className="cal__grid"
-            style={{ gridTemplateRows: `auto repeat(${years.length}, minmax(13px, 1fr))` }}
+            style={{ gridTemplateColumns: `34px repeat(${years.length}, minmax(13px, 1fr))` }}
           >
             <div className="cal__corner" />
-            {M_SHORT.map((m, i) => (
-              <div className="cal__colhead" key={`${m}-${i}`}>
-                {m}
+            {years.map((y) => (
+              <div className="cal__colhead" key={y} title={String(y)}>
+                {String(y).slice(2)}
               </div>
             ))}
 
-            {years.map((y) => (
-              <Row
-                key={y}
-                year={y}
+            {M_SHORT.map((label, i) => (
+              <MonthRow
+                key={label}
+                monthIndex={i}
+                label={label}
+                years={years}
                 byKey={byKey}
                 tone={tone}
                 selectedYear={year}
@@ -167,46 +171,50 @@ export function CalendarStrip(p: Props) {
   );
 }
 
-function Row({
-  year,
+function MonthRow({
+  monthIndex,
+  label,
+  years,
   byKey,
   tone,
   selectedYear,
   selectedMonth,
   onPick,
 }: {
-  year: number;
+  monthIndex: number;
+  label: string;
+  years: number[];
   byKey: Map<string, MonthCell>;
   tone: (v: number) => number;
   selectedYear: number;
   selectedMonth: number;
   onPick: (y: number, m: number) => void;
 }) {
+  const m = monthIndex + 1;
   return (
     <>
-      <div className="cal__rowhead">{year}</div>
-      {Array.from({ length: 12 }, (_, i) => {
-        const m = i + 1;
+      <div className="cal__rowhead">{label}</div>
+      {years.map((year) => {
         const cell = byKey.get(`${year}-${m}`);
         const isSel = year === selectedYear && m === selectedMonth;
         if (!cell) {
-          return <div key={m} className="cal__cell" data-empty="true" aria-hidden="true" />;
+          return <div key={year} className="cal__cell" data-empty="true" aria-hidden="true" />;
         }
         const anomaly = cell.historical_anomaly;
         return (
           <button
-            key={m}
+            key={year}
             className="cal__cell"
             data-selected={isSel}
             style={{ background: rampCss(tone(cell.detections)) }}
             onClick={() => onPick(year, m)}
             title={
-              `${M_FULL[i]} ${year}\n` +
+              `${M_FULL[monthIndex]} ${year}\n` +
               `${cell.detections.toLocaleString("es-PE")} detecciones\n` +
               `cobertura ${Math.round(cell.observation_coverage * 100)}%\n` +
               (anomaly != null ? `anomalía z = ${anomaly.toFixed(2)}` : "anomalía no estimable")
             }
-            aria-label={`${M_FULL[i]} de ${year}, ${cell.detections} detecciones`}
+            aria-label={`${M_FULL[monthIndex]} de ${year}, ${cell.detections} detecciones`}
           >
             {anomaly != null && anomaly >= 2 && <i className="cal__flag" aria-hidden="true" />}
           </button>

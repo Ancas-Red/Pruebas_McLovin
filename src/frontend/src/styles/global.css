@@ -122,6 +122,8 @@ body {
 }
 
 .rail {
+  position: relative;
+  z-index: 20;
   background: var(--surface-0);
   overflow-y: auto;
   min-height: 0;
@@ -135,6 +137,8 @@ body {
 
 /* Header ----------------------------------------------------------------- */
 .hdr {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -482,6 +486,7 @@ input[type="range"]:focus-visible {
 .stage {
   position: relative;
   min-height: 0;
+  overflow: hidden;
   background: var(--surface-0);
 }
 
@@ -661,9 +666,10 @@ input[type="range"]:focus-visible {
 
 .cal__grid {
   display: grid;
-  grid-template-columns: 38px repeat(12, minmax(21px, 1fr));
   gap: 2px;
-  min-width: 330px;
+  /* 12 filas de mes, altura fija: el calendario no debe robarle sitio al mapa. */
+  grid-auto-rows: 15px;
+  min-width: 430px;
 }
 
 .cal__corner,
@@ -678,16 +684,19 @@ input[type="range"]:focus-visible {
 .cal__colhead {
   justify-content: center;
   padding-bottom: 3px;
-  text-transform: uppercase;
+  font-size: 8.5px;
+  height: 14px;
 }
 .cal__rowhead {
   justify-content: flex-end;
   padding-right: 6px;
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
 }
 
 .cal__cell {
-  aspect-ratio: 1 / 1;
-  min-height: 13px;
+  width: 100%;
+  height: 100%;
   border: 0;
   padding: 0;
   cursor: pointer;
@@ -826,6 +835,8 @@ input[type="range"]:focus-visible {
 
 /* Barra de estado -------------------------------------------------------- */
 .status {
+  position: relative;
+  z-index: 30;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -902,7 +913,8 @@ input[type="range"]:focus-visible {
 /* Columna central: mapa arriba, calendario abajo ------------------------- */
 .center {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* El mapa manda: nunca baja de 300 px y se queda con el espacio sobrante. */
+  grid-template-rows: minmax(300px, 1fr) auto;
   min-height: 0;
   background: var(--surface-0);
 }
@@ -915,8 +927,12 @@ input[type="range"]:focus-visible {
 
 /* Franja de calendario --------------------------------------------------- */
 .calstrip {
+  position: relative;
+  z-index: 20;
   border-top: 1px solid var(--line);
   background: var(--surface-0);
+  max-height: 46vh;
+  overflow-y: auto;
 }
 
 .calstrip__body {
@@ -1101,6 +1117,7 @@ input[type="range"]:focus-visible {
 
 /* Superposicion del frente simulado -------------------------------------- */
 .spread-overlay {
-  image-rendering: auto;
+  /* Celdas nitidas: el resultado es una grilla, no un campo continuo. */
+  image-rendering: pixelated;
   mix-blend-mode: screen;
 }

@@ -261,7 +261,7 @@ export function MapStage(props: Props) {
         color: "#d8ff33",
         weight: 1.6,
         fillColor: "#d8ff33",
-        fillOpacity: 0.07,
+        fillOpacity: 0.045,
         dashArray: "5 4",
       }).addTo(layer);
       for (const v of ring) {
@@ -342,6 +342,22 @@ export function MapStage(props: Props) {
     }).addTo(map);
     spreadOverlay.current.setZIndex(350);
   }, [spread, spreadTime, spreadHorizon]);
+
+  /* ----------------------------------- encuadrar el frente recien calculado */
+  // Un frente de pocos miles de hectareas es invisible dentro de un area de
+  // interes grande, asi que al terminar la simulacion el mapa se acerca a el.
+  const framedRef = useRef<SpreadResult | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !spread || framedRef.current === spread) return;
+    framedRef.current = spread;
+    const rb = spread.reachedBounds;
+    if (!rb) return;
+    map.flyToBounds(
+      L.latLngBounds(L.latLng(rb.south, rb.west), L.latLng(rb.north, rb.east)).pad(1.1),
+      { duration: 0.8, maxZoom: 14 }
+    );
+  }, [spread]);
 
   /* --------------------------------------------- encuadrar el area nueva -- */
   useEffect(() => {
