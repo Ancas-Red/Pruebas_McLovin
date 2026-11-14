@@ -711,18 +711,19 @@ Los ejemplos contienen números ficticios y solo sirven para desarrollar y proba
 
 ### 8.5. Contrato de API entre backend y frontend
 
-**El frontend solo consume esta API.** No lee CSV internos, no consulta GEE y no calcula indicadores. Como los resultados se preparan por mes, la API expone únicamente períodos publicados en `metadata.json`.
+**El frontend solo consume esta API.** No lee CSV internos, no consulta GEE y no calcula indicadores. La API sirve en **resolución diaria por defecto** (`date=YYYY-MM-DD` y rangos `from`/`to=YYYY-MM-DD`), manteniendo `period=YYYY-MM` como parámetro opcional para contexto/anomalía mensual, exponiendo únicamente fechas publicadas en `metadata.json`.
 
 | Método y ruta | Para qué sirve | Parámetros principales |
 |---|---|---|
 | `GET /api/v1/health` | Comprobar que el backend está activo. | Ninguno. |
-| `GET /api/v1/metadata` | Obtener fuentes, sensores, unidades, resoluciones y meses disponibles por fuente. | Ninguno. |
+| `GET /api/v1/metadata` | Obtener fuentes, sensores, unidades, resoluciones y fechas/períodos disponibles por fuente. | Ninguno. |
 | `GET /api/v1/territories?type=province` | Obtener geometrías y nombres territoriales. | `type=province` o `hydro_unit`. Devuelve GeoJSON FeatureCollection. |
-| `GET /api/v1/territory-metrics?type=province&period=2026-09&sensor=MODIS_TERRA&metric=activity_rate` | Obtener indicadores para colorear la coropleta. | `type`, `period`, `metric`; `sensor` es obligatorio para métricas de actividad y no aplica a la clasificación ambiental. Devuelve `period`, `metric`, `unit` e `items` con `territory_type`, `territory_id` y el valor; el frontend une los resultados con geometrías por ID. |
-| `GET /api/v1/territories/{type}/{id}/summary?period=2026-09&sensor=MODIS_TERRA` | Obtener la ficha de un territorio. | `period`, `sensor`. Incluye actividad térmica y evaluación ambiental del mes. |
-| `GET /api/v1/territories/{type}/{id}/activity?period=2026-09&sensor=MODIS_TERRA` | Obtener la serie diaria dentro del mes seleccionado. | `period`, `sensor`. Devuelve los días y conteos diarios; el resumen mensual/anomalía viene precomputado. |
-| `GET /api/v1/territories/{type}/{id}/sensor-comparison?period=2026-09` | Obtener comparación multisensor para el mismo territorio y mes. | `period`. Solo se habilita para meses en `common_analysis_periods`; devuelve indicadores separados por sensor, `status` e `interpretation` precomputados por Tom. |
-| `GET /api/v1/territories/{type}/{id}/hotspots?period=2026-09&sensor=MODIS_TERRA` | Obtener la capa opcional de puntos de hotspots. | `period`, `sensor`. Solo se habilita si `hotspots.geojson` fue generado. |
+| `GET /api/v1/territory-metrics?type=province&date=2026-09-15&sensor=MODIS_TERRA&metric=activity_rate` | Obtener indicadores diarios para colorear la coropleta. | `type`, `date` (o `period` opcional), `metric`; `sensor` es obligatorio para métricas de actividad y opcional para clasificación o métricas ambientales (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `elevation_m`). Devuelve `date`, `metric`, `unit` e `items` con `territory_type`, `territory_id` y el valor. |
+| `GET /api/v1/territories/{type}/{id}/summary?date=2026-09-15&sensor=MODIS_TERRA` | Obtener la ficha diaria de un territorio. | `date` (o `period` opcional), `sensor`. Incluye actividad térmica del día, variables diarias (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y contexto/anomalía mensual. |
+| `GET /api/v1/territories/{type}/{id}/activity?from=2026-09-01&to=2026-09-30&sensor=MODIS_TERRA` | Obtener la serie diaria del rango seleccionado. | `from`, `to` (o `period` opcional), `sensor`. Devuelve los días, conteos diarios y variables ambientales diarias. |
+| `GET /api/v1/territories/{type}/{id}/sensor-comparison?date=2026-09-15` | Obtener comparación multisensor diaria. | `date` (o `period` opcional). Devuelve indicadores separados por sensor, `status` e `interpretation` precomputados por Tom. |
+| `GET /api/v1/territories/{type}/{id}/export.csv?from=2026-09-01&to=2026-09-30&sensor=MODIS_TERRA` | Descargar CSV diario del territorio en el rango pedido. | `from`, `to`, `sensor`. |
+| `GET /api/v1/territories/{type}/{id}/hotspots?date=2026-09-15&sensor=MODIS_TERRA` | Obtener la capa opcional de puntos de hotspots. | `date`, `sensor`. Solo se habilita si `hotspots.geojson` fue generado. |
 
 Valores permitidos para `type`: `province` y `hydro_unit`. Valores permitidos para `sensor`: `MODIS_TERRA`, `MODIS_AQUA` y `VIIRS_SNPP`. `period` usa `YYYY-MM`; para una ficha completa debe figurar en `available_periods_by_sensor[sensor]` y en `common_environmental_periods`. Para comparar los tres sensores en el mismo período, debe figurar en `common_analysis_periods`. Para una consulta de solo actividad basta con `available_periods_by_sensor[sensor]`. `metric` se restringe a nombres enumerados en el contrato, por ejemplo `activity_rate`, `fire_pixel_days_8_9`, `active_days`, `max_consecutive_active_days`, `observation_coverage` o `conditions_classification`. El frontend consulta un sensor a la vez; la comparación multisensor se presenta como series separadas. Si un mes no está disponible para una colección, la API debe indicarlo como no disponible, no rellenarlo con ceros.
 

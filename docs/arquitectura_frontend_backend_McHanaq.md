@@ -116,7 +116,7 @@ Lo que sí hace Angelo "en el back" (todo es de datos, no de código):
 | Prefijo y versión | `/api/v1`; `schema_version: "1.0"` en cada respuesta de datos JSON. |
 | Método | Solo `GET`. No hay escritura. |
 | Formato | JSON, GeoJSON y CSV (`text/csv` en exportación), UTF-8. Campos en `snake_case`. |
-| Fechas y períodos | `YYYY-MM-DD` para días y `YYYY-MM` para meses. |
+| Fechas y granularidad | **Diario por defecto** (`date=YYYY-MM-DD`, rango `from`/`to=YYYY-MM-DD`); `period=YYYY-MM` es opcional para contexto/anomalía mensual. |
 | Sensores | `MODIS_TERRA`, `MODIS_AQUA`, `VIIRS_SNPP`. Una consulta de actividad, un sensor (no se suman conteos entre sensores). |
 | Territorios | Siempre `type` (`province` o `hydro_unit`) junto con `id`. |
 | Valores desconocidos | `null`, nunca `0`. El frontend muestra «Sin datos», «No estimable» o «No evaluable». |
@@ -130,12 +130,12 @@ Lo que sí hace Angelo "en el back" (todo es de datos, no de código):
 | `GET /health` | 1 | Devuelve `{"status": "ok", "data_loaded": bool}`. |
 | `GET /metadata` | 1 | Sensores, períodos, unidades, resoluciones, fuentes ambientales y DEM por época. |
 | `GET /territories?type=` | 1 | `FeatureCollection` filtrada por `territory_type`. |
-| `GET /territory-metrics?type=&period=&metric=&sensor=` | 1 | `sensor` obligatorio para métricas de actividad; opcional para `conditions_classification` o métricas ambientales (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `elevation_m`). |
-| `GET /territories/{type}/{id}/summary?period=&sensor=` | 1 | Ficha mensual: actividad del sensor + `environmental_conditions` (con `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `elevation_m` y `classification`). |
-| `GET /territories/{type}/{id}/activity?period=&sensor=` | 2 | Serie **diaria** del mes: focos del sensor + contexto diario (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`). |
-| `GET /territories/{type}/{id}/sensor-comparison?period=` | 2 | Comparación multisensor (`concordant_elevated`, `concordant_not_elevated`, `discordant`, `single_sensor`, `insufficient`). |
+| `GET /territory-metrics?type=&date=&metric=&sensor=` | 1 | Coropleta **diaria** (`date=YYYY-MM-DD`; opcional `period=YYYY-MM`). `sensor` obligatorio para métricas de actividad; opcional para `conditions_classification` o métricas ambientales (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `elevation_m`). |
+| `GET /territories/{type}/{id}/summary?date=&sensor=` | 1 | Ficha **diaria** (`date=YYYY-MM-DD`): actividad del día, contexto diario (`t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y resumen/anomalía del mes (`period`) como contexto. |
+| `GET /territories/{type}/{id}/activity?from=&to=&sensor=` | 2 | Serie **diaria** en el rango `from`/`to` (`YYYY-MM-DD`; o `period=YYYY-MM`): focos del sensor + contexto diario completo. |
+| `GET /territories/{type}/{id}/sensor-comparison?date=` | 2 | Comparación multisensor **diaria** (`date=YYYY-MM-DD`; opcional `period=YYYY-MM`). |
 | `GET /territories/{type}/{id}/export.csv?from=&to=&sensor=` | 2 | Descarga CSV de la serie diaria del territorio en el rango pedido (`reto.txt`). |
-| `GET /territories/{type}/{id}/hotspots?period=&sensor=` | 3 | Solo si existe `hotspots.geojson`. |
+| `GET /territories/{type}/{id}/hotspots?date=&sensor=` | 3 | Solo si existe `hotspots.geojson`. |
 
 `classification` en la ficha admite: `high`, `moderate`, `low`, `partial`, `not_evaluable`.
 
@@ -156,15 +156,15 @@ Un solo formato, sin trazas técnicas:
 
 **Orden de validación en endpoints de territorio:** `400` (`type`/`sensor`/`metric`) → `422` (`period`) → `404` (`id` de territorio inexistente).
 
-### 4.4. Validación de períodos
+### 4.4. Validación de fechas y períodos
 
 El backend consulta `metadata.json`, no calcula nada:
 
-- Ficha completa (`/summary`): el mes debe estar en `available_periods_by_sensor[sensor]` **y** en `common_environmental_periods`.
-- Solo actividad (`/activity`) o métrica de actividad (`/territory-metrics` con `sensor`): basta `available_periods_by_sensor[sensor]`.
-- Métrica ambiental o `conditions_classification` sin `sensor` (`/territory-metrics`): el mes debe estar en `common_environmental_periods`.
-- Comparación multisensor (`/sensor-comparison`): el mes debe estar en `common_analysis_periods`.
-- Si un mes no está disponible, se responde `422`. Nunca se rellena con ceros.
+- Ficha diaria (`/summary?date=YYYY-MM-DD`): `date` debe estar dentro de `available_date_ranges_by_sensor[sensor]` **y** `common_environmental_dates` (o su mes `YYYY-MM` en `available_periods_by_sensor[sensor]` y `common_environmental_periods`).
+- Serie o métrica diaria (`/activity`, `/territory-metrics` con `sensor`): `date` (o el rango `from`–`to`) dentro de `available_date_ranges_by_sensor[sensor]`.
+- Métrica ambiental sin `sensor` (`/territory-metrics`): `date` dentro de `common_environmental_dates` (o `common_environmental_periods`).
+- Comparación multisensor (`/sensor-comparison`): `date` dentro de `common_analysis_dates` (o `common_analysis_periods`).
+- Si una fecha o período no está disponible, se responde `422`. Nunca se rellena con ceros.
 
 ---
 
@@ -177,20 +177,20 @@ GET /metadata                      → sensores, meses disponibles, unidades, fu
 GET /territories?type=province     → geometrías para el mapa
 ```
 
-**Al elegir vista, mes y sensor:**
+**Al elegir vista, fecha (día) y sensor:**
 
 ```text
-GET /territory-metrics?type=province&period=2026-09&sensor=MODIS_TERRA&metric=activity_rate
+GET /territory-metrics?type=province&date=2026-09-15&sensor=MODIS_TERRA&metric=activity_rate
 ```
 
-El frontend une los valores con las geometrías por `territory_id` y pinta la coropleta. No calcula nada.
+El frontend une los valores con las geometrías por `territory_id` y pinta la coropleta del día. No calcula nada.
 
 **Al hacer clic en un territorio** (en paralelo):
 
 ```text
-GET /territories/province/1501/summary?period=2026-09&sensor=MODIS_TERRA
-GET /territories/province/1501/activity?period=2026-09&sensor=MODIS_TERRA
-GET /territories/province/1501/sensor-comparison?period=2026-09
+GET /territories/province/1501/summary?date=2026-09-15&sensor=MODIS_TERRA
+GET /territories/province/1501/activity?from=2026-09-01&to=2026-09-30&sensor=MODIS_TERRA
+GET /territories/province/1501/sensor-comparison?date=2026-09-15
 ```
 
 **Reglas del lado del cliente:**
@@ -234,14 +234,14 @@ async function get<T>(path: string, params: Params = {}, signal?: AbortSignal): 
 export const api = {
   metadata: (s?: AbortSignal) => get<Metadata>("/metadata", {}, s),
   territories: (type: TerritoryType, s?: AbortSignal) => get<GeoJSON.FeatureCollection>("/territories", { type }, s),
-  metrics: (p: { type: TerritoryType; period: string; metric: string; sensor?: Sensor }, s?: AbortSignal) =>
+  metrics: (p: { type: TerritoryType; date: string; metric: string; sensor?: Sensor }, s?: AbortSignal) =>
     get<TerritoryMetrics>("/territory-metrics", p, s),
-  summary: (type: TerritoryType, id: string, period: string, sensor: Sensor, s?: AbortSignal) =>
-    get<TerritorySummary>(`/territories/${type}/${id}/summary`, { period, sensor }, s),
-  activity: (type: TerritoryType, id: string, period: string, sensor: Sensor, s?: AbortSignal) =>
-    get<ActivityDaily>(`/territories/${type}/${id}/activity`, { period, sensor }, s),
-  comparison: (type: TerritoryType, id: string, period: string, s?: AbortSignal) =>
-    get<SensorComparison>(`/territories/${type}/${id}/sensor-comparison`, { period }, s),
+  summary: (type: TerritoryType, id: string, date: string, sensor: Sensor, s?: AbortSignal) =>
+    get<TerritorySummary>(`/territories/${type}/${id}/summary`, { date, sensor }, s),
+  activity: (type: TerritoryType, id: string, from: string, to: string, sensor: Sensor, s?: AbortSignal) =>
+    get<ActivityDaily>(`/territories/${type}/${id}/activity`, { from, to, sensor }, s),
+  comparison: (type: TerritoryType, id: string, date: string, s?: AbortSignal) =>
+    get<SensorComparison>(`/territories/${type}/${id}/sensor-comparison`, { date }, s),
   exportCsvUrl: (type: TerritoryType, id: string, from: string, to: string, sensor: Sensor) =>
     `${BASE}/territories/${type}/${id}/export.csv?${new URLSearchParams({ from, to, sensor })}`,
 };
@@ -312,12 +312,13 @@ def check_type(t):
 def check_sensor(s):
     if s not in SENSORS: raise ApiError(400, "INVALID_PARAMETER", f"sensor debe ser uno de {sorted(SENSORS)}")
 
-def check_period(period, sensor=None, full=False, comparison=False, env_only=False):
-    ok = True
+def check_date(date: str, sensor=None, full=False, comparison=False, env_only=False):
+    period = date[:7]
+    ok = len(date) == 10
     if sensor: ok &= period in META.get("available_periods_by_sensor", {}).get(sensor, [])
     if full or env_only: ok &= period in META.get("common_environmental_periods", [])
     if comparison: ok &= period in META.get("common_analysis_periods", [])
-    if not ok: raise ApiError(422, "PERIOD_NOT_AVAILABLE", f"El período {period} no está publicado para esta consulta")
+    if not ok: raise ApiError(422, "PERIOD_NOT_AVAILABLE", f"La fecha {date} no está publicada para esta consulta")
 
 def pick(items, **keys):
     return next((i for i in items if all(i.get(k) == v for k, v in keys.items())), None)
@@ -379,8 +380,8 @@ Pruebas de humo (cada una debe devolver el estado indicado):
 curl -s localhost:8000/api/v1/health                                   # 200 (data_loaded: true)
 curl -s "localhost:8000/api/v1/territories?type=province"              # 200, FeatureCollection
 curl -s "localhost:8000/api/v1/territories?type=otro"                  # 400 INVALID_PARAMETER
-curl -s "localhost:8000/api/v1/territory-metrics?type=province&period=1999-01&sensor=MODIS_TERRA&metric=activity_rate"   # 422
-curl -s "localhost:8000/api/v1/territories/province/NO_EXISTE/summary?period=2026-09&sensor=MODIS_TERRA"                 # 404
+curl -s "localhost:8000/api/v1/territory-metrics?type=province&date=1999-01-01&sensor=MODIS_TERRA&metric=activity_rate"   # 422
+curl -s "localhost:8000/api/v1/territories/province/NO_EXISTE/summary?date=2026-09-15&sensor=MODIS_TERRA"                 # 404
 ```
 
 Criterio de listo para esta capa:
