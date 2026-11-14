@@ -7,23 +7,41 @@ import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/Sprea
 import { DockBar } from "../components/DockBar";
 import type { ToolTab } from "../components/SiteNav";
 import {
-  deriveComparison,
-  deriveSusceptibility,
-  fetchActivity,
-  fetchCalendar,
-  fetchEnvConditions,
-  fetchHotspots,
-  fetchMetadata,
+  exportCsvUrl,
   isAbort,
+  isDateAvailable,
+  lastAvailableDate,
   monthRange,
   pad2,
   probeBackend,
+  splitIso,
   type BackendState,
 } from "../api/client";
-import type { DayPoint, EnvConditions, Hotspot, Metadata, MonthCell, Sensor } from "../api/types";
-import { SENSORS } from "../api/types";
-import { FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
-import { PERU_CENTER, ringCentroid, type LatLon } from "../lib/geo";
+import {
+  getActivity,
+  getHotspots,
+  getMetadata,
+  getSensorComparison,
+  getSummary,
+  getTerritories,
+  getTerritoryMetrics,
+  type Origin,
+} from "../api/source";
+import {
+  type DailyRow,
+  type HotspotFeature,
+  type Metadata,
+  type MetricId,
+  type MetricItem,
+  type Sensor,
+  type SensorComparison,
+  type TerritoryCollection,
+  type TerritorySummary,
+  type TerritoryType,
+} from "../api/types";
+import { DEFAULT_TERRITORY, FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
+import { findCell, mergeAnomaly, monthlyCells, type MonthCell } from "../lib/calendar";
+import { polygonCentroid, type LatLon } from "../lib/geo";
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
 const MONTHS_ES = [
@@ -38,20 +56,38 @@ interface Props {
 
 export function MapTool({ tab, onBackend }: Props) {
   /* ------------------------------------------------------------- estado -- */
+
+  /**
+   * El territorio es la clave de toda consulta: el contrato pide siempre
+   * tipo + id, y provincias y cuencas no se mezclan en un mismo ranking.
+   */
+  const [territoryType, setTerritoryType] = useState<TerritoryType>(DEFAULT_TERRITORY.type);
+  const [territoryId, setTerritoryId] = useState<string>(DEFAULT_TERRITORY.id);
+  const [territories, setTerritories] = useState<TerritoryCollection | null>(null);
+
   const [year, setYear] = useState(FIXTURE_LAST_YEAR);
   const [month, setMonth] = useState(FIXTURE_LAST_MONTH);
-  /** Día seleccionado, `YYYY-MM-DD`. La API es diaria por defecto (v1.2 §4). */
   const [day, setDay] = useState(15);
   /** Qué pinta el mapa: el día elegido o el mes completo. */
   const [granularity, setGranularity] = useState<"day" | "month">("day");
+
+  /**
+   * Un solo sensor activo. No es una limitación de la interfaz: una consulta
+   * de actividad es de un sensor, y los conteos no se suman entre ellos. El
+   * contraste entre los tres se ve en el panel de comparación, que lo
+   * entrega la API ya resuelto.
+   */
+  const [sensor, setSensor] = useState<Sensor>("VIIRS_SNPP");
+
   const [metadata, setMetadata] = useState<Metadata | null>(null);
-  const [sensors, setSensors] = useState<Sensor[]>([...SENSORS]);
-  const [calendarSensor, setCalendarSensor] = useState<Sensor>("VIIRS_SNPP");
-  const [includeLow, setIncludeLow] = useState(false);
+  const [metric, setMetric] = useState<MetricId>("activity_rate");
+
   const [showHotspots, setShowHotspots] = useState(true);
+  const [showChoropleth, setShowChoropleth] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
   const [baseLayer, setBaseLayer] = useState<"dark" | "relief" | "satellite">("dark");
 
+  /** Fase 2: recorte y punto de ignición. Nada de esto toca la Fase 1. */
   const [ring, setRing] = useState<LatLon[] | null>(null);
   const [ignition, setIgnition] = useState<LatLon | null>(null);
   const [mode, setMode] = useState<DrawMode>("pan");
@@ -60,11 +96,26 @@ export function MapTool({ tab, onBackend }: Props) {
   const [leftOpen, setLeftOpen] = useState<string | null>(null);
   const [rightOpen, setRightOpen] = useState<string | null>(null);
 
-  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
-  const [daily, setDaily] = useState<DayPoint[]>([]);
-  const [calendars, setCalendars] = useState<Partial<Record<Sensor, MonthCell[]>>>({});
-  const [env, setEnv] = useState<EnvConditions | null>(null);
-  const [origin, setOrigin] = useState<"api" | "fixture">("fixture");
+  const [hotspots, setHotspots] = useState<HotspotFeature[]>([]);
+  const [daily, setDaily] = useState<DailyRow[]>([]);
+  const [series, setSeries] = useState<DailyRow[]>([]);
+  const [summary, setSummary] = useState<TerritorySummary | null>(null);
+  const [comparison, setComparison] = useState<SensorComparison | null>(null);
+  const [choropleth, setChoropleth] = useState<MetricItem[]>([]);
+  const [metricUnit, setMetricUnit] = useState<string | null>(null);
+  /**
+   * Dos procedencias, porque son dos cosas distintas.
+   *
+   * `origin` es la de la ficha y la serie: lo que la interfaz afirma sobre el
+   * territorio. `hotspotsOrigin` es la de los puntos del mapa, que son
+   * prioridad 3 del contrato y pueden no estar publicados. Con un solo
+   * indicador, un `/hotspots` ausente marcaba toda la pantalla como muestra
+   * aunque los indicadores vinieran de la API: justo lo contrario de lo que
+   * un rótulo de procedencia tiene que lograr.
+   */
+  const [origin, setOrigin] = useState<Origin>("fixture");
+  const [hotspotsOrigin, setHotspotsOrigin] = useState<Origin>("fixture");
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
   const [spreadParams, setSpreadParams] = useState<SpreadParams>({
     windSpeedMs: 4.5,
@@ -97,7 +148,7 @@ export function MapTool({ tab, onBackend }: Props) {
   /* -------------------------------------------------------- metadatos ---- */
   useEffect(() => {
     const ctrl = new AbortController();
-    fetchMetadata(ctrl.signal)
+    getMetadata(ctrl.signal)
       .then((r) => setMetadata(r.data))
       .catch((e) => {
         if (!isAbort(e)) setMetadata(null);
@@ -105,7 +156,27 @@ export function MapTool({ tab, onBackend }: Props) {
     return () => ctrl.abort();
   }, []);
 
-  /* --------------------------------------------------------- hotspots ---- */
+  /* ------------------------------------------------------- territorios --- */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    getTerritories(territoryType, ctrl.signal)
+      .then((r) => {
+        setTerritories(r.data);
+        // Al cambiar de tipo, el id anterior pertenece a otra familia: se
+        // toma el primero del nuevo tipo en vez de dejar una selección que
+        // no existe.
+        const ids = r.data.features.map((f) => f.properties.territory_id);
+        if (!ids.includes(territoryId)) setTerritoryId(ids[0] ?? "");
+      })
+      .catch((e) => {
+        if (!isAbort(e)) setTerritories(null);
+      });
+    return () => ctrl.abort();
+    // `territoryId` se lee pero no debe re-disparar la carga del tipo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [territoryType]);
+
+  /* ------------------------------------------------------------ fechas --- */
   const period = `${year}-${pad2(month)}`;
   const monthSpan = useMemo(() => monthRange(year, month), [year, month]);
   const dateIso = useMemo(() => {
@@ -115,136 +186,218 @@ export function MapTool({ tab, onBackend }: Props) {
 
   const span = granularity === "day" ? { from: dateIso, to: dateIso } : monthSpan;
 
+  /**
+   * Al llegar los metadatos, si la fecha abierta no existe para el sensor se
+   * salta a la última publicada. Arrancar en «hoy» contra un backend que
+   * sirve otro tramo daba una pantalla llena de avisos antes de que el
+   * usuario hiciera nada.
+   *
+   * Solo se mueve una vez por sensor: si después el usuario elige a mano una
+   * fecha sin datos, se le avisa y se respeta su elección.
+   */
+  const snapped = useRef<string | null>(null);
   useEffect(() => {
+    if (!metadata) return;
+    if (isDateAvailable(dateIso, sensor, metadata)) return;
+    if (snapped.current === sensor) return;
+
+    const last = lastAvailableDate(sensor, metadata);
+    if (!last) return;
+    snapped.current = sensor;
+    const { year: y, month: m, day: d } = splitIso(last);
+    setYear(y);
+    setMonth(m);
+    setDay(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata, sensor]);
+
+  /**
+   * Las fechas publicadas las decide `metadata`, no esta interfaz. Si el día
+   * elegido no está, se avisa en vez de pedirlo y mostrar un hueco.
+   */
+  useEffect(() => {
+    if (!metadata) return setUnavailable(null);
+    setUnavailable(
+      isDateAvailable(dateIso, sensor, metadata)
+        ? null
+        : `${sensor} no publica datos del ${dateIso}`
+    );
+  }, [dateIso, sensor, metadata]);
+
+  /**
+   * Nada de datos hasta tener `metadata`: es quien dice qué fechas existen.
+   * Sin esta guardia, el primer render disparaba seis consultas con la fecha
+   * por defecto, el backend contestaba `PERIOD_NOT_AVAILABLE` a todas y se
+   * descartaban un instante después, al saltar a la última fecha publicada.
+   */
+  const ready = Boolean(metadata) && Boolean(territoryId);
+
+  /**
+   * ¿Está publicada la fecha abierta para el sensor activo? Si no, no se
+   * consulta la API —el contrato §5 dice que contestaría 422— y se sirve la
+   * muestra, rotulada en la barra de estado.
+   */
+  const dateOk = metadata ? isDateAvailable(dateIso, sensor, metadata) : false;
+  const skipApi = !dateOk;
+
+  /* --------------------------------------------------------- hotspots ---- */
+  useEffect(() => {
+    if (!ready) return;
     const ctrl = new AbortController();
-    fetchHotspots(
-      { sensors, from: span.from, to: span.to, ring, includeLowConfidence: includeLow },
-      ctrl.signal
-    )
+    getHotspots({ type: territoryType, id: territoryId, date: dateIso, sensor }, ctrl.signal, skipApi)
       .then((r) => {
-        setHotspots(r.data);
-        setOrigin(r.origin);
+        setHotspots(r.data.features ?? []);
+        setHotspotsOrigin(r.origin);
       })
       .catch((e) => {
-        // Una petición cancelada no es un error (v1.2 §5, regla 2).
+        // Una petición cancelada no es un error: pasa en cada cambio de día.
         if (!isAbort(e)) setHotspots([]);
       });
     return () => ctrl.abort();
-  }, [sensors, span.from, span.to, ring, includeLow]);
-
-  /* -------------------------------------------------------- calendarios -- */
-  useEffect(() => {
-    let alive = true;
-    Promise.all(SENSORS.map((s) => fetchCalendar({ sensor: s, ring }))).then((results) => {
-      if (!alive) return;
-      const next: Partial<Record<Sensor, MonthCell[]>> = {};
-      SENSORS.forEach((s, i) => {
-        next[s] = results[i].data;
-      });
-      setCalendars(next);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [ring]);
-
-  /* ---------------------------------------------------------- ambiente --- */
-  const center = useMemo<LatLon>(() => (ring ? ringCentroid(ring) : PERU_CENTER), [ring]);
-
-  useEffect(() => {
-    let alive = true;
-    fetchEnvConditions(center, year, month).then((r) => {
-      if (!alive) return;
-      setEnv(r.data);
-      setEnvApplied(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [center, year, month]);
-
-  /* --------------------------------------------------------- derivados --- */
-  const calendar = calendars[calendarSensor] ?? [];
-  const cell = useMemo(
-    () => calendar.find((c) => c.year === year && c.month === month),
-    [calendar, year, month]
-  );
-
-  const comparison = useMemo(() => {
-    const per: Partial<Record<Sensor, MonthCell | undefined>> = {};
-    for (const s of SENSORS) {
-      per[s] = (calendars[s] ?? []).find((c) => c.year === year && c.month === month);
-    }
-    return deriveComparison(per, `${year}-${String(month).padStart(2, "0")}`);
-  }, [calendars, year, month]);
-
-  const thermalElevated = useMemo(
-    () => Object.values(comparison.sensors).some((d) => d?.signal_status === "elevated"),
-    [comparison]
-  );
-
-  const susceptibility = useMemo(
-    () => deriveSusceptibility(env, thermalElevated),
-    [env, thermalElevated]
-  );
-
-
-
-  const countsBySensor = useMemo(() => {
-    const out: Record<string, number> = {};
-    for (const h of hotspots) out[h.sensor] = (out[h.sensor] ?? 0) + 1;
-    return out;
-  }, [hotspots]);
-
-  const areaLabel = ring ? "Área dibujada" : "Perú";
-  const periodLabel = `${MONTHS_ES[month - 1]} ${year}`;
+  }, [ready, skipApi, territoryType, territoryId, dateIso, sensor]);
 
   /* ------------------------------------------- serie diaria del mes ------ */
-  // Siempre el mes completo: alimenta el gráfico diario y el selector de día.
   useEffect(() => {
+    if (!ready) return;
     const ctrl = new AbortController();
-    (async () => {
-      const month$ = await fetchHotspots(
-        {
-          sensors: [calendarSensor],
-          from: monthSpan.from,
-          to: monthSpan.to,
-          ring,
-          includeLowConfidence: true,
-        },
-        ctrl.signal
-      );
-      const r = await fetchActivity(
-        {
-          type: "province",
-          id: ring ? "aoi" : "peru",
-          from: monthSpan.from,
-          to: monthSpan.to,
-          sensor: calendarSensor,
-          localHotspots: month$.data,
-          center,
-          coverageHint: cell?.observation_coverage ?? 0.7,
-        },
-        ctrl.signal
-      );
-      setDaily(r.data);
-    })().catch((e) => {
-      if (!isAbort(e)) setDaily([]);
-    });
+    getActivity(
+      { type: territoryType, id: territoryId, sensor, from: monthSpan.from, to: monthSpan.to },
+      ctrl.signal,
+      skipApi
+    )
+      .then((r) => setDaily(r.data.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setDaily([]);
+      });
     return () => ctrl.abort();
-  }, [calendarSensor, monthSpan.from, monthSpan.to, ring, center, cell?.observation_coverage]);
+  }, [ready, skipApi, territoryType, territoryId, sensor, monthSpan.from, monthSpan.to]);
 
-  /** Fila diaria del día seleccionado: contexto ambiental de la ficha. */
-  const dayRow = useMemo(() => daily.find((d) => d.date === dateIso) ?? null, [daily, dateIso]);
+  /* ------------------------------------------- serie larga (calendario) -- */
+  /**
+   * El calendario necesita varios años. El contrato no tiene serie mensual,
+   * así que se pide el rango que `metadata` declara publicado para el sensor
+   * y se agrupa por mes en `lib/calendar.ts`.
+   */
+  const longSpan = useMemo(() => {
+    const ranges = metadata?.available_date_ranges_by_sensor?.[sensor];
+    if (!ranges?.length) return null;
+    return { from: ranges[0].from, to: ranges[ranges.length - 1].to };
+  }, [metadata, sensor]);
+
+  useEffect(() => {
+    if (!ready || !longSpan) return setSeries([]);
+    const ctrl = new AbortController();
+    getActivity(
+      { type: territoryType, id: territoryId, sensor, from: longSpan.from, to: longSpan.to },
+      ctrl.signal,
+      skipApi
+    )
+      .then((r) => setSeries(r.data.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setSeries([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, skipApi, territoryType, territoryId, sensor, longSpan]);
+
+  /* ------------------------------------------------------------- ficha --- */
+  useEffect(() => {
+    if (!ready) return;
+    const ctrl = new AbortController();
+    getSummary({ type: territoryType, id: territoryId, sensor, date: dateIso }, ctrl.signal, skipApi)
+      .then((r) => {
+        setSummary(r.data);
+        setOrigin(r.origin);
+        setEnvApplied(false);
+      })
+      .catch((e) => {
+        if (!isAbort(e)) setSummary(null);
+      });
+    return () => ctrl.abort();
+  }, [ready, skipApi, territoryType, territoryId, sensor, dateIso]);
+
+  /* ------------------------------------------------------ comparación ---- */
+  useEffect(() => {
+    if (!ready) return;
+    const ctrl = new AbortController();
+    getSensorComparison({ type: territoryType, id: territoryId, date: dateIso }, ctrl.signal, skipApi)
+      .then((r) => setComparison(r.data))
+      .catch((e) => {
+        if (!isAbort(e)) setComparison(null);
+      });
+    return () => ctrl.abort();
+  }, [ready, skipApi, territoryType, territoryId, dateIso]);
+
+  /* -------------------------------------------------------- coropleta ---- */
+  useEffect(() => {
+    if (!ready) return;
+    const ctrl = new AbortController();
+    getTerritoryMetrics({ type: territoryType, metric, date: dateIso, sensor }, ctrl.signal, skipApi)
+      .then((r) => {
+        setChoropleth(r.data.items ?? []);
+        setMetricUnit(r.data.unit);
+      })
+      .catch((e) => {
+        if (!isAbort(e)) setChoropleth([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, skipApi, territoryType, metric, dateIso, sensor]);
+
+  /* --------------------------------------------------------- derivados --- */
+
+  /** Calendario del sensor activo, con la anomalía del mes mirado. */
+  const calendar: MonthCell[] = useMemo(() => {
+    const cells = monthlyCells(series.length ? series : daily, sensor);
+    return mergeAnomaly(cells, period, summary?.activity.historical_anomaly ?? null);
+  }, [series, daily, sensor, period, summary]);
+
+  const cell = useMemo(() => findCell(calendar, year, month), [calendar, year, month]);
+
+  /** Fila del día: el contexto ambiental de la ficha es diario. */
+  const dayRow = useMemo(
+    () => summary?.daily ?? daily.find((d) => d.date === dateIso) ?? null,
+    [summary, daily, dateIso]
+  );
+
+  const territoryName = useMemo(() => {
+    const f = territories?.features.find((x) => x.properties.territory_id === territoryId);
+    return f?.properties.territory_name ?? territoryId;
+  }, [territories, territoryId]);
+
+  /** Centro del territorio: lo usa la simulación cuando no hay recorte. */
+  const territoryCenter = useMemo<LatLon | null>(() => {
+    const f = territories?.features.find((x) => x.properties.territory_id === territoryId);
+    if (!f) return null;
+    const rings = f.geometry.type === "Polygon"
+      ? (f.geometry.coordinates as number[][][])
+      : (f.geometry.coordinates as number[][][][])[0];
+    return polygonCentroid(rings[0] as [number, number][]);
+  }, [territories, territoryId]);
+
+  const periodLabel = `${MONTHS_ES[month - 1]} ${year}`;
+
+  const csvHref = useMemo(
+    () =>
+      territoryId
+        ? exportCsvUrl({
+            type: territoryType,
+            id: territoryId,
+            from: monthSpan.from,
+            to: monthSpan.to,
+            sensor,
+          })
+        : null,
+    [territoryType, territoryId, monthSpan.from, monthSpan.to, sensor]
+  );
 
   /* -------------------------------------------------------- simulacion --- */
   const runSpread = useCallback(() => {
-    if (!ring || !ignition) return;
+    const area = ring;
+    if (!area || !ignition) return;
     setSpreadRunning(true);
     setPlaying(false);
     requestAnimationFrame(() => {
       try {
-        const r = simulateSpread({ ring, ignition, ...spreadParams });
+        const r = simulateSpread({ ring: area, ignition, ...spreadParams });
         setSpread(r);
         setSpreadTime(spreadParams.horizonHours);
         setPlaying(true);
@@ -281,32 +434,49 @@ export function MapTool({ tab, onBackend }: Props) {
   }, [playing, spread, spreadParams.horizonHours]);
 
   /**
-   * Toma el viento, la vegetación y la pendiente del día seleccionado.
-   * Son las mismas variables de Fase 1 que la arquitectura v1.2 §12.1 manda
-   * reutilizar en la proyección de Fase 2.
+   * Lleva a la simulación el viento del día y los factores del árbol de
+   * decisión, que es lo que la arquitectura v1.2 §12.1 manda reutilizar en
+   * Fase 2 en vez de pedir variables nuevas.
    */
   const applyEnvToSpread = useCallback(() => {
-    if (!env) return;
-    setSpreadParams((p) => ({
-      ...p,
-      windSpeedMs: dayRow?.wind_speed_10m_ms ?? env.wind_speed_10m_ms ?? p.windSpeedMs,
-      windDirDeg: dayRow?.wind_dir_deg ?? env.wind_dir_deg ?? p.windDirDeg,
-      vegetationPct: env.vegetation_area_pct ?? p.vegetationPct,
-      slopeMeanDeg: env.slope_mean_deg ?? p.slopeMeanDeg,
-      fuelMoisturePct: Math.max(
-        3,
-        Math.min(28, Math.round((dayRow?.relative_humidity_2m_pct ?? env.relative_humidity_2m_pct ?? 50) * 0.28))
-      ),
-    }));
+    const factors = summary?.environmental_conditions.factors ?? [];
+    const num = (name: string): number | null => {
+      const f = factors.find((x) => x.variable === name);
+      return typeof f?.value === "number" ? f.value : null;
+    };
+
+    setSpreadParams((p) => {
+      const veg = num("vegetation_area_pct");
+      const slopePct = num("slope_pct");
+      const precip = num("precip_30d_mm");
+      return {
+        ...p,
+        windSpeedMs: dayRow?.wind_speed_10m_ms ?? p.windSpeedMs,
+        windDirDeg: dayRow?.wind_dir_deg ?? p.windDirDeg,
+        vegetationPct: veg ?? p.vegetationPct,
+        // El árbol informa pendiente en porcentaje; la simulación la usa en
+        // grados.
+        slopeMeanDeg: slopePct !== null ? Math.round((Math.atan(slopePct / 100) * 180) / Math.PI) : p.slopeMeanDeg,
+        // Sin humedad de combustible medida, se aproxima con la lluvia de los
+        // 30 días previos y se acota al rango útil del modelo.
+        fuelMoisturePct:
+          precip !== null ? Math.max(4, Math.min(28, Math.round(4 + precip * 0.18))) : p.fuelMoisturePct,
+      };
+    });
     setEnvApplied(true);
-  }, [env, dayRow]);
+  }, [summary, dayRow]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
   const rightItems = tab === "calendario" ? ANALYSIS_ITEMS : SPREAD_ITEMS;
 
   const leftItems = LEFT_ITEMS.map((it) =>
-    it.id === "sensores" ? { ...it, badge: String(sensors.length) } : it
+    it.id === "area" ? { ...it, badge: territoryType === "province" ? "Prov" : "Cuen" } : it
   );
+
+  const nominalHigh = hotspots.filter((f) => {
+    const c = f.properties.confidence;
+    return typeof c === "number" ? c >= 8 : c !== "low";
+  }).length;
 
   return (
     <>
@@ -335,14 +505,19 @@ export function MapTool({ tab, onBackend }: Props) {
               onGranularity={setGranularity}
               metadata={metadata}
               daily={daily}
-              territoryId={ring ? "aoi" : "peru"}
-              sensors={sensors}
-              onSensors={setSensors}
-              calendarSensor={calendarSensor}
-              includeLow={includeLow}
-              onIncludeLow={setIncludeLow}
+              territoryType={territoryType}
+              onTerritoryType={setTerritoryType}
+              territoryId={territoryId}
+              onTerritoryId={setTerritoryId}
+              territories={territories}
+              sensor={sensor}
+              onSensor={setSensor}
+              metric={metric}
+              onMetric={setMetric}
               showHotspots={showHotspots}
               onShowHotspots={setShowHotspots}
+              showChoropleth={showChoropleth}
+              onShowChoropleth={setShowChoropleth}
               showCalendar={showCalendar}
               onShowCalendar={setShowCalendar}
               baseLayer={baseLayer}
@@ -352,7 +527,8 @@ export function MapTool({ tab, onBackend }: Props) {
               hotspots={hotspots}
               calendar={calendar}
               origin={origin}
-              countsBySensor={countsBySensor}
+              csvHref={csvHref}
+              monthSpan={monthSpan}
             />
           )}
         </div>
@@ -367,6 +543,12 @@ export function MapTool({ tab, onBackend }: Props) {
             onIgnitionChange={setIgnition}
             hotspots={hotspots}
             showHotspots={showHotspots}
+            territories={territories}
+            choropleth={showChoropleth ? choropleth : []}
+            metric={metric}
+            metricUnit={metricUnit}
+            selectedId={territoryId}
+            onSelectTerritory={setTerritoryId}
             spread={visibleSpread}
             spreadTime={spreadTime}
             spreadHorizon={spreadParams.horizonHours}
@@ -380,8 +562,8 @@ export function MapTool({ tab, onBackend }: Props) {
           {showCalendar && (
             <CalendarStrip
               calendar={calendar}
-              sensor={calendarSensor}
-              onSensor={setCalendarSensor}
+              sensor={sensor}
+              onSensor={setSensor}
               year={year}
               month={month}
               onPick={(y, m) => {
@@ -389,7 +571,7 @@ export function MapTool({ tab, onBackend }: Props) {
                 setMonth(m);
               }}
               daily={daily}
-              areaLabel={areaLabel}
+              areaLabel={territoryName}
               onHide={() => setShowCalendar(false)}
               selectedDate={dateIso}
               onPickDay={(d) => {
@@ -406,13 +588,13 @@ export function MapTool({ tab, onBackend }: Props) {
               section={rightOpen}
               onClose={() => setRightOpen(null)}
               cell={cell}
+              summary={summary}
               comparison={comparison}
-              susceptibility={susceptibility}
-              env={env}
               dayRow={dayRow}
               dateIso={dateIso}
-              areaLabel={areaLabel}
+              areaLabel={territoryName}
               periodLabel={periodLabel}
+              metadata={metadata}
             />
           )}
           {rightOpen && tab === "simulacion" && (
@@ -439,6 +621,8 @@ export function MapTool({ tab, onBackend }: Props) {
               playing={playing}
               envApplied={envApplied}
               onApplyEnv={applyEnvToSpread}
+              hasEnv={Boolean(summary)}
+              center={territoryCenter}
             />
           )}
         </div>
@@ -452,14 +636,22 @@ export function MapTool({ tab, onBackend }: Props) {
           <b>{granularity === "day" ? "día" : "mes"}</b>{" "}
           {granularity === "day" ? dateIso : periodLabel}
         </span>
-        <span><b>área</b> {areaLabel}</span>
-        <span><b>focos</b> {hotspots.length.toLocaleString("es-PE")}</span>
-        <span><b>sensores</b> {sensors.length}/3</span>
+        <span>
+          <b>{territoryType === "province" ? "provincia" : "cuenca"}</b> {territoryName}
+        </span>
+        <span><b>focos 8–9</b> {nominalHigh.toLocaleString("es-PE")}</span>
+        <span><b>sensor</b> {sensor}</span>
         <span className="status__spacer" />
-        {origin === "fixture" && (
-          <span className="chip chip--warn">Datos de muestra · no son observaciones reales</span>
+        {unavailable && <span className="chip chip--warn">{unavailable}</span>}
+        {origin === "fixture" ? (
+          <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
+        ) : (
+          <span className="chip chip--term">Indicadores desde /api/v1</span>
         )}
-        <span className="status__src">MODIS MOD14A1 · MYD14A1 · VIIRS VNP14A1</span>
+        {origin === "api" && hotspotsOrigin === "fixture" && (
+          <span className="chip chip--warn">Focos de muestra · el backend no publica /hotspots</span>
+        )}
+        <span className="status__src">{span.from === span.to ? span.from : `${span.from} → ${span.to}`}</span>
       </footer>
     </>
   );

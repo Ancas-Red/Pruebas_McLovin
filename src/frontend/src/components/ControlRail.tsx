@@ -1,11 +1,27 @@
 import { useState } from "react";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
-import type { DayPoint, Hotspot, Metadata, MonthCell, Sensor } from "../api/types";
-import { SENSORS, SENSOR_META } from "../api/types";
+import type {
+  DailyRow,
+  HotspotFeature,
+  Metadata,
+  MetricId,
+  Sensor,
+  TerritoryCollection,
+  TerritoryType,
+} from "../api/types";
+import {
+  ACTIVITY_METRICS,
+  ENV_METRICS,
+  METRIC_LABELS,
+  SENSORS,
+  SENSOR_LABELS,
+  TERRITORY_LABELS,
+} from "../api/types";
 import { FIXTURE_FIRST_YEAR, FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
+import type { MonthCell } from "../lib/calendar";
 import { calendarCsv, dailyCsv, download, hotspotsCsv, ringGeoJson } from "../lib/csv";
-import { exportCsvUrl, getBackendState, monthRange } from "../api/client";
+import { getBackendState, isDateAvailable, monthRange } from "../api/client";
 import { insidePeru, ringAreaKm2, type LatLon } from "../lib/geo";
 
 const MONTHS = [
@@ -15,8 +31,8 @@ const MONTHS = [
 
 export const LEFT_ITEMS: DockItem[] = [
   { id: "periodo", label: "Período", icon: "calendar" },
-  { id: "sensores", label: "Sensores", icon: "satellite" },
-  { id: "area", label: "Área de interés", icon: "polygon" },
+  { id: "sensores", label: "Sensor", icon: "satellite" },
+  { id: "area", label: "Territorio", icon: "polygon" },
   { id: "capas", label: "Capas del mapa", icon: "layers" },
   { id: "descargas", label: "Descargas", icon: "download" },
 ];
@@ -33,25 +49,41 @@ interface Props {
   granularity: "day" | "month";
   onGranularity: (g: "day" | "month") => void;
   metadata: Metadata | null;
-  daily: DayPoint[];
+  daily: DailyRow[];
+
+  /** Territorio: la clave de toda consulta del contrato. */
+  territoryType: TerritoryType;
+  onTerritoryType: (t: TerritoryType) => void;
   territoryId: string;
-  sensors: Sensor[];
-  onSensors: (s: Sensor[]) => void;
-  calendarSensor: Sensor;
-  includeLow: boolean;
-  onIncludeLow: (v: boolean) => void;
+  onTerritoryId: (id: string) => void;
+  territories: TerritoryCollection | null;
+
+  /** Un sensor por consulta: los conteos no se suman entre sensores. */
+  sensor: Sensor;
+  onSensor: (s: Sensor) => void;
+
+  /** Qué métrica pinta la coropleta. */
+  metric: MetricId;
+  onMetric: (m: MetricId) => void;
+
   showHotspots: boolean;
   onShowHotspots: (v: boolean) => void;
+  showChoropleth: boolean;
+  onShowChoropleth: (v: boolean) => void;
   showCalendar: boolean;
   onShowCalendar: (v: boolean) => void;
   baseLayer: "dark" | "relief" | "satellite";
   onBaseLayer: (v: "dark" | "relief" | "satellite") => void;
+
+  /** Fase 2: recorte opcional para la simulación. */
   ring: LatLon[] | null;
   onRing: (r: LatLon[] | null) => void;
-  hotspots: Hotspot[];
+
+  hotspots: HotspotFeature[];
   calendar: MonthCell[];
   origin: string;
-  countsBySensor: Record<string, number>;
+  csvHref: string | null;
+  monthSpan: { from: string; to: string };
 }
 
 export function ControlRail(p: Props) {
@@ -64,6 +96,9 @@ export function ControlRail(p: Props) {
   const years: number[] = [];
   for (let y = FIXTURE_LAST_YEAR; y >= FIXTURE_FIRST_YEAR; y--) years.push(y);
   const monthDisabled = (m: number) => p.year === FIXTURE_LAST_YEAR && m > FIXTURE_LAST_MONTH;
+
+  const features = p.territories?.features ?? [];
+  const stamp = `${p.year}${String(p.month).padStart(2, "0")}`;
 
   function applyCoords() {
     const la = Number(lat);
@@ -87,14 +122,6 @@ export function ControlRail(p: Props) {
       [la - dLat, lo - dLon],
     ]);
   }
-
-  function toggleSensor(s: Sensor) {
-    const has = p.sensors.includes(s);
-    if (has && p.sensors.length === 1) return; // siempre queda uno activo
-    p.onSensors(has ? p.sensors.filter((x) => x !== s) : [...p.sensors, s]);
-  }
-
-  const stamp = `${p.year}${String(p.month).padStart(2, "0")}`;
 
   switch (p.section) {
     case "periodo":
@@ -146,6 +173,13 @@ export function ControlRail(p: Props) {
             </div>
           </div>
 
+          {p.metadata && !isDateAvailable(p.dateIso, p.sensor, p.metadata) && (
+            <div className="note note--warn">
+              {SENSOR_LABELS[p.sensor].long} no publica datos del {p.dateIso}. La API responde
+              <code> PERIOD_NOT_AVAILABLE</code> y no se rellena con ceros.
+            </div>
+          )}
+
           <div className="field">
             <span className="field__label">Qué pinta el mapa</span>
             <div className="btn-row">
@@ -175,59 +209,103 @@ export function ControlRail(p: Props) {
 
           <p className="mono-sm">
             La API sirve en resolución diaria; el mes solo aporta contexto y anomalía. Las fechas
-            disponibles las publica el backend en <code>metadata.json</code>
-            {p.metadata ? (
-              <>
-                {" "}
-                (línea base mínima: {p.metadata.min_baseline_years} años).
-              </>
-            ) : (
-              "."
-            )}
+            disponibles las publica el backend en <code>metadata</code>
+            {p.metadata?.parameters?.min_baseline_years
+              ? ` (línea base mínima: ${p.metadata.parameters.min_baseline_years} años).`
+              : "."}
           </p>
         </Drawer>
       );
 
     case "sensores":
       return (
-        <Drawer title="Sensores" note={`${p.sensors.length}/3`} onClose={p.onClose}>
+        <Drawer title="Sensor" note={SENSOR_LABELS[p.sensor].short} onClose={p.onClose}>
           {SENSORS.map((s) => {
-            const on = p.sensors.includes(s);
-            const meta = SENSOR_META[s];
+            const on = p.sensor === s;
+            const meta = SENSOR_LABELS[s];
+            const avail = p.metadata ? isDateAvailable(p.dateIso, s, p.metadata) : true;
             return (
               <button
                 key={s}
                 className="toggle"
                 aria-pressed={on}
-                onClick={() => toggleSensor(s)}
-                title={`${meta.product} · desde ${meta.since}`}
+                onClick={() => p.onSensor(s)}
+                title={`${meta.product} · ${avail ? "publica" : "sin datos"} el ${p.dateIso}`}
               >
-                <i className="toggle__box" style={{ background: on ? meta.color : "transparent" }} />
-                <span>{meta.label}</span>
-                <span className="toggle__meta">
-                  {on ? (p.countsBySensor[s] ?? 0).toLocaleString("es-PE") : "—"}
-                </span>
+                <i className="toggle__box" style={{ background: on ? "var(--acid)" : "transparent" }} />
+                <span>{meta.long}</span>
+                <span className="toggle__meta">{avail ? meta.product : "sin datos"}</span>
               </button>
             );
           })}
           <hr className="hr" />
-          <button className="toggle" aria-pressed={p.includeLow} onClick={() => p.onIncludeLow(!p.includeLow)}>
-            <i className="toggle__box" style={{ background: p.includeLow ? "var(--acid)" : "transparent" }} />
-            <span>Incluir confianza baja</span>
-          </button>
           <p className="mono-sm">
-            El indicador principal usa clases 8–9. La clase 7 se guarda aparte, para análisis de
-            sensibilidad.
+            Una consulta de actividad es de <strong>un</strong> sensor: los conteos nunca se suman
+            entre MODIS Terra, MODIS Aqua y VIIRS, porque cambian la hora de sobrevuelo y el
+            instrumento. El contraste entre los tres se ve en «Comparación», que lo resuelve el
+            backend.
+          </p>
+          <p className="mono-sm">
+            El indicador principal usa las clases 8–9 (nominal y alta). La clase 7 se informa
+            aparte, nunca sumada.
           </p>
         </Drawer>
       );
 
     case "area":
       return (
-        <Drawer title="Área de interés" onClose={p.onClose}>
+        <Drawer
+          title="Territorio"
+          note={TERRITORY_LABELS[p.territoryType].one}
+          onClose={p.onClose}
+        >
+          <div className="field">
+            <span className="field__label">Tipo</span>
+            <div className="btn-row">
+              <button
+                className={`btn${p.territoryType === "province" ? " btn--on" : ""}`}
+                onClick={() => p.onTerritoryType("province")}
+              >
+                Provincias
+              </button>
+              <button
+                className={`btn${p.territoryType === "hydro_unit" ? " btn--on" : ""}`}
+                onClick={() => p.onTerritoryType("hydro_unit")}
+              >
+                Cuencas
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sel-terr">
+              {TERRITORY_LABELS[p.territoryType].one}{" "}
+              <span className="field__value">{features.length} disponibles</span>
+            </label>
+            <select
+              id="sel-terr"
+              value={p.territoryId}
+              onChange={(e) => p.onTerritoryId(e.target.value)}
+            >
+              {features.map((f) => (
+                <option key={f.properties.territory_id} value={f.properties.territory_id}>
+                  {f.properties.territory_name ?? f.properties.territory_id}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <p className="mono-sm">
+            Provincias y cuencas no se mezclan en un mismo ranking: son recortes distintos del
+            territorio y compararlos entre sí no significa nada. También se puede elegir haciendo
+            clic en el mapa.
+          </p>
+
+          <hr className="hr" />
+
           <p className="mono-sm" style={{ marginTop: 0 }}>
-            Dibuja un polígono en el mapa con las herramientas de arriba, o define un cuadro por
-            coordenadas.
+            <strong>Fase 2 (opcional).</strong> El recorte de abajo solo alimenta el recorrido
+            simulado; no cambia ninguna consulta de la Fase 1.
           </p>
           <div className="field">
             <label className="field__label">Latitud <span className="field__value">°S/N</span></label>
@@ -272,6 +350,36 @@ export function ControlRail(p: Props) {
               <option value="satellite">Satelital</option>
             </select>
           </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sel-metric">Métrica de la coropleta</label>
+            <select
+              id="sel-metric"
+              value={p.metric}
+              onChange={(e) => p.onMetric(e.target.value as MetricId)}
+            >
+              <optgroup label="Actividad (por sensor)">
+                {ACTIVITY_METRICS.map((m) => (
+                  <option key={m} value={m}>{METRIC_LABELS[m]}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Ambiental (sin sensor)">
+                {ENV_METRICS.map((m) => (
+                  <option key={m} value={m}>{METRIC_LABELS[m]}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Clasificación">
+                <option value="conditions_classification">
+                  {METRIC_LABELS.conditions_classification}
+                </option>
+              </optgroup>
+            </select>
+          </div>
+
+          <button className="toggle" aria-pressed={p.showChoropleth} onClick={() => p.onShowChoropleth(!p.showChoropleth)}>
+            <i className="toggle__box" style={{ background: p.showChoropleth ? "var(--acid)" : "transparent" }} />
+            <span>Coropleta por territorio</span>
+          </button>
           <button className="toggle" aria-pressed={p.showHotspots} onClick={() => p.onShowHotspots(!p.showHotspots)}>
             <i className="toggle__box" style={{ background: p.showHotspots ? "var(--acid)" : "transparent" }} />
             <span>Focos térmicos</span>
@@ -280,6 +388,11 @@ export function ControlRail(p: Props) {
             <i className="toggle__box" style={{ background: p.showCalendar ? "var(--acid)" : "transparent" }} />
             <span>Calendario</span>
           </button>
+
+          <p className="mono-sm">
+            Mapas base sin clave de API: OpenStreetMap con filtro oscuro, OpenTopoMap para relieve
+            e hidrografía, y Esri World Imagery para satelital.
+          </p>
         </Drawer>
       );
 
@@ -287,6 +400,27 @@ export function ControlRail(p: Props) {
       return (
         <Drawer title="Descargas" onClose={p.onClose}>
           <div className="btn-row" style={{ flexDirection: "column" }}>
+            {p.csvHref && getBackendState() === "online" && (
+              <a
+                className="btn btn--block btn--primary"
+                style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+                href={p.csvHref}
+              >
+                Serie diaria del backend (CSV)
+              </a>
+            )}
+            <button
+              className="btn btn--block"
+              disabled={p.daily.length === 0}
+              onClick={() =>
+                download(
+                  `mchanaq_diario_${p.dateIso.slice(0, 7)}_${p.sensor}.csv`,
+                  dailyCsv(p.daily, p.sensor, p.territoryId, p.territoryType, p.origin)
+                )
+              }
+            >
+              Serie diaria CSV ({p.daily.length} días)
+            </button>
             <button
               className="btn btn--block"
               disabled={p.hotspots.length === 0}
@@ -296,21 +430,9 @@ export function ControlRail(p: Props) {
             </button>
             <button
               className="btn btn--block"
-              disabled={p.daily.length === 0}
-              onClick={() =>
-                download(
-                  `mchanaq_diario_${p.dateIso.slice(0, 7)}_${p.calendarSensor}.csv`,
-                  dailyCsv(p.daily, p.calendarSensor, p.territoryId, "province", p.origin)
-                )
-              }
-            >
-              Serie diaria CSV ({p.daily.length} días)
-            </button>
-            <button
-              className="btn btn--block"
               disabled={p.calendar.length === 0}
               onClick={() =>
-                download(`mchanaq_calendario_${p.calendarSensor}.csv`, calendarCsv(p.calendar, p.calendarSensor, p.origin))
+                download(`mchanaq_calendario_${p.sensor}.csv`, calendarCsv(p.calendar, p.sensor, p.origin))
               }
             >
               Calendario CSV
@@ -323,29 +445,14 @@ export function ControlRail(p: Props) {
                 download(`mchanaq_area_${stamp}.geojson`, ringGeoJson(p.ring, ringAreaKm2(p.ring)), "application/geo+json")
               }
             >
-              Área GeoJSON
+              Área GeoJSON (Fase 2)
             </button>
           </div>
-          {getBackendState() === "online" && (
-            <a
-              className="btn btn--block"
-              style={{ marginTop: 6, display: "block", textAlign: "center", textDecoration: "none" }}
-              href={exportCsvUrl(
-                "province",
-                p.territoryId,
-                monthRange(p.year, p.month).from,
-                monthRange(p.year, p.month).to,
-                p.calendarSensor
-              )}
-            >
-              Exportar desde el backend
-            </a>
-          )}
           <p className="mono-sm" style={{ marginTop: 12 }}>
-            La serie diaria lleva las columnas de <code>environmental_daily.csv</code>:
-            <code>t_amb_c</code>, <code>t_suelo_c</code>, <code>wind_dir_deg</code> y{" "}
-            <code>elevation_m</code>. Cada archivo incluye <code>data_origin</code>, que indica si
-            la fila viene del backend o del juego de muestra.
+            El CSV del backend es la fuente a citar: trae <code>source_product</code> y{" "}
+            <code>processing_version</code>. Los valores desconocidos van como celda vacía, nunca
+            como <code>0</code>. Cada archivo generado aquí incluye <code>data_origin</code>, que
+            dice si la fila viene de la API o del juego de muestra.
           </p>
         </Drawer>
       );

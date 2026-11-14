@@ -1,155 +1,213 @@
-import type { DayPoint, Hotspot, MonthCell } from "../api/types";
+/**
+ * Exportaciones del lado del navegador.
+ *
+ * Cuando el backend responde, lo que se cita es su `export.csv`: ese archivo
+ * lleva `source_product` y `processing_version`, y es el que se puede
+ * reproducir. Lo de aquí sirve para trabajar con lo que hay en pantalla,
+ * incluso sin servicio, y por eso cada fila arrastra `data_origin`.
+ *
+ * Dos reglas que se respetan en todos los archivos:
+ *
+ *  - Un valor desconocido se escribe como **celda vacía**, nunca como `0`.
+ *  - Las columnas de la serie diaria van en el mismo orden que el
+ *    `export.csv` del contrato, para que los dos archivos sean comparables
+ *    columna a columna.
+ */
 
-function escapeCell(v: unknown): string {
-  const s = v === null || v === undefined ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+import type { DailyRow, HotspotFeature, Sensor, TerritoryType } from "../api/types";
+import type { MonthCell } from "./calendar";
 
-function toCsv(headers: string[], rows: unknown[][]): string {
-  return [headers.join(","), ...rows.map((r) => r.map(escapeCell).join(","))].join("\n");
-}
-
+/** Dispara la descarga de un texto como archivo. */
 export function download(filename: string, content: string, mime = "text/csv;charset=utf-8") {
-  const blob = new Blob(["﻿" + content], { type: mime });
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
-}
-
-const PRODUCTS: Record<string, string> = {
-  MODIS_TERRA: "MOD14A1.061",
-  MODIS_AQUA: "MYD14A1.061",
-  VIIRS_SNPP: "VNP14A1.002",
-};
-
-/** CSV de focos detectados en la búsqueda actual. */
-export function hotspotsCsv(points: Hotspot[], origin: string): string {
-  const header = [
-    "latitude",
-    "longitude",
-    "acq_date",
-    "acq_time_utc",
-    "sensor",
-    "source_product",
-    "frp_mw",
-    "confidence",
-    "data_origin",
-  ];
-  return toCsv(
-    header,
-    points.map((h) => [
-      h.lat,
-      h.lon,
-      h.date,
-      h.acq_time,
-      h.sensor,
-      PRODUCTS[h.sensor] ?? "",
-      h.frp,
-      h.confidence,
-      origin,
-    ])
-  );
+  a.remove();
+  // Se libera en el siguiente turno: revocarlo de inmediato cancela la
+  // descarga en algunos navegadores.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**
- * CSV de la serie diaria del territorio: actividad más contexto ambiental.
- * Reproduce las columnas de `environmental_daily.csv` y de
- * `GET /territories/{type}/{id}/export.csv` (arquitectura v1.2 §4.2), para que
- * el archivo que baja el usuario sin backend tenga la misma forma.
+ * Una celda CSV.
+ *
+ * `null` y `undefined` salen vacíos, que es lo que pide el contrato. Se
+ * entrecomilla solo cuando hace falta, y las comillas internas se duplican.
  */
+function cell(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCsv(header: string[], rows: unknown[][]): string {
+  return [header.join(","), ...rows.map((r) => r.map(cell).join(","))].join("\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Serie diaria                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mismo orden de columnas que `GET /territories/{type}/{id}/export.csv`
+ * (contrato §3.5), más `data_origin` al final para no confundir una fila de
+ * muestra con una observación.
+ */
+const DAILY_HEADER = [
+  "date",
+  "territory_type",
+  "territory_id",
+  "sensor",
+  "fire_pixels_low",
+  "fire_pixels_nominal_high",
+  "valid_land_pixels",
+  "expected_land_pixels_per_day",
+  "observation_coverage",
+  "activity_rate",
+  "t_amb_c",
+  "t_suelo_c",
+  "wind_dir_deg",
+  "wind_speed_10m_ms",
+  "elevation_m",
+  "dem_source",
+  "source_product",
+  "processing_version",
+  "data_origin",
+];
+
 export function dailyCsv(
-  rows: DayPoint[],
-  sensor: string,
+  rows: DailyRow[],
+  sensor: Sensor,
   territoryId: string,
-  territoryType: string,
+  territoryType: TerritoryType,
   origin: string
 ): string {
-  const header = [
-    "date",
-    "territory_type",
-    "territory_id",
-    "sensor",
-    "source_product",
-    "fire_pixels_nominal_high",
-    "fire_pixels_low",
-    "valid_land_pixels",
-    "expected_land_pixels_per_day",
-    "observation_coverage",
-    "t_amb_c",
-    "relative_humidity_2m_pct",
-    "t_suelo_c",
-    "lst_valid_pixel_pct",
-    "wind_dir_deg",
-    "wind_speed_10m_ms",
-    "elevation_m",
-    "dem_source",
-    "data_origin",
-  ];
   return toCsv(
-    header,
-    rows.map((d) => [
-      d.date,
-      territoryType,
-      territoryId,
-      sensor,
-      PRODUCTS[sensor] ?? "",
-      d.detections,
-      d.fire_pixels_low ?? "",
-      d.valid_land_pixels ?? "",
-      d.expected_land_pixels_per_day ?? "",
-      d.observation_coverage.toFixed(3),
-      d.t_amb_c ?? "",
-      d.relative_humidity_2m_pct ?? "",
-      // Vacío cuando hay más de 30 % de nubes: nunca cero.
-      d.t_suelo_c ?? "",
-      d.lst_valid_pixel_pct ?? "",
-      d.wind_dir_deg ?? "",
-      d.wind_speed_10m_ms ?? "",
-      d.elevation_m ?? "",
-      d.dem_source ?? "",
+    DAILY_HEADER,
+    rows.map((r) => [
+      r.date,
+      r.territory_type ?? territoryType,
+      r.territory_id ?? territoryId,
+      r.sensor ?? sensor,
+      r.fire_pixels_low,
+      r.fire_pixels_nominal_high,
+      r.valid_land_pixels,
+      r.expected_land_pixels_per_day,
+      r.observation_coverage,
+      r.activity_rate,
+      r.t_amb_c,
+      r.t_suelo_c,
+      r.wind_dir_deg,
+      r.wind_speed_10m_ms,
+      r.elevation_m,
+      r.dem_source,
+      r.source_product,
+      r.processing_version,
       origin,
     ])
   );
 }
 
-/** CSV del calendario mensual. */
-export function calendarCsv(cells: MonthCell[], sensor: string, origin: string): string {
-  const header = [
-    "period_id",
-    "sensor",
-    "detections_class_8_9",
-    "activity_rate",
-    "observation_coverage",
-    "active_days",
-    "max_consecutive_active_days",
-    "historical_anomaly_robust_z",
-    "baseline_years",
-    "data_origin",
-  ];
+/* -------------------------------------------------------------------------- */
+/* Focos                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export function hotspotsCsv(features: HotspotFeature[], origin: string): string {
   return toCsv(
-    header,
+    [
+      "date",
+      "sensor",
+      "territory_type",
+      "territory_id",
+      "latitude",
+      "longitude",
+      "confidence",
+      "frp_mw",
+      "data_origin",
+    ],
+    features.map((f) => {
+      // GeoJSON guarda [lon, lat]; en el CSV se escribe latitud primero,
+      // que es como se lee en cualquier hoja de cálculo.
+      const [lon, latitude] = f.geometry.coordinates;
+      return [
+        f.properties.date,
+        f.properties.sensor,
+        f.properties.territory_type,
+        f.properties.territory_id,
+        latitude,
+        lon,
+        f.properties.confidence,
+        f.properties.frp_mw,
+        origin,
+      ];
+    })
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Calendario                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `anomaly_status` viaja junto a la anomalía a propósito: una celda vacía
+ * puede significar «no estimable» o «historial insuficiente», y son cosas
+ * distintas a la hora de interpretar el calendario.
+ */
+export function calendarCsv(cells: MonthCell[], sensor: Sensor, origin: string): string {
+  return toCsv(
+    [
+      "period",
+      "year",
+      "month",
+      "sensor",
+      "fire_pixel_days_8_9",
+      "fire_pixel_days_7",
+      "activity_rate",
+      "observation_coverage",
+      "active_days",
+      "max_consecutive_active_days",
+      "unobserved_days",
+      "days_with_data",
+      "historical_anomaly",
+      "anomaly_status",
+      "baseline_years",
+      "data_origin",
+    ],
     cells.map((c) => [
-      `${c.year}-${String(c.month).padStart(2, "0")}`,
+      c.period,
+      c.year,
+      c.month,
       sensor,
       c.detections,
-      c.activity_rate === null ? "" : c.activity_rate.toExponential(4),
-      c.observation_coverage.toFixed(4),
+      c.detections_low,
+      c.activity_rate,
+      c.observation_coverage,
       c.active_days,
       c.max_consecutive_active_days,
-      c.historical_anomaly === null ? "" : c.historical_anomaly.toFixed(3),
+      c.unobserved_days,
+      c.days_with_data,
+      c.historical_anomaly,
+      c.anomaly_status,
       c.baseline_years,
       origin,
     ])
   );
 }
 
-/** GeoJSON del área de interés dibujada. */
+/* -------------------------------------------------------------------------- */
+/* Área de la Fase 2                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** El recorte dibujado, en GeoJSON. Solo alimenta el recorrido simulado. */
 export function ringGeoJson(ring: [number, number][], areaKm2: number): string {
+  const closed = [...ring];
+  const [a, b] = [closed[0], closed[closed.length - 1]];
+  if (a[0] !== b[0] || a[1] !== b[1]) closed.push(a);
+
   return JSON.stringify(
     {
       type: "FeatureCollection",
@@ -157,15 +215,13 @@ export function ringGeoJson(ring: [number, number][], areaKm2: number): string {
         {
           type: "Feature",
           properties: {
-            name: "Area de interes McHanaq",
+            name: "Área de interés (McHanaq)",
             area_km2: Math.round(areaKm2),
-            generated_at: new Date().toISOString(),
+            phase: "phase_2_optional",
+            note: "Recorte para el recorrido simulado. No es un límite administrativo.",
           },
-          geometry: {
-            type: "Polygon",
-            // GeoJSON es [lon, lat] y exige el anillo cerrado.
-            coordinates: [[...ring.map(([lat, lon]) => [lon, lat]), [ring[0][1], ring[0][0]]]],
-          },
+          // GeoJSON exige [lon, lat] y el anillo cerrado.
+          geometry: { type: "Polygon", coordinates: [closed.map(([lat, lon]) => [lon, lat])] },
         },
       ],
     },
