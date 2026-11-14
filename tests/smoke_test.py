@@ -224,3 +224,31 @@ def test_calendar_endpoint():
 
     r_404 = client.get("/api/v1/territories/province/NO_EXISTE/calendar?sensor=MODIS_TERRA")
     assert r_404.status_code == 404
+
+
+def test_root_probe_and_cors_normalization(monkeypatch):
+    r_root = client.get("/")
+    assert r_root.status_code == 200
+    assert r_root.json()["status"] == "ok"
+    assert r_root.json()["health"] == "/api/v1/health"
+
+    monkeypatch.setenv("MCHANAQ_CORS_ORIGINS", "https://mchanaq.pages.dev/, http://localhost:5173/")
+    monkeypatch.setenv("MCHANAQ_CORS_ORIGIN_REGEX", r"^https://([a-z0-9-]+\.)*pages\.dev$")
+    import importlib
+    reloaded = importlib.reload(main)
+    try:
+        assert reloaded.CORS_ORIGINS == ["https://mchanaq.pages.dev", "http://localhost:5173"]
+        local_client = TestClient(reloaded.app)
+        pre = local_client.options(
+            "/api/v1/health",
+            headers={
+                "Origin": "https://preview-123.mchanaq.pages.dev",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert pre.status_code == 200
+        assert pre.headers.get("access-control-allow-origin") == "https://preview-123.mchanaq.pages.dev"
+    finally:
+        monkeypatch.delenv("MCHANAQ_CORS_ORIGINS", raising=False)
+        monkeypatch.delenv("MCHANAQ_CORS_ORIGIN_REGEX", raising=False)
+        importlib.reload(main)

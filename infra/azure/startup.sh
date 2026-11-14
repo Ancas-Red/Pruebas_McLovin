@@ -7,6 +7,7 @@ set -euo pipefail
 
 export MCHANAQ_DATA_DIR="${MCHANAQ_DATA_DIR:-data/processed}"
 export PORT="${PORT:-8000}"
+export PYTHONPATH="${PYTHONPATH:-}:."
 
 # Sincronización opcional única al arranque si se configuró Azure Blob Storage y faltan archivos locales
 if [[ -n "${AZURE_BLOB_SAS_BASE_URL:-}" || ( -n "${AZURE_STORAGE_ACCOUNT:-}" && -n "${AZURE_STORAGE_CONTAINER:-}" ) ]]; then

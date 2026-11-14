@@ -6,8 +6,8 @@ Esta carpeta contiene la infraestructura mínima y sin costo para desplegar McHa
 
 * **Puente de datos (`Azure Blob Storage`, LRS):** almacena los CSVs intermedios respaldados desde `data/intermediate/` y los artefactos JSON/GeoJSON procesados (`data/processed/`).
   * *Nota sobre GEE:* Google Earth Engine solo exporta tablas CSV hacia Google Drive (`Export.table.toDrive`). Luego se descargan a `data/intermediate/`, se procesan localmente con `python -m src.analytics.run_pipeline` y los resultados de `data/processed/` se suben a Azure Blob Storage con `python -m src.analytics.azure_sync upload`.
-* **Backend API (`Azure App Service Plan F1` — Linux Python 3.11):** ejecuta `infra/azure/startup.sh` con `MCHANAQ_DATA_DIR=data/processed` en modo **solo lectura** (sin llamadas a GEE ni descargas por petición HTTP; opcionalmente descarga el snapshot de `data/processed/` una sola vez al arrancar si `AZURE_BLOB_SAS_BASE_URL` está configurado y los archivos faltan localmente).
-* **Frontend (`Azure Static Web Apps` — Free):** publica `src/frontend/dist` con `infra/azure/staticwebapp.config.json` (compatible con hash routing / SPA y cabeceras de seguridad).
+* **Backend API (`Azure App Service Plan F1` o `B1` con créditos — Linux Python 3.11):** ejecuta `infra/azure/startup.sh` con `MCHANAQ_DATA_DIR=data/processed` en modo **solo lectura** (sin llamadas a GEE ni descargas por petición HTTP; opcionalmente descarga el snapshot de `data/processed/` una sola vez al arrancar si `AZURE_BLOB_SAS_BASE_URL` está configurado y los archivos faltan localmente). El archivo raíz `requirements.txt` permite que Oryx instale `fastapi` y `uvicorn` automáticamente.
+* **Frontend (`Cloudflare Pages` — o `Azure Static Web Apps` Free):** publica `src/frontend/dist` compilado con `VITE_API_BASE` apuntando a `https://<backend>.azurewebsites.net/api/v1` (el cliente acepta también `VITE_API_BASE_URL` y normaliza `/api/v1` automáticamente). Incluye `src/frontend/public/_headers` para Cloudflare Pages y `infra/azure/staticwebapp.config.json` como alternativa en Azure SWA.
 
 ## Paso a paso con Azure CLI (`az`)
 
@@ -73,25 +73,32 @@ az webapp config appsettings set \
   --resource-group "$RG" \
   --settings \
     MCHANAQ_DATA_DIR="data/processed" \
-    MCHANAQ_CORS_ORIGINS="https://${SWA_NAME}.azurestaticapps.net" \
+    MCHANAQ_CORS_ORIGINS="https://<tu-proyecto>.pages.dev,https://${SWA_NAME}.azurestaticapps.net,http://localhost:5173" \
+    MCHANAQ_CORS_ORIGIN_REGEX="^https://([a-z0-9-]+\\.)*<tu-proyecto>\\.pages\\.dev$" \
+    SCM_DO_BUILD_DURING_DEPLOYMENT=true \
     AZURE_BLOB_SAS_BASE_URL="https://${STORAGE_ACCT}.blob.core.windows.net/processed?<SAS_TOKEN_RO>"
 ```
 
-Desplegar el código del repositorio (asegurando instalar `src/backend/requirements.txt` durante el build de Oryx):
+Desplegar el código del repositorio (Azure Oryx instala automáticamente `requirements.txt` de la raíz del repo):
 
 ```bash
-az webapp config appsettings set \
-  --name "$BACKEND_APP" \
-  --resource-group "$RG" \
-  --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true
-
 az webapp up \
   --name "$BACKEND_APP" \
   --resource-group "$RG" \
   --runtime "PYTHON:3.11"
 ```
 
-### 4. Frontend en Azure Static Web Apps (`Free`)
+### 4. Frontend en Cloudflare Pages (recomendado / equipo)
+
+En Cloudflare Pages (`Workers & Pages -> Create -> Pages -> Connect to Git`):
+* **Root directory:** `src/frontend`
+* **Build command:** `npm run build`
+* **Build output directory:** `dist`
+* **Environment variables (Production & Preview):**
+  * `VITE_API_BASE` = `https://<backend-app>.azurewebsites.net/api/v1`
+  * *(opcional)* `NODE_VERSION` = `20`
+
+### 5. Alternativa Frontend en Azure Static Web Apps (`Free`)
 
 ```bash
 # Construir el frontend con la URL del backend en Azure:

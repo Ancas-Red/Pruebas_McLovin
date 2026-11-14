@@ -38,12 +38,25 @@ import { ACTIVITY_METRICS, SCHEMA_VERSION, SENSORS } from "./types";
 /* -------------------------------------------------------------------------- */
 
 /**
- * Base de la API. Se fija con `VITE_API_BASE` al compilar (en Render apunta
- * al servicio del backend). En desarrollo, uvicorn en el puerto 8000.
+ * Resuelve la URL base de la API aceptando `VITE_API_BASE` o `VITE_API_BASE_URL`.
+ * Normaliza barras finales y añade `/api/v1` si se configuró solo el dominio raíz
+ * (por ejemplo `https://mchanaq-api.azurewebsites.net` desde Cloudflare Pages).
  */
-export const API_BASE: string =
-  (import.meta.env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, "") ||
-  "http://localhost:8000/api/v1";
+export function resolveApiBase(raw?: string): string {
+  const cleaned = (raw ?? "").trim().replace(/\/+$/, "");
+  if (!cleaned) return "http://localhost:8000/api/v1";
+  return cleaned.endsWith("/api/v1") ? cleaned : `${cleaned}/api/v1`;
+}
+
+/**
+ * Base de la API. En Cloudflare Pages se configura al compilar mediante
+ * `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando al App Service de Azure.
+ * En desarrollo apunta a uvicorn local en el puerto 8000.
+ */
+export const API_BASE: string = resolveApiBase(
+  (import.meta.env?.VITE_API_BASE as string | undefined) ||
+    (import.meta.env?.VITE_API_BASE_URL as string | undefined)
+);
 
 /** Cuánto se espera a la API antes de darla por caída. */
 const TIMEOUT_MS = 8000;

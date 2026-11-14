@@ -18,7 +18,12 @@ DATA = Path(os.getenv("MCHANAQ_DATA_DIR", ROOT / "data" / "processed"))
 if not DATA.is_absolute():
     DATA = ROOT / DATA
 NO_CACHE = os.getenv("MCHANAQ_NO_CACHE", "0") == "1"
-CORS_ORIGINS = [o.strip() for o in os.getenv("MCHANAQ_CORS_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+CORS_ORIGINS = [
+    o.strip().rstrip("/")
+    for o in os.getenv("MCHANAQ_CORS_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+CORS_ORIGIN_REGEX = os.getenv("MCHANAQ_CORS_ORIGIN_REGEX", "").strip() or None
 
 TYPES = {"province", "hydro_unit"}
 SENSORS = {"MODIS_TERRA", "MODIS_AQUA", "VIIRS_SNPP"}
@@ -77,7 +82,8 @@ app = FastAPI(title="McHanaq API", version="1.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["GET"],
+    allow_origin_regex=CORS_ORIGIN_REGEX,
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -359,6 +365,16 @@ def find_territory(t_type: str, t_id: str) -> dict:
 
 def pick(items: list[dict], **keys) -> dict | None:
     return next((i for i in items if all(str(i.get(k)) == str(v) for k, v in keys.items())), None)
+
+
+@app.get("/")
+def root_probe():
+    """Sonda liviana en '/' para warm-up / health checks por defecto en Azure App Service."""
+    return {
+        "service": "McHanaq API",
+        "status": "ok",
+        "health": "/api/v1/health",
+    }
 
 
 @app.get("/api/v1/health")
