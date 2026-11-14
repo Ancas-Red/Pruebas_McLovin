@@ -6,7 +6,9 @@
 
 ---
 
-## 1. Idea central
+## 1. Idea central — Fase 1 (MVP actual)
+
+Todo lo descrito en las secciones 1 a 11 corresponde a la **Fase 1 (MVP)**, enfocada en observación histórica, variables diarias y susceptibilidad contextual. *(La extensión opcional para predecir y visualizar propagación del fuego se define aparte en la **Sección 12 — Fase 2 opcional** para no bloquear el MVP.)*
 
 Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de conflicto** y respetar las decisiones metodológicas del documento técnico v1.7:
 
@@ -408,3 +410,57 @@ Criterio de listo para esta capa:
 1. Dejar el backend corriendo con `MCHANAQ_DATA_DIR` apuntando a una copia de `data/processed/` ya verificada, sin conexión a nada externo (es solo lectura local).
 2. Si el backend no arranca, tener capturas reales de la aplicación y los fixtures etiquetados como datos de muestra (la guía de demo de Jean lo prevé).
 3. Los fixtures nunca se presentan como resultados reales.
+
+---
+
+## 12. Fase 2 (Opcional) — Predicción visual de propagación del fuego
+
+Esta fase es **estrictamente opcional y desacoplada de la Fase 1**: no bloquea ni modifica los endpoints de las secciones 1–11, sino que reutiliza las variables diarias ya preparadas en Fase 1 para estimar y proyectar visualmente hacia dónde podría propagarse un incendio activo.
+
+### 12.1. Entradas heredadas de Fase 1
+
+| Factor | Variables de Fase 1 reutilizadas | Rol en propagación |
+|---|---|---|
+| **Viento diario** | `wind_dir_deg`, `wind_speed_10m_ms` | Define el eje principal de avance y la elongación del frente (elipse/cono de propagación). |
+| **Topografía (DEM)** | `elevation_m`, pendiente y orientación (`aspect`) | Acelera el avance pendiente arriba y modula la velocidad según exposición. |
+| **Combustible y condiciones térmicas** | Cobertura (`MapBiomas`), `t_amb_c`, `t_suelo_c` (LST), humedad/precipitación | Modula la resistencia o favorabilidad del terreno circundante. |
+| **Focos de partida** | `hotspots.geojson` (o coordenadas elegidas en el mapa) | Puntos de ignición inicial para proyectar el avance en `+6h`, `+12h`, `+24h`. |
+
+### 12.2. Contrato de API opcional (Fase 2)
+
+Se habilita solo si existe el módulo de propagación (`analytics/spread_model.py` o resultados precalculados en `data/processed/spread_forecasts.json`):
+
+| Ruta | Para qué sirve |
+|---|---|
+| `GET /api/v1/territories/{type}/{id}/spread-forecast?date=YYYY-MM-DD&horizon_h=24` | Devuelve isócronas precomputadas (`+6h`, `+12h`, `+24h`) y vectores de avance para los focos del día en ese territorio. |
+| `POST /api/v1/spread-simulate` *(opcional interactivo)* | Recibe `{ "lat": number, "lon": number, "date": "YYYY-MM-DD", "horizon_h": 24 }` y devuelve la envolvente estimada desde ese punto usando el viento y DEM del día. |
+
+**Forma de respuesta esperada (GeoJSON):**
+
+```json
+{
+  "schema_version": "1.0",
+  "phase": "phase_2_optional",
+  "date": "2026-09-15",
+  "horizon_h": 24,
+  "dominant_wind": { "wind_dir_deg": 135.0, "wind_speed_10m_ms": 4.2 },
+  "isochrones": {
+    "type": "FeatureCollection",
+    "features": [
+      { "type": "Feature", "properties": { "step_h": 6, "risk_level": "high" }, "geometry": { "type": "Polygon", "coordinates": [] } },
+      { "type": "Feature", "properties": { "step_h": 12, "risk_level": "moderate" }, "geometry": { "type": "Polygon", "coordinates": [] } },
+      { "type": "Feature", "properties": { "step_h": 24, "risk_level": "low" }, "geometry": { "type": "Polygon", "coordinates": [] } }
+    ]
+  },
+  "model_metadata": {
+    "model_name": "heuristic_wind_slope_spread_v1",
+    "disclaimer": "Proyección exploratoria basada en viento diario, DEM y cobertura; no sustituye modelos físicos operativos en tiempo real."
+  }
+}
+```
+
+### 12.3. Visualización en el Frontend (Fase 2)
+
+1. **Capa opcional con interruptor (*toggle*):** «Proyección de propagación (Fase 2)» desactivada por defecto para mantener limpia la vista de Fase 1.
+2. **Isócronas en el mapa:** polígonos concéntricos/direccionales semitransparentes (`+6h`, `+12h`, `+24h`) con leyenda clara de horas estimadas.
+3. **Vector de viento y pendiente:** flecha direccional sobre el foco indicando `wind_dir_deg` y velocidad (`m/s`), junto con el aviso metodológico (`disclaimer`) visible en pantalla.
