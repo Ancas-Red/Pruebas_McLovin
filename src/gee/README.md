@@ -14,3 +14,12 @@ Scripts base de Google Earth Engine para exportar las tablas diarias longitudina
    * **`elevation_m` + `dem_source`:** `NASA/NASADEM_HGT/001` (`elevation`) para 2000–2011 y `COPERNICUS/DEM/GLO30` (`DEM`) para 2012–2025.
 
 **Regla operativa:** ejecutar por bloques de **1–2 años** (`START_DATE` / `END_DATE`) para evitar límites de memoria/tiempo en GEE.
+
+## Piloto Ucayali y ventana común verificada en GEE
+
+* **Ventana multisensor común exacta:** `2012-01-19` a `2026-11-02` (último mes completo común: `2026-10`; ver `gee_verified_dates.json` y `check_common_dates.js`).
+* **Parámetros piloto Ucayali:** toda vegetación de `CobVeg_180615.shp` (`umbral_veg = 0.20`), `umbral_pend = 0.15` (15 %), buffer de agua superficial `150 m`, nubosidad `< 30 %` (`>= 0.70`), mínimo `5` años de línea base.
+* **Scripts Ucayali:**
+  * `prepare_ucayali_layers.py` $\rightarrow$ filtra INEI 2023 + ANA UH + `CobVeg_180615.shp` a Ucayali y genera `data/processed/territories.geojson`, `data/processed/ucayali_territories.geojson` y `data/processed/ucayali_districts_static.csv`.
+  * `ucayali_common_window_export.js` $\rightarrow$ exporta terreno estático (pendiente $\ge 15\%$), focos diarios (`MOD14A1`, `MYD14A1`, `VNP14A1`) y clima/LST diario (`ERA5-Land` + `MOD11A1`/`VNP21A1D`) para la ventana común.
+

@@ -190,6 +190,12 @@ def main() -> None:
         json.dumps(fc, ensure_ascii=False), encoding="utf-8"
     )
 
+    api_features = [f for f in features if f["properties"]["territory_type"] in {"province", "hydro_unit"}]
+    fc_api = {"type": "FeatureCollection", "data_origin": "processed", "features": api_features}
+    (OUT_PROCESSED / "territories.geojson").write_text(
+        json.dumps(fc_api, ensure_ascii=False), encoding="utf-8"
+    )
+
     print(f"Distritos Ucayali: {len(df_stats)} | Provincias: {len(uca_prov)} | UH ANA: {len(uca_uh)}")
     print(df_stats[["ubigeo", "distrito", "area_km2", "vegetation_fraction", "water_buffer_150m_fraction", "effective_veg_fraction"]].to_string(index=False))
 
