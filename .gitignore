@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+.vite/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Heavy intermediate GEE exports (ver docs/McHanaq_documento_tecnico_operativo_v1.7.md §8.3)
+data/intermediate/*
+!data/intermediate/.gitkeep
+
+# OS / Editors
+.DS_Store
+Thumbs.db
