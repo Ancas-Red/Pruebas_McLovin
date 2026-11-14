@@ -11,19 +11,30 @@ exploratoria de recorrido de fuego.
 
 ## Estructura
 
-```
+```text
 McHanaq/
 ├── docs/
-│   └── hamess/          # FUENTE VERDADERA: documentos que mandan sobre el código
-│       ├── documento-tecnico-operativo.md
-│       ├── arquitectura-frontend-backend.md
-│       └── README.md
-└── src/
-    ├── backend/         # Angelo + Tom — FastAPI de solo lectura
-    └── frontend/        # Sebastian — React + Vite + TypeScript + Leaflet
+│   └── harness/         # FUENTE DE VERDAD + ancla para agentes de IA
+│       ├── README.md                        ← empieza por aquí
+│       ├── documento-tecnico-operativo.md   (v1.7)
+│       ├── arquitectura-frontend-backend.md (v1.2)
+│       └── reto.txt
+├── src/
+│   ├── frontend/        # Sebastian — React + Vite + TypeScript + Leaflet
+│   ├── backend/         # Jhan (Fase B) / Tom (Fase A) — FastAPI de solo lectura
+│   ├── analytics/       # Tom — métricas, anomalías, árbol de reglas
+│   └── gee/             # Angelo — pipelines de Google Earth Engine
+├── contracts/           # contrato de API y esquemas JSON
+├── data/                # reference · fixtures · intermediate · processed
+├── tests/
+└── presentation/
 ```
 
-Si el código y `docs/hamess/` no coinciden, manda `docs/hamess/`.
+El código va bajo `src/`, con frontend y backend separados; la documentación bajo `docs/`.
+La rama `main` del remoto tiene esas cuatro carpetas de código en la raíz: la equivalencia
+está en `docs/harness/README.md`.
+
+Si el código y `docs/harness/` no coinciden, manda `docs/harness/`.
 
 ## Arrancar el frontend
 
@@ -73,6 +84,13 @@ Cada integrante deja su foto en `src/frontend/public/equipo/` con su nombre de a
 (`angelo.jpg`, `tom.jpg`, `jhan.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`). No hay que
 tocar código: si el archivo no está, la tarjeta muestra un monograma con las iniciales.
 Las instrucciones completas están en `src/frontend/public/equipo/README.md`.
+
+## Contrato con el backend
+
+La API es **diaria por defecto**: `date=YYYY-MM-DD` y rangos `from`/`to`; `period=YYYY-MM`
+solo aporta contexto y anomalía mensual. Cada día trae su contexto ambiental
+(`t_amb_c`, `t_suelo_c`, `relative_humidity_2m_pct`, `wind_dir_deg`, `wind_speed_10m_ms`,
+`elevation_m`, `dem_source`). Los detalles están en `docs/harness/`.
 
 ## Límites que la interfaz declara siempre
 
