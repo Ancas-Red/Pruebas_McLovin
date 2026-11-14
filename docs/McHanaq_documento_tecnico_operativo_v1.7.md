@@ -364,7 +364,7 @@ El contexto se agregará por territorio y período, conservando siempre la resol
 
 **C. Meteorología y condiciones térmicas (proceso diario)**
 
-- Calcular velocidad y dirección diaria del viento (`wind_speed_10m_ms`, `wind_dir_deg`) a partir de `u_component_of_wind_10m` y `v_component_of_wind_10m`: promediar `u` y `v` por día/territorio antes de calcular el ángulo `atan2(-u, -v) * 180 / π mod 360` (nunca promediar ángulos directamente).
+- Calcular velocidad y dirección diaria del viento (`wind_speed_10m_ms = sqrt(u² + v²)`, `wind_dir_deg = (atan2(-u, -v) * 180 / π + 360) % 360`) a partir de `u_component_of_wind_10m` y `v_component_of_wind_10m` de `ERA5-Land` (~11.1 km, continuo 2000–presente): promediar `u` y `v` por día/territorio antes de calcular el ángulo (convención meteorológica: desde dónde sopla, 0° = N, 90° = E, 180° = S, 270° = O; nunca promediar ángulos directamente). **NOAA ARL READY (`READYamet.php` / GDAS)** queda como fuente opcional de contraste puntual para eventos de la demo.
 - Incluir temperatura ambiente (`t_amb_c`, `temperature_2m_c` de ERA5-Land) y temperatura superficial del suelo (`t_suelo_c` de MODIS `MOD11A1`/`MYD11A1` y VIIRS `VNP21A1D`/`VNP21A1N` convertida a °C); si se usa temperatura y punto de rocío, estimar humedad relativa con una fórmula documentada.
 - Para precipitación, preferir `total_precipitation_hourly` (m por hora) y convertir a mm antes de sumar ventanas antecedentes. No sumar directamente la banda acumulada `total_precipitation` sin respetar su reinicio diario y convención de acumulación.
 - Calcular acumulados antecedentes (por ejemplo, 30 días) solo para períodos completos y publicados.
