@@ -47,6 +47,7 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
    * **`environmental_daily.csv`:** serie longitudinal **diaria** por `(date, territory_type, territory_id)` con las 4 variables extras (sección 2.2).
    * **`environmental_context.csv`:** tabla mensual por `(period_id, territory_type, territory_id)` alineada con v1.7 (MapBiomas anual, NDVI `MOD13A3`, `precip_30d_mm`, `soil_moisture_surface`, pendiente SRTM, más los agregados mensuales de las variables diarias).
    * **`gee_manifest.json`:** registra colecciones exactas, fechas reales disponibles en GEE, modelo DEM aplicado por época y fuente de `t_amb_c`.
+   * **Regla operativa GEE:** exportar `daily_activity.csv` y `environmental_daily.csv` por bloques de 1–2 años sobre el área piloto (`Export.table.toDrive`) para evitar timeouts o límites de cuota EECU en la serie 2000–presente.
 2. **Capa analítica longitudinal en Python (Tom → `analytics/` → `data/processed/`):**
    * Calcula `activity_rate`, `observation_coverage`, `active_days`, `max_consecutive_active_days` y la anomalía histórica robusta (`robust_z` con mediana y MAD por mes calendario) en `activity_summary.json`.
    * Conserva el detalle diario (actividad + `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) en `activity_daily.json`.

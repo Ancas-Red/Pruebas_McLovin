@@ -36,3 +36,14 @@ McHanaq/
 | `feature/api-backend` | Jhan | `backend/` |
 | `feature/frontend-dashboard` | Sebastian | `frontend/` |
 | `feature/product-qa-demo` | Jean Pierrer | `data/reference/`, `contracts/`, `data/fixtures/`, `docs/`, `tests/acceptance/`, `presentation/` |
+
+## Inicio rápido
+
+```bash
+git clone https://github.com/TomJordan1/McHanaq.git
+cd McHanaq
+git checkout <tu-rama>
+```
+
+* **Motor geoespacial:** Google Earth Engine (exportando `daily_activity.csv` y `environmental_daily.csv` por bloques de 1–2 años sobre el área piloto).
+* **Backend en modo fixtures:** `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000`
