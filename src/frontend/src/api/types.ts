@@ -296,6 +296,8 @@ export interface HotspotCollection {
 export interface DateRange {
   from: string;
   to: string;
+  start?: string;
+  end?: string;
 }
 
 export interface SensorMeta {
@@ -334,6 +336,8 @@ export interface Metadata {
   /** Ojo: es una **lista** de rangos por sensor, no un rango único. */
   available_date_ranges_by_sensor: Partial<Record<Sensor, DateRange[]>>;
   available_periods_by_sensor: Partial<Record<Sensor, string[]>>;
+  /** Lista explícita opcional de fechas diarias útiles (`YYYY-MM-DD`) por sensor. */
+  available_useful_dates_by_sensor?: Partial<Record<Sensor, string[]>>;
   common_environmental_dates: DateRange[];
   common_environmental_periods: string[];
   common_analysis_dates: DateRange[];

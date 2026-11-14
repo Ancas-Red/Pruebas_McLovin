@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Any
 
 SENSORS_ORDER = ("MODIS_TERRA", "MODIS_AQUA", "VIIRS_SNPP")
-MIN_COVERAGE_COMPARISON = 0.5
+MIN_COVERAGE_COMPARISON = 0.70
 ELEVATED_ROBUST_Z = 2.0
 METHOD_VERSION = "0.1.0"
 

@@ -525,6 +525,17 @@ export function MapStage(props: Props) {
 
   const areaKm2 = useMemo(() => (ring ? ringAreaKm2(ring) : 0), [ring]);
 
+  const fullExtentLabel = useMemo(() => {
+    const feats = territories?.features ?? [];
+    if (feats.length === 0) return "Territorios cargados";
+    const sources = feats.map((f) => f.properties.source ?? "");
+    if (sources.some((s) => /ucayali/i.test(s)) && sources.every((s) => !s || /ucayali/i.test(s))) {
+      return "Ucayali";
+    }
+    if (feats.length >= 150) return "Perú completo";
+    return "Territorios cargados";
+  }, [territories]);
+
   const hint =
     mode === "polygon"
       ? draft.length === 0
@@ -619,7 +630,7 @@ export function MapStage(props: Props) {
           </div>
           <div className="hud__row">
             <span>Area</span>
-            <b>{ring ? `${Math.round(areaKm2).toLocaleString("es-PE")} km²` : "Perú completo"}</b>
+            <b>{ring ? `${Math.round(areaKm2).toLocaleString("es-PE")} km²` : fullExtentLabel}</b>
           </div>
           <div className="hud__row">
             <span>Focos en vista</span>

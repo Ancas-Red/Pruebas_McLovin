@@ -73,6 +73,21 @@ npm run dev          # http://localhost:5173 (proxy /api -> localhost:8000)
 
 Mientras el backend no responda, el frontend cae en sus fixtures locales y lo indica de forma visible en la interfaz.
 
+## Infraestructura oficial (Microsoft Azure Free Tier)
+
+* **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python)** en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`. Nunca consulta GEE ni descarga artefactos externos por petición HTTP de usuario.
+* **Frontend (`src/frontend/`):** **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en workflows de `infra/azure/`) apuntando a la URL del Azure App Service.
+* **Puente de datos y almacenamiento:** **Azure Blob Storage (Free Tier / Azure Storage)** resguarda los paquetes de `data/intermediate/` y `data/processed/` para Ucayali y se sincroniza offline o en tiempo de build/deploy hacia `data/processed/` (las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS y luego se descargan localmente y se espejan en Azure Blob Storage). `render.yaml` se mantiene únicamente como referencia *legacy*/opcional.
+
+## Ventana común verificada (Ucayali) y días útiles
+
+* **Ventana multisensor común verificada en GEE (`src/gee/gee_verified_dates.json`):** **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**), donde coinciden `MODIS_TERRA` (`MOD14A1`), `MODIS_AQUA` (`MYD14A1`), `VIIRS_SNPP` (`VNP14A1`) y `ERA5-Land` (~14.8 años > 5 años de línea base mínima), utilizando `COPERNICUS_DEM_GLO30`. Se retira la expectativa operativa de exportar bloques pre-2012 (`2000–2011`, nota *legacy* fuera de alcance).
+* **Tres opciones oficiales de exportación GEE (Ucayali):**
+  1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
+  2. **Línea base mínima (5 años):** `2018-01-01` a `2026-11-03`
+  3. **Ventana común completa en bloques de 2 años:** `2012-01-19`..`2014-01-01`, `2014-01-01`..`2016-01-01`, `2016-01-01`..`2018-01-01`, `2018-01-01`..`2020-01-01`, `2020-01-01`..`2022-01-01`, `2022-01-01`..`2024-01-01`, `2024-01-01`..`2026-11-03`.
+* **Política de días útiles:** `available_date_ranges_by_sensor` y `available_periods_by_sensor` en `/api/v1/metadata` reflejan **únicamente días útiles registrados** (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70`, `activity_rate` no nulo); el frontend habilita solo años, meses y días con datos útiles analizables.
+
 ## Qué hace la aplicación
 
 * **Inicio (`#/`):** portada por bloques sobre globo 3D (problema, solución, flujo de datos, equipo y alcance).
@@ -92,5 +107,5 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 ## Créditos de datos
 
 * Focos activos: MODIS `MOD14A1.061` y `MYD14A1.061`, VIIRS `VNP14A1.002` (NASA LP DAAC).
-* Contexto ambiental: ERA5-Land (Copernicus/ECMWF), NASADEM / Copernicus DEM GLO-30, MapBiomas Perú.
+* Contexto ambiental: ERA5-Land (Copernicus/ECMWF), Copernicus DEM GLO-30 (`COPERNICUS_DEM_GLO30` para `2012–2026`), MapBiomas Perú / MINAM `CobVeg_180615.shp`.
 * Mapas base: OpenStreetMap, OpenTopoMap (CC-BY-SA), Esri World Imagery.

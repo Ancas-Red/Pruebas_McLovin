@@ -184,7 +184,7 @@ La diferenciación de McHanaq debe plantearse como **integración e interpretaci
 | Estado de vegetación | MODIS `MODIS/061/MOD13A3` (preferido para el MVP) | 1 km; mensual | NDVI/EVI alineados con el período mensual. Aplicar `DetailedQA` y factor de escala 0.0001. NDVI bajo no equivale automáticamente a vegetación seca. `MOD13Q1` (250 m; 16 días) queda como alternativa si se necesita más detalle espacial y se documenta cómo se asignan sus compuestos al mes. |
 | Temperatura del suelo (LST) | MODIS `MODIS/061/MOD11A1` / `MYD11A1` y VIIRS `NASA/VIIRS/002/VNP21A1D` / `VNP21A1N` | 1 km; diario | Temperatura superficial del suelo (`t_suelo_c` en °C) extraída directamente de MODIS y VIIRS, filtrada por banda `QC`. |
 | Meteorología, temperatura ambiente y humedad del suelo | ERA5-Land Hourly `ECMWF/ERA5_LAND/HOURLY` | Aproximadamente 11.1 km; horario (agregado diario) | Viento a 10 m (`u10`, `v10` para velocidad y dirección diaria `wind_dir_deg`), temperatura ambiente a 2 m (`t_amb_c`), punto de rocío, precipitación y humedad del suelo. Es reanálisis, no medición local a 1 km. |
-| Topografía (DEM por época) | SRTM `USGS/SRTMGL1_003` / NASADEM `NASA/NASADEM_HGT/001` (MODIS 2000–2011) y Copernicus DEM `COPERNICUS/DEM/GLO30` (VIIRS 2012–presente) | Aproximadamente 30 m | Altura (`elevation_m`, `dem_source`) según época del sensor, más derivación de pendiente y orientación; la pendiente es factor contextual, no predictor autónomo. |
+| Topografía (DEM) | Copernicus DEM `COPERNICUS/DEM/GLO30` (`COPERNICUS_DEM_GLO30`) para la ventana común `2012-01-19`–`2026-11-02` *(nota legacy fuera de alcance operativo: `USGS/SRTMGL1_003` / `NASA/NASADEM_HGT/001` aplicaba solo al tramo pre-2012)* | Aproximadamente 30 m | Altura (`elevation_m`, `dem_source`), más derivación de pendiente y orientación; la pendiente es factor contextual, no predictor autónomo. |
 | Áreas quemadas | MapBiomas Fuego, Colección 2 | 30 m; anual, 1990–2025 | Referencia reciente para revisión retrospectiva. La colección se lanzó el 10/11/2026; comprobar el acceso y la versión descargable. |
 | Límites provinciales | INEI / IDE | Capa vectorial; revisar metadatos y versión | Unidad administrativa para agregación y comunicación. |
 | Unidades hidrográficas | ANA / GeoIDEP, metodología Pfafstetter | Capa vectorial jerárquica | Unidad hidrográfica. Debe elegirse un solo nivel para comparaciones entre cuencas. |
@@ -228,23 +228,18 @@ La selección exacta del área piloto y el nivel Pfafstetter siguen siendo decis
 
 ### 6.4. Períodos
 
-Se manejarán dos horizontes:
+La ventana operativa verificada del piloto Ucayali se centra en la intersección multisensor común:
 
-- **Serie histórica MODIS:** Terra desde 2000 y Aqua desde 2002, según disponibilidad válida de producto.
-- **Comparación multisensor:** desde 2012, cuando comienza el producto VIIRS S-NPP VNP14A1.
+- **Ventana común multisensor verificada en GEE (`src/gee/gee_verified_dates.json`):** **`2012-01-19` a `2026-11-02`** (último mes completo común: **`2026-10`**), donde coinciden `MODIS_TERRA` (`MOD14A1`), `MODIS_AQUA` (`MYD14A1`), `VIIRS_SNPP` (`VNP14A1`) y `ERA5-Land` (~14.8 años > `min_baseline_years = 5`), con `COPERNICUS_DEM_GLO30`.
+- **Tramo pre-2012 (`2000–2011`):** retirado de las expectativas operativas de exportación (queda únicamente como nota *legacy* fuera del alcance actual para series MODIS sin VIIRS).
+- **Tres opciones oficiales de exportación por bloques (GEE Code Editor):**
+  1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
+  2. **Línea base mínima de 5 años:** `2018-01-01` a `2026-11-03`
+  3. **Ventana común completa en bloques de 2 años:** `2012-01-19`..`2014-01-01`, `2014-01-01`..`2016-01-01`, `2016-01-01`..`2018-01-01`, `2018-01-01`..`2020-01-01`, `2020-01-01`..`2022-01-01`, `2022-01-01`..`2024-01-01`, `2024-01-01`..`2026-11-03`.
 
-Las anomalías se calcularán para ventanas temporales equivalentes. Para simplificar y evitar combinaciones difíciles de reproducir durante el hackathon, el MVP utilizará **meses calendario completos**: septiembre de un año se compara con septiembre de años anteriores, no con meses completos diferentes ni con una ventana parcial.
+Las anomalías se calcularán para ventanas temporales equivalentes. Para simplificar y evitar combinaciones difíciles de reproducir durante el hackathon, el MVP utilizará **meses calendario completos**: cada mes de un año se compara con el mismo mes calendario de años anteriores del mismo sensor, no con meses diferentes ni con una ventana parcial.
 
-**Corte temporal común:** cada colección tiene su propio retraso. Al 13/11/2026, el catálogo consultado mostraba estos finales aproximados:
-
-| Fuente | Último registro que mostraba el catálogo consultado el 13/11/2026 |
-|---|---|
-| MOD14A1 / MYD14A1 | 08/11/2026 |
-| VNP14A1 | 11/10/2026 |
-| MOD13A3 | 01/10/2026 (confirmar a qué mes corresponde el compuesto disponible) |
-| ERA5-Land Hourly | 07/11/2026 |
-
-Estas fechas son una fotografía del catálogo y pueden cambiar o variar entre colecciones. **Septiembre de 2026 es el primer mes candidato para la demo con actividad multisensor y contexto ambiental**, sujeto a que Angelo confirme en GEE que los datos de todo el mes están efectivamente disponibles para el área piloto. Si una colección esencial presenta huecos o no cubre todo el mes, retroceder a agosto de 2026. No seleccionar el mes por la fecha más reciente de una sola fuente: se necesita un mes completo común. Para variables mensuales, comprobar también el período que representa cada imagen y no asumir que su `system:time_start` describe por sí solo toda la ventana.
+**Corte temporal común verificado:** tras validar las colecciones en GEE para Ucayali (`2012-01-19` a `2026-11-02`), el último mes completo común es **`2026-10`** (el registro histórico inicial del 13/11/2026 mostraba cierres escalonados por colección: `MOD14A1`/`MYD14A1` al `08/11/2026`, `VNP14A1` al `02/11/2026` en `NOAA/VIIRS/001`, `ERA5-Land` al `08/11/2026`). No seleccionar un mes por la fecha más reciente de una sola fuente: se necesita un mes completo común y únicamente días útiles analizables (`valid_land_pixels > 0`, `< 30 %` nubes / `observation_coverage >= 0.70`, `activity_rate` no nulo).
 
 ---
 
@@ -371,9 +366,9 @@ El contexto se agregará por territorio y período, conservando siempre la resol
 - Comparar con referencias estacionales locales, evitando umbrales absolutos únicos para todo Perú.
 - La fecha más reciente de ERA5-Land debe consultarse en el catálogo/GEE; la evaluación ambiental representa el período histórico procesado, no meteorología en tiempo real.
 
-**D. Topografía (DEM por época)**
+**D. Topografía (DEM)**
 
-- Extraer altura (`elevation_m`, `dem_source`) del modelo DEM correspondiente a la época del sensor: SRTM/NASADEM (época 2000) para el tramo MODIS (2000–2011) y Copernicus DEM GLO-30 (época 2011–2015) para el tramo VIIRS (2012–presente).
+- Extraer altura (`elevation_m`, `dem_source`) desde **Copernicus DEM GLO-30** (`COPERNICUS/DEM/GLO30`, identificador `COPERNICUS_DEM_GLO30`) en la ventana común verificada `2012-01-19`–`2026-11-02` *(nota legacy fuera de alcance operativo: `SRTM/NASADEM` solo aplicaría a tramos históricos pre-2012 `2000–2011`)*.
 - Derivar pendiente y orientación (aspect) desde el DEM.
 - Mostrar distribución de superficie por rangos de pendiente, no solo la pendiente media del polígono. Los rangos se fijan y documentan como parámetros; no se interpretan como umbrales universales de propagación.
 - Tratar pendiente y orientación como factores contextuales; el efecto depende de combustible y meteorología.
@@ -569,7 +564,7 @@ McHanaq/
 
 Cada responsable trabaja principalmente dentro de su carpeta. Los cambios en `contracts/` afectan a todos y deben revisarse con el equipo antes de fusionarse. Las capas oficiales pequeñas revisadas por Jean se guardan en `data/reference/`; Angelo las valida técnicamente y las incorpora al flujo GEE. Las exportaciones GEE (`daily_activity.csv` y `environmental_context.csv`) pasan por `data/intermediate/`; Tom las procesa y genera los archivos API-ready en `data/processed/`: `territories.geojson`, `activity_daily.json`, `activity_summary.json`, `conditions_assessment.json` y `metadata.json`. Jhan configura FastAPI para leer esa carpeta, no una ruta distinta dentro de `backend/`. La tabla CSV intermedia no debe ser consumida directamente por el frontend.
 
-**Cómo se comparten los datos entre computadoras:** GitHub contiene código, contratos, fixtures, metadatos y resultados compactos necesarios para la demo. Los archivos pesados o rásteres intermedios se comparten por una carpeta común de Drive u otro medio acordado, con nombre, fecha, versión y enlace registrados en `metadata.json`; no se suben a Git. Si un resultado procesado es pequeño y no tiene restricciones de redistribución, se puede versionar en `data/processed/` para que todos ejecuten exactamente la misma demo.
+**Cómo se comparten los datos entre computadoras y despliegue oficial (Microsoft Azure Free Tier):** GitHub contiene código, contratos, fixtures, metadatos y resultados compactos necesarios para la demo. Las tareas batch desde Google Earth Engine Code Editor exportan inicialmente a Google Drive o GCS; luego los archivos se descargan localmente a `data/intermediate/` y se almacenan/espejan junto con los paquetes de `data/processed/` en **Azure Blob Storage (Free Tier / Azure Storage)**, sincronizándose offline o en tiempo de build/deploy hacia `data/processed/` (nunca se suben exportaciones pesadas a Git). El despliegue oficial (`infra/azure/`) utiliza **Azure App Service (Plan Free F1, Linux Python)** para `src/backend/` (de solo lectura sobre `data/processed/` o `data/fixtures/`, con `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP) y **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` (`VITE_API_BASE` / `VITE_API_BASE_URL` apuntando al App Service; `render.yaml` queda únicamente como referencia *legacy*/opcional).
 
 ### 8.4. Archivos de intercambio
 
@@ -623,11 +618,11 @@ Para el contexto mensual (`environmental_context.csv`, una fila por territorio y
 
 `metadata.json` debe incluir:
 
-- `available_date_ranges_by_sensor`: rango diario `{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}` por sensor.
-- `available_periods_by_sensor`: meses completos procesados para cada sensor.
+- `available_date_ranges_by_sensor`: lista de rangos diarios `[{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}]` por sensor, reflejando **únicamente días útiles registrados** (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70`, `activity_rate` no nulo).
+- `available_periods_by_sensor`: meses completos con días útiles analizables procesados para cada sensor.
 - `common_environmental_periods`: meses para los que están disponibles los bloques ambientales obligatorios.
 - `common_analysis_periods`: intersección de los meses disponibles en los tres sensores y del contexto ambiental; se usa para comparaciones multisensor justas.
-- `min_baseline_years`: `5` (cubierto tanto por MODIS 2000–2025 como por VIIRS 2018–2025).
+- `min_baseline_years`: `5` (cubierto ampliamente por la ventana común verificada `2012-01-19`–`2026-11-02` de ~14.8 años para `MODIS_TERRA`, `MODIS_AQUA` y `VIIRS_SNPP`).
 
 Para una ficha de un sensor, el backend valida que el mes esté disponible para ese sensor y en `common_environmental_periods`. Para una comparación de los tres sensores, exige además que figure en `common_analysis_periods`. Solo se exponen meses preprocesados y con cobertura mínima definida por el equipo.
 
@@ -792,7 +787,7 @@ Los valores del ejemplo son marcadores de esquema, no resultados. `classificatio
 
 - Construir la interfaz React consumiendo exclusivamente `/api/v1`.
 - Usar los IDs territoriales para enlazar geometrías, indicadores y fichas.
-- Mostrar únicamente meses disponibles según `/metadata`.
+- Habilitar únicamente años, meses y días útiles analizables publicados en `/metadata` (`available_periods_by_sensor` y `available_date_ranges_by_sensor`, donde `valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70` y `activity_rate` no es `null`).
 - Implementar estados de carga, error, datos faltantes y cobertura insuficiente.
 - Mostrar claramente sensor, período, unidades y fuente.
 - Consultar `/sensor-comparison` para mostrar concordancia/discrepancia; no derivarla en React.
@@ -1394,3 +1389,13 @@ McHanaq debe priorizar una cadena de valor corta y comprobable: **observar → c
 - Se retiró la comparación multisensor de la lista de ampliaciones porque ya es parte esencial del MVP.
 - Se precisó que la respuesta comunitaria del foro sobre la demo no es una publicación oficial de GO Team y debe confirmarse con la guía 2026.
 - Se corrigió la numeración de la bibliografía.
+
+### Adenda operativa del piloto Ucayali (alineación con `src/analytics/` y `src/gee/`)
+
+Para el piloto operativo sobre **Ucayali** (`4` provincias INEI 2023 y `20` unidades hidrográficas ANA Pfafstetter nivel 4 en `data/processed/territories.geojson`), se fijaron los siguientes parámetros reproducibles y reglas de contexto sin alterar la arquitectura ni las limitaciones de Fase 1:
+
+1. **Definición de combustible vegetal (`CobVeg_180615.shp`):** en `src/gee/prepare_ucayali_layers.py` y `src/analytics/decision_rules.py`, la proporción de vegetación potencialmente combustible (`vegetation_area_pct`) integra toda cobertura vegetal del mapa de Cobertura Vegetal 2015 del MINAM (`CobVeg_180615.shp`), excluyendo cuerpos de agua (`"Río"`, `"Lagunas, lagos y cochas"`) y clases no combustibles (`"Area urbana"`, `"Area altoandina con escasa y sin vegetación"`, `"Glaciar"`). El umbral de combustible en el nodo `N1` queda fijado en `umbral_veg = 20%` (`DEFAULT_UMBRAL_VEG_PCT = 20.0`) y el umbral de pendiente elevada en `umbral_pend = 15%` (`DEFAULT_UMBRAL_PEND_PCT = 15.0`). Cuando está disponible `effective_vegetation_area_pct` (vegetación fuera del buffer hídrico), `N1` evalúa dicho valor efectivo.
+2. **Regla de atenuación por buffer de agua superficial de 150 m:** sobre las coberturas de agua superficial (`WATER_CLASSES`) se construye un buffer espacial de `150 m` (`DEFAULT_WATER_BUFFER_M = 150.0`). Si la cobertura del buffer hídrico (`water_buffer_150m_pct`) o del agua superficial (`water_area_pct`) alcanza al menos `5.0%` del territorio (`DEFAULT_WATER_BUFFER_ATTENUATION_PCT = 5.0` / `DEFAULT_WATER_HIGH_PCT = 5.0`), se registra el modificador `surface_water_buffer_150m` y, cuando el árbol `N0..N3` clasifica el territorio como `high`, atenúa la salida final a `moderate`, dejando trazabilidad explícita en `rules_triggered` (`"water_buffer_150m_attenuation"`) y `decision_path` (`"buffer_150m:attenuate"`).
+3. **Filtro diario de nubosidad, días útiles y ventanas temporales:** el pipeline analítico (`src/analytics/metrics.py`) exige cobertura diaria sin nubes `< 30%` (`observation_coverage >= 0.70` y `lst_valid_pixel_pct >= 70.0`), asignando `null` cuando no se cumple. La ventana multisensor común verificada en GEE (`src/gee/gee_verified_dates.json`) abarca exactamente del **`2012-01-19` al `2026-11-02`** (último mes completo común **`2026-10`**, ~14.8 años > `min_baseline_years = 5`), donde coinciden `MODIS_TERRA` (`MOD14A1`), `MODIS_AQUA` (`MYD14A1`), `VIIRS_SNPP` (`VNP14A1`) y `ERA5-Land`, utilizando `COPERNICUS_DEM_GLO30`. Se retiran las exportaciones pre-2012 (`2000–2011`, nota *legacy* fuera de alcance) y se fijan 3 opciones operativas oficiales en GEE: (a) prueba rápida `2024-01-01`–`2026-11-03`, (b) línea base mínima de 5 años `2018-01-01`–`2026-11-03` y (c) ventana común completa en bloques de 2 años (`2012-01-19`..`2014-01-01` hasta `2024-01-01`..`2026-11-03`). Asimismo, `available_date_ranges_by_sensor` y `available_periods_by_sensor` exponen **únicamente días útiles registrados** (`valid_land_pixels > 0`, `observation_coverage >= 0.70`, `activity_rate` no nulo) y el frontend habilita solo años, meses y días analizables.
+4. **Serie mensual de calendario:** `contracts/api-contract.md` incorpora `GET /api/v1/territories/{type}/{id}/calendar` para entregar la serie mensual precomputada (`activity_summary.json`) con `historical_anomaly` y `baseline_years` por sensor.
+5. **Infraestructura oficial en Microsoft Azure Free Tier (`infra/azure/`):** el backend (`src/backend/`) se despliega en **Azure App Service (Plan Free F1, Linux Python)** en modo solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), manteniendo `ROOT = Path(__file__).resolve().parents[3]`; el frontend (`src/frontend/dist/`) en **Azure Static Web Apps (Plan Free)** con `VITE_API_BASE` / `VITE_API_BASE_URL` apuntando al App Service; y los paquetes de `data/intermediate/` y `data/processed/` se almacenan en **Azure Blob Storage (Free Tier)** tras descargarse de las exportaciones iniciales de GEE a Drive/GCS, sincronizándose offline o en build/deploy (`render.yaml` queda únicamente como referencia *legacy*/opcional).

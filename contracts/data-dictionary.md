@@ -75,7 +75,7 @@ Si falta una imagen ese día: fila con `valid_land_pixels = 0` (no se borra la f
 | `wind_dir_deg` | decimal 0–360 | grados | Desde dónde sopla (0 = N, 90 = E). Se calcula de `u`,`v` promediados: `(atan2(−u, −v)·180/π + 360) % 360`. Nunca promediar ángulos. |
 | `wind_speed_10m_ms` | decimal | m/s | `√(u² + v²)` a 10 m — ERA5-Land. |
 | `elevation_m` | decimal | m s.n.m. | Elevación media/mediana del territorio. |
-| `dem_source` | texto | — | `NASADEM_HGT_001`/`USGS_SRTMGL1_003` (tramo MODIS 2000–2011) o `COPERNICUS_DEM_GLO30` (tramo VIIRS 2012–presente). |
+| `dem_source` | texto | — | `COPERNICUS_DEM_GLO30` (`COPERNICUS/DEM/GLO30`) en la ventana común verificada `2012-01-19`–`2026-11-02` *(nota legacy fuera de alcance operativo: `NASADEM_HGT_001`/`USGS_SRTMGL1_003` solo aplicaba a tramos pre-2012)*. |
 
 ### 3.3 `environmental_context.csv` — una fila por `period_id` × territorio
 
@@ -153,9 +153,10 @@ Campo adicional precalculado por Tom (pendiente de confirmar):
 | Campo | Descripción |
 |---|---|
 | `sensors[]` | `id`, `product`, hora de paso, desde cuándo hay datos, resolución. |
-| `available_periods_by_sensor` / `available_date_ranges_by_sensor` | Meses / rangos de días publicados por sensor. |
+| `available_periods_by_sensor` / `available_date_ranges_by_sensor` | Meses / rangos de días útiles publicados por sensor (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70`, `activity_rate` no nulo). |
 | `common_environmental_periods` / `common_environmental_dates` | Donde están los bloques ambientales obligatorios. |
 | `common_analysis_periods` / `common_analysis_dates` | Intersección de los tres sensores + ambiente (para comparación justa). |
+| `verified_common_window` | Ventana común multisensor verificada en GEE (`2012-01-19` a `2026-11-02`, `last_complete_common_month: "2026-10"`). |
 | `metrics`, `units` | Métricas permitidas y sus unidades. |
 | `dem_by_epoch`, `environmental_sources` | Trazabilidad de fuentes. |
 | `parameters` | Umbrales versionados (cobertura mínima, `robust_z` de señal elevada, `min_baseline_years`, `umbral_veg`, `umbral_pend`). |

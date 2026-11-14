@@ -8,9 +8,11 @@ from typing import Any
 
 from src.analytics.metrics import PROCESSING_VERSION, parse_float
 
-DEFAULT_UMBRAL_VEG_PCT = 25.0
-DEFAULT_UMBRAL_PEND_PCT = 20.0
+DEFAULT_UMBRAL_VEG_PCT = 20.0
+DEFAULT_UMBRAL_PEND_PCT = 15.0
 DEFAULT_WATER_HIGH_PCT = 5.0
+DEFAULT_WATER_BUFFER_M = 150.0
+DEFAULT_WATER_BUFFER_ATTENUATION_PCT = 5.0
 DEFAULT_MIN_BASELINE_YEARS = 5
 
 
@@ -99,6 +101,8 @@ def assess_conditions(
         t_id = str(row["territory_id"])
 
         veg_pct = parse_float(row.get("vegetation_area_pct"))
+        eff_veg_pct = parse_float(row.get("effective_vegetation_area_pct"))
+        veg_for_n1 = eff_veg_pct if eff_veg_pct is not None else veg_pct
         precip = parse_float(row.get("precip_30d_mm"))
         soil_m = parse_float(row.get("soil_moisture_surface"))
         wind = parse_float(row.get("wind_speed_10m_ms"))
@@ -106,9 +110,13 @@ def assess_conditions(
         rh = parse_float(row.get("relative_humidity_2m_pct"))
         slope_pct = parse_float(row.get("slope_class_area_pct"))
         water_pct = parse_float(row.get("water_area_pct"))
+        water_buf_pct = parse_float(row.get("water_buffer_150m_pct"))
+        lc_source = str(row.get("landcover_source") or "COBVEG_MINAM_2015")
+        lc_res = str(row.get("landcover_resolution") or "vector/30 m")
+        dem_default = "COPERNICUS_DEM_GLO30" if period_id >= "2012-01" else "NASA_NASADEM_HGT_001"
 
         missing: list[str] = []
-        if veg_pct is None:
+        if veg_for_n1 is None:
             missing.append("vegetation_area_pct")
         if precip is None and soil_m is None:
             missing.append("dryness_indicator")
@@ -156,16 +164,43 @@ def assess_conditions(
             veg_pct,
             "%",
             "above_umbral_veg" if (veg_pct is not None and veg_pct >= umbral_veg_pct) else "below_umbral_veg",
-            "MAPBIOMAS_PERU_C4",
+            lc_source,
             str(row.get("landcover_year") or period_id[:4]),
-            "30 m",
+            lc_res,
+        )
+        add_ev(
+            "effective_vegetation_area_pct",
+            eff_veg_pct,
+            "%",
+            "above_umbral_veg" if (eff_veg_pct is not None and eff_veg_pct >= umbral_veg_pct) else "below_umbral_veg",
+            lc_source,
+            str(row.get("landcover_year") or period_id[:4]),
+            lc_res,
+        )
+        add_ev(
+            "water_area_pct",
+            water_pct,
+            "%",
+            "high_water_share" if (water_pct is not None and water_pct >= DEFAULT_WATER_HIGH_PCT) else "normal_water_share",
+            lc_source,
+            str(row.get("landcover_year") or period_id[:4]),
+            lc_res,
+        )
+        add_ev(
+            "water_buffer_150m_pct",
+            water_buf_pct,
+            "%",
+            "attenuation_active" if (water_buf_pct is not None and water_buf_pct >= DEFAULT_WATER_BUFFER_ATTENUATION_PCT) else "below_attenuation_threshold",
+            lc_source,
+            str(row.get("landcover_year") or period_id[:4]),
+            lc_res,
         )
         add_ev(
             "precip_30d_mm",
             precip,
             "mm",
             "not_estimable_baseline" if q_precip is None else ("below_seasonal_p25" if dry_precip else "not_below_seasonal_p25"),
-            "ERA5_LAND_HOURLY",
+            "ERA5_LAND_DAILY_AGGR",
             period_id,
             "~11.1 km",
         )
@@ -174,7 +209,7 @@ def assess_conditions(
             soil_m,
             "m3/m3",
             "not_estimable_baseline" if q_soil is None else ("below_seasonal_p25" if dry_soil else "not_below_seasonal_p25"),
-            "ERA5_LAND_HOURLY",
+            "ERA5_LAND_DAILY_AGGR",
             period_id,
             "~11.1 km",
         )
@@ -183,7 +218,7 @@ def assess_conditions(
             wind,
             "m/s",
             "not_estimable_baseline" if q_wind is None else ("above_seasonal_p75" if wind_high else "not_above_seasonal_p75"),
-            "ERA5_LAND_HOURLY",
+            "ERA5_LAND_DAILY_AGGR",
             period_id,
             "~11.1 km",
         )
@@ -192,7 +227,7 @@ def assess_conditions(
             temp,
             "°C",
             "not_estimable_baseline" if q_temp is None else ("above_seasonal_p75" if temp is not None and temp > q_temp[1] else "not_above_seasonal_p75"),
-            "ERA5_LAND_HOURLY",
+            "ERA5_LAND_DAILY_AGGR",
             period_id,
             "~11.1 km",
         )
@@ -201,7 +236,7 @@ def assess_conditions(
             rh,
             "%",
             "not_estimable_baseline" if q_rh is None else ("below_seasonal_p25" if rh is not None and rh < q_rh[0] else "not_below_seasonal_p25"),
-            "ERA5_LAND_HOURLY",
+            "ERA5_LAND_DAILY_AGGR",
             period_id,
             "~11.1 km",
         )
@@ -210,7 +245,7 @@ def assess_conditions(
             slope_pct,
             "%",
             "above_umbral_pend" if (slope_pct is not None and slope_pct >= umbral_pend_pct) else "below_umbral_pend",
-            str(row.get("dem_source") or "SRTM"),
+            str(row.get("dem_source") or dem_default),
             "static",
             "30 m",
         )
@@ -248,10 +283,16 @@ def assess_conditions(
             modifiers.append("steep_slope_share_high")
         if (period_id, t_type, t_id) in thermal_elevated_keys:
             modifiers.append("thermal_history_elevated")
+        water_attenuates = (
+            (water_buf_pct is not None and water_buf_pct >= DEFAULT_WATER_BUFFER_ATTENUATION_PCT)
+            or (water_pct is not None and water_pct >= DEFAULT_WATER_HIGH_PCT)
+        )
         if water_pct is not None and water_pct >= DEFAULT_WATER_HIGH_PCT:
             modifiers.append("water_share_high")
+        if water_attenuates:
+            modifiers.append("surface_water_buffer_150m")
 
-        if veg_pct < umbral_veg_pct:
+        if veg_for_n1 < umbral_veg_pct:
             path.append("N1:no")
             classification = "low"
         else:
@@ -282,6 +323,12 @@ def assess_conditions(
                 else:
                     path.append("N3b:no")
                     classification = "low"
+
+        # Amortiguamiento por agua superficial (buffer 150 m): reduce susceptibilidad máxima
+        if water_attenuates and classification == "high":
+            classification = "moderate"
+            rules.append("water_buffer_150m_attenuation")
+            path.append("buffer_150m:attenuate")
 
         assessments.append(
             {

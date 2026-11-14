@@ -7,7 +7,7 @@ from statistics import median
 from typing import Any
 
 MIN_BASELINE_YEARS = 5
-MIN_COVERAGE_FOR_BASELINE = 0.5
+MIN_COVERAGE_FOR_BASELINE = 0.70
 MAD_SCALE = 1.4826
 
 

@@ -22,6 +22,7 @@
 | Colecciones | Los JSON tabulares usan `{"schema_version": "1.0", "items": [...]}`. |
 | Caché | `Cache-Control: public, max-age=300` (con fixtures: `MCHANAQ_NO_CACHE=1` → `no-store`). |
 | Cálculo | La API **no calcula** tasas, anomalías ni categorías: lee lo que Tom dejó en `data/processed/`. El frontend tampoco calcula nada. |
+| Infraestructura | Objetivo oficial en **Microsoft Azure Free Tier** (`infra/azure/`): backend en **Azure App Service (Plan Free F1, Linux Python)** de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), y frontend en **Azure Static Web Apps (Plan Free)** sobre `src/frontend/dist/`. Nunca consulta GEE ni Azure Blob Storage/Drive por petición HTTP. |
 
 ## 2. Endpoints
 
@@ -36,6 +37,7 @@
 | 7 | `GET /territories/{type}/{id}/sensor-comparison` | 2 | `date` (o `period`) | Indicadores separados por sensor + `status` + `interpretation`. |
 | 8 | `GET /territories/{type}/{id}/export.csv` | 2 | `from`, `to`, `sensor` | CSV con la serie diaria del territorio. |
 | 9 | `GET /territories/{type}/{id}/hotspots` | 3 | `date`, `sensor` | Puntos de detección. Solo si existe `hotspots.geojson`. |
+| 10 | `GET /territories/{type}/{id}/calendar` | 2 | `sensor`, opcionales `from_period`, `to_period` (`YYYY-MM`) | Serie mensual longitudinal del calendario con `historical_anomaly`. |
 
 \* `sensor` es **obligatorio** para métricas de actividad y **opcional** para `conditions_classification` y métricas ambientales.
 
@@ -65,6 +67,8 @@
   ]
 }
 ```
+
+El campo `"sensor"` se incluye siempre en la respuesta de `/territory-metrics` (contiene el identificador del sensor consultado o `null` cuando se consulta una métrica ambiental o de clasificación sin sensor).
 
 ### 3.2 `GET /territories/province/1501/summary?date=2026-09-15&sensor=MODIS_TERRA`
 
@@ -125,6 +129,8 @@ Cómo arma el backend la ficha:
 
 `value: 0.0` en la coropleta del 15/09 significa «observado, sin detecciones nominales/altas»; un día sin observación devolvería `null`.
 
+Validación de rango en `/activity`: cuando se envía `from` y `to` (sin `period`), ambos deben cumplir `from <= to`; si `from > to`, la API responde `400 INVALID_PARAMETER`.
+
 Ojo con el 10/09: `valid_land_pixels = 0` y `observation_coverage = 0.0` → **día sin observación**, no «cero fuego». La interfaz debe mostrarlo como «Sin observación».
 
 ### 3.4 `GET /territories/province/1501/sensor-comparison?date=2026-09-15`
@@ -141,6 +147,37 @@ date,territory_type,territory_id,sensor,fire_pixels_low,fire_pixels_nominal_high
 
 Los `null` se exportan como celda vacía (no como `0`).
 
+### 3.6 `GET /territories/province/1501/calendar?sensor=MODIS_TERRA&from_period=2026-01&to_period=2026-09`
+
+Resuelve la §7.3 de `docs/harness/README.md`: entrega la serie mensual longitudinal precomputada desde `activity_summary.json` para **un** territorio y **un** sensor (nunca suma conteos entre sensores), incluyendo `historical_anomaly` (`value`, `status`, `baseline_years`).
+
+- Parámetros: `sensor` (obligatorio: `MODIS_TERRA`, `MODIS_AQUA` o `VIIRS_SNPP`); `from_period` y `to_period` (opcionales, formato `YYYY-MM`).
+- Validación: formato distinto a `YYYY-MM` o `from_period > to_period` → `400 INVALID_PARAMETER`; territorio inexistente → `404 NOT_FOUND`. Si se omiten `from_period` y `to_period`, devuelve todos los meses publicados para ese territorio y sensor ordenados cronológicamente (o `items: []` si el rango filtrado no contiene filas).
+
+```json
+{
+  "schema_version": "1.0",
+  "territory": { "type": "province", "id": "1501" },
+  "sensor": "MODIS_TERRA",
+  "from_period": "2026-09",
+  "to_period": "2026-09",
+  "items": [
+    {
+      "period_id": "2026-09",
+      "fire_pixel_days_8_9": 13,
+      "fire_pixel_days_7_9": 20,
+      "activity_rate": 0.001403,
+      "observation_coverage": 0.7721,
+      "active_days": 11,
+      "max_consecutive_active_days": 4,
+      "historical_anomaly": { "value": 1.4, "status": "estimated", "baseline_years": 10 },
+      "source_product": "MOD14A1",
+      "processing_version": "fixture-0.1.0"
+    }
+  ]
+}
+```
+
 ## 4. Errores
 
 Formato único, sin trazas técnicas:
@@ -151,12 +188,12 @@ Formato único, sin trazas técnicas:
 
 | HTTP | `code` | Cuándo |
 |---|---|---|
-| 400 | `INVALID_PARAMETER` | Falta un parámetro o tiene un valor no permitido (`type`, `sensor`, `metric`, formato de fecha). |
+| 400 | `INVALID_PARAMETER` | Falta un parámetro, tiene un valor no permitido (`type`, `sensor`, `metric`, formato de fecha/período), o el rango está invertido (`from > to` en `/activity`, `from_period > to_period` en `/calendar`). |
 | 404 | `NOT_FOUND` | El territorio no existe. |
 | 422 | `PERIOD_NOT_AVAILABLE` | La fecha/período es válido pero no está publicado para esa consulta. |
 | 500 | `INTERNAL_ERROR` | Error interno. |
 
-**Orden de validación:** 400 (`type`/`sensor`/`metric`) → 422 (fecha/período) → 404 (`id`).
+**Orden de validación:** 400 (`type`/`sensor`/`metric`/rango) → 422 (fecha/período) → 404 (`id`).
 
 ## 5. ¿Qué fechas acepta cada endpoint?
 
@@ -166,10 +203,16 @@ El backend lo decide **solo** mirando `metadata.json`:
 |---|---|
 | `summary` (ficha) | `available_date_ranges_by_sensor[sensor]` **y** `common_environmental_dates` |
 | `activity`, `territory-metrics` con sensor, `export.csv` | `available_date_ranges_by_sensor[sensor]` |
+| `calendar` (serie mensual) | Filtra los meses publicados en `activity_summary.json` (opcionalmente con `from_period`/`to_period` válidos en `YYYY-MM`) |
 | `territory-metrics` ambiental sin sensor | `common_environmental_dates` |
 | `sensor-comparison` | `common_analysis_dates` |
 
 Equivalentes mensuales: `available_periods_by_sensor`, `common_environmental_periods`, `common_analysis_periods`. Si no está → `422`. Nunca se rellena con ceros.
+
+**Política de días útiles y ventana común verificada (Ucayali):**
+- `available_date_ranges_by_sensor` y `available_periods_by_sensor` (equivalente operativo de `available_periods`) reflejan **únicamente días útiles registrados**: días con `valid_land_pixels > 0`, nubosidad `< 30 %` (`observation_coverage >= 0.70`) y `activity_rate` no nulo.
+- El frontend habilita exclusivamente años, meses y días que cuentan con datos útiles analizables según `GET /metadata`.
+- Ventana común multisensor verificada en GEE para Ucayali (`src/gee/gee_verified_dates.json`): **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**, ~14.8 años > `min_baseline_years = 5`), utilizando `COPERNICUS_DEM_GLO30` donde coinciden `MODIS_TERRA`, `MODIS_AQUA`, `VIIRS_SNPP` y `ERA5-Land`.
 
 ## 6. Valores enumerados
 

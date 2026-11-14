@@ -722,6 +722,47 @@ input[type="range"]:focus-visible {
   flex: 1;
 }
 
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 8px;
+}
+.day-pill {
+  appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 0;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.day-pill:hover:not(:disabled) {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+.day-pill[aria-pressed="true"] {
+  background: var(--acid);
+  border-color: var(--acid);
+  color: #000;
+  font-weight: 700;
+}
+.day-pill:disabled {
+  background: var(--surface-0);
+  border-color: var(--surface-2);
+  color: var(--fg-faint);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.day-pill:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 1px;
+}
+
 /* Toggle de sensores ----------------------------------------------------- */
 .toggle {
   display: flex;

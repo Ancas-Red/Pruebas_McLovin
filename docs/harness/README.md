@@ -52,9 +52,23 @@ más, así que ahí va `parents[3]` (arranque desde la raíz: `uvicorn src.backe
 ## 2.1. Operación, almacenamiento, mapas base y despliegue
 
 * **Ownership actual (Fase A):** Tom lleva `src/analytics/` y `src/backend/` con apoyo de datos de Angelo (`src/gee/`); Sebastian lleva `src/frontend/`; Jean Pierrer lleva `contracts/`, `data/fixtures/`, `data/reference/`, `docs/`, `tests/acceptance/` y `presentation/`.
-* **Google Drive (solo puente GEE → local):** Angelo exporta CSVs desde GEE a Google Drive; Tom los descarga a `data/intermediate/` (ignorado en Git) y genera `data/processed/`. El backend nunca lee Google Drive en tiempo de ejecución.
-* **Despliegue en Render:** `src/frontend/` como *Static Site* (`VITE_API_BASE` apuntando al backend) y `src/backend/` como *Web Service* leyendo `data/processed/` desde disco (`< 30–40 MB`, con `territories.geojson` simplificado en QGIS para respetar el límite de 512 MB RAM).
+* **Puente de datos y Azure Blob Storage (Free Tier):** Las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan localmente a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage (Free Tier / Azure Storage)** junto con los paquetes procesados de `data/processed/`. Tom genera `data/processed/` y sincroniza los paquetes con Azure Blob Storage offline o en tiempo de build/deploy. El backend nunca consulta GEE ni lee Azure Blob Storage o Google Drive por petición HTTP de usuario.
+* **Despliegue oficial en Microsoft Azure Free Tier (`infra/azure/`):**
+  * **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python)** en modo solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), manteniendo `ROOT = Path(__file__).resolve().parents[3]` y `< 1 MB` en `territories.geojson` (paquete de datos `< 30–40 MB`).
+  * **Frontend (`src/frontend/`):** **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en `infra/azure/`) apuntando a la URL del Azure App Service.
+  * **Nota *legacy*:** `render.yaml` se conserva únicamente como referencia *legacy*/opcional; Microsoft Azure Free Tier es el objetivo oficial de producción.
 * **Mapas base libres tipo QGIS (sin API keys):** OpenTopoMap (`https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png`, ideal para hidrología y relieve), OpenStreetMap (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`) y Esri World Imagery. No usar CARTO (exige clave).
+
+### 2.2. Alineación del piloto Ucayali
+
+* **Territorios piloto (`data/processed/territories.geojson`):** región Ucayali con `4` provincias INEI 2023 (`2501` Coronel Portillo, `2502` Atalaya, `2503` Padre Abad, `2504` Purús) y `20` unidades hidrográficas ANA Pfafstetter nivel 4 (`24` polígonos en total).
+* **Combustible y buffer de agua superficial (`CobVeg_180615.shp`):** se considera combustible toda cobertura vegetal de `CobVeg_180615.shp` (MINAM 2015) excluyendo agua y clases no combustibles (`umbral_veg = 20%`, `umbral_pend = 15%`), y se aplica un buffer de `150 m` (`water_buffer_m = 150 m`) sobre cuerpos de agua superficial; cuando `water_buffer_150m_pct >= 5%` (o `water_area_pct >= 5%`), una susceptibilidad `high` se atenúa a `moderate` (`water_buffer_150m_attenuation` / `surface_water_buffer_150m`).
+* **Ventana común multisensor verificada en GEE (`src/gee/gee_verified_dates.json`):** **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**), donde coinciden `MODIS_TERRA` (`MOD14A1`), `MODIS_AQUA` (`MYD14A1`), `VIIRS_SNPP` (`VNP14A1`) y `ERA5-Land` (~14.8 años > `min_baseline_years = 5`), con `COPERNICUS_DEM_GLO30`. Se retira la expectativa operativa de exportar bloques pre-2012 (`2000–2011` queda solo como nota *legacy* fuera de alcance).
+* **Tres opciones oficiales de exportación GEE (Ucayali):**
+  1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
+  2. **Línea base mínima de 5 años:** `2018-01-01` a `2026-11-03`
+  3. **Ventana común completa en bloques de 2 años:** `2012-01-19`..`2014-01-01`, `2014-01-01`..`2016-01-01`, `2016-01-01`..`2018-01-01`, `2018-01-01`..`2020-01-01`, `2020-01-01`..`2022-01-01`, `2022-01-01`..`2024-01-01`, `2024-01-01`..`2026-11-03`.
+* **Filtro diario de nubes y política de días útiles:** se exige `< 30%` de nubes diario (`observation_coverage >= 0.70` y `lst_valid_pixel_pct >= 70.0`). `available_date_ranges_by_sensor` y `available_periods_by_sensor` reflejan **únicamente días útiles registrados** (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70` y `activity_rate` no nulo), y el frontend habilita solo años, meses y días con datos útiles analizables.
 
 ## 3. Reglas que no se negocian
 
@@ -92,7 +106,7 @@ Están en `src/frontend/src/api/types.ts` (`DailyEnv`) y en
 | `lst_valid_pixel_pct` | % | debe ser ≥ 70 para usar `t_suelo_c` |
 | `wind_dir_deg` | grados | `(atan2(−u, −v) · 180/π + 360) % 360`; nunca promediar ángulos |
 | `wind_speed_10m_ms` | m/s | `sqrt(u² + v²)` |
-| `elevation_m` | m s. n. m. | DEM según época: NASADEM/SRTM (MODIS 2000–2011), Copernicus GLO-30 (VIIRS 2012+) |
+| `elevation_m` | m s. n. m. | `COPERNICUS/DEM/GLO30` (`COPERNICUS_DEM_GLO30`, 30 m) en la ventana común `2012–2026` *(nota legacy fuera de alcance operativo: `NASADEM/SRTM` solo aplicaba a tramos pre-2012)* |
 | `dem_source` | — | identificador del DEM aplicado |
 
 ## 5. Fase 2 — propagación
@@ -124,7 +138,7 @@ y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia
 | `src/api/client.ts` | Los 9 endpoints, uno por función. Habla el contrato y nada más. |
 | `src/api/source.ts` | Decide API o muestra, y etiqueta la procedencia. El día que el backend sea estable, se borra este archivo sin tocar pantallas. |
 | `src/lib/fixtures.ts` | Muestra determinista con la forma del contrato, endpoint por endpoint. |
-| `src/lib/calendar.ts` | Agrupación mensual para el calendario (ver 7.3). |
+| `src/lib/calendar.ts` | Respaldo offline / agrupación local del calendario (ver 7.3). |
 | `src/pages/MapTool.tsx` | Estado de la herramienta. Consulta siempre por tipo + id de territorio. |
 
 ### 7.2. Reglas que el frontend cumple y conviene no romper
@@ -136,8 +150,11 @@ y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia
   ve en «Comparación», que lo resuelve el backend.
 * **`metadata` manda.** No se dispara ninguna consulta de datos antes de tener
   `metadata`, y si la fecha abierta no está publicada para el sensor no se consulta la
-  API en absoluto: el contrato ya dice que contestaría `422`. Al arrancar, la
-  herramienta salta a la última fecha publicada.
+  API en absoluto: el contrato ya dice que contestaría `422`. `available_date_ranges_by_sensor`
+  y `available_periods_by_sensor` representan **únicamente días útiles registrados**
+  (`valid_land_pixels > 0`, `< 30 %` de nubes / `observation_coverage >= 0.70` y `activity_rate`
+  no nulo), por lo que el selector de interfaz habilita solo años, meses y días analizables.
+  Al arrancar, la herramienta salta a la última fecha publicada.
 * **El frontend no calcula.** Tasa, anomalía, estado de señal y clasificación llegan de
   `/summary` y `/sensor-comparison`. Se borraron las derivaciones que había antes.
 * **`null` nunca es `0`.** Un día sin observación se rotula «Sin observación», un valor
@@ -150,27 +167,18 @@ y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia
 * **Cividis** para magnitudes en mapa y calendario; la rampa cálida solo para el frente
   simulado, donde el color codifica tiempo. Los colores por sensor son categóricos.
 
-### 7.3. Hueco del contrato: falta una serie mensual
+### 7.3. Serie mensual del calendario (resuelto en contrato y API)
 
-El reto pide un calendario plurianual por territorio, y el contrato v1.2 solo tiene
-serie **diaria** (`/activity`) y resumen de **un** período (dentro de `/summary`). Hoy el
-frontend agrupa por mes la serie diaria en `src/lib/calendar.ts`, lo que obliga a traer
-años de filas y deja la anomalía en `not_estimable` salvo en el mes consultado, porque
-la anomalía exige la distribución de los años anteriores y el umbral `robust_z`, que
-viven en el backend.
-
-**Petición al equipo:** un `GET /territories/{type}/{id}/calendar?sensor=…` con la serie
-mensual (`period_id`, `fire_pixel_days_8_9`, `activity_rate`, `observation_coverage`,
-`active_days`, `max_consecutive_active_days`, `historical_anomaly` con su `status` y
-`baseline_years`). Mientras no exista, el calendario de años completos solo se puede
-pintar con datos de muestra. Cambio de contrato → PR de Jean que toque a la vez
-`contracts/` y `data/fixtures/` (§8 del contrato).
+`GET /api/v1/territories/{type}/{id}/calendar?sensor=…` (con parámetros opcionales `from_period` y `to_period` en formato `YYYY-MM`) ya forma parte de `contracts/api-contract.md` (§2 y §3.6) y resuelve la serie mensual longitudinal directamente desde `activity_summary.json`. Devuelve por mes `period_id`, `fire_pixel_days_8_9`, `fire_pixel_days_7_9`, `activity_rate`, `observation_coverage`, `active_days`, `max_consecutive_active_days`, `historical_anomaly` (`value`, `status`, `baseline_years`), `source_product` y `processing_version`, sin sumar conteos entre sensores y preservando `null` ante falta de observación o línea base insuficiente (`< 5` años). `src/lib/calendar.ts` se mantiene únicamente como respaldo local cuando el frontend opera sin backend conectado.
 
 ### 7.4. Variable de entorno del frontend
 
-`VITE_API_BASE` fija la base de la API al compilar; por omisión
-`http://localhost:8000/api/v1`. En Render apunta al servicio del backend. El backend debe
-incluir el origen del frontend en `MCHANAQ_CORS_ORIGINS`.
+`VITE_API_BASE` (o `VITE_API_BASE_URL` si se mapea en los flujos de `infra/azure/`)
+fija la base de la API al compilar `src/frontend/dist/`; por omisión
+`http://localhost:8000/api/v1`. En **Azure Static Web Apps (Plan Free)** apunta a la URL
+del **Azure App Service (Plan Free F1)** del backend (`render.yaml` queda únicamente
+como referencia *legacy*/opcional). El backend debe incluir el origen del frontend en
+`MCHANAQ_CORS_ORIGINS`.
 
 ### 7.5. Comprobado en navegador
 

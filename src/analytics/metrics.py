@@ -8,7 +8,9 @@ from datetime import date as dt_date, timedelta
 import math
 from typing import Any
 
-PROCESSING_VERSION = "0.1.0"
+PROCESSING_VERSION = "0.2.0-ucayali"
+DEFAULT_MIN_CLOUD_FREE_COVERAGE = 0.70
+DEFAULT_MIN_LST_VALID_PCT = 70.0
 
 SENSOR_DEFAULT_PRODUCT = {
     "MODIS_TERRA": "MOD14A1",
@@ -65,6 +67,7 @@ def build_daily_records(
     env_daily_rows: list[dict[str, Any]],
     *,
     fill_missing_dates: bool = True,
+    min_valid_coverage: float = DEFAULT_MIN_CLOUD_FREE_COVERAGE,
     processing_version: str = PROCESSING_VERSION,
 ) -> list[dict[str, Any]]:
     """Une actividad diaria y variables ambientales diarias, rellenando días sin imagen."""
@@ -119,7 +122,8 @@ def build_daily_records(
                 fire_low = parse_int(act.get("fire_pixels_low"))
                 fire_high = parse_int(act.get("fire_pixels_nominal_high"))
                 cov = round(valid / expected, 4) if (expected and expected > 0) else None
-                if valid > 0 and fire_high is not None:
+                cloud_ok = cov is not None and cov >= min_valid_coverage
+                if valid > 0 and fire_high is not None and (cov is None or cloud_ok):
                     rate = round(fire_high / valid, 6)
                 else:
                     rate = None
@@ -131,7 +135,7 @@ def build_daily_records(
 
             lst_pct = parse_float(env.get("lst_valid_pixel_pct"))
             t_suelo = parse_float(env.get("t_suelo_c"))
-            if lst_pct is not None and lst_pct < 70.0:
+            if lst_pct is not None and lst_pct < DEFAULT_MIN_LST_VALID_PCT:
                 t_suelo = None
 
             rec = {
@@ -144,6 +148,7 @@ def build_daily_records(
                 "valid_land_pixels": valid,
                 "expected_land_pixels_per_day": expected,
                 "observation_coverage": cov,
+                "cloud_ok_lt30pct": bool(cov is not None and cov >= min_valid_coverage),
                 "activity_rate": rate,
                 "t_amb_c": parse_float(env.get("t_amb_c")),
                 "relative_humidity_2m_pct": parse_float(env.get("relative_humidity_2m_pct")),
@@ -215,12 +220,15 @@ def aggregate_daily_env_monthly(daily_records: list[dict[str, Any]]) -> dict[tup
         u_acc = 0.0
         v_acc = 0.0
         vec_w = 0.0
+        has_pos_w = any(w > 0 for w in weights)
         for r, w in zip(rows, weights):
             wd = r.get("wind_dir_deg")
             ws = r.get("wind_speed_10m_ms")
             if wd is None or ws is None:
                 continue
-            eff_w = w if w > 0 else 1.0
+            eff_w = w if w > 0 else (0.0 if has_pos_w else 1.0)
+            if eff_w <= 0:
+                continue
             rad = math.radians(wd)
             u = -ws * math.sin(rad)
             v = -ws * math.cos(rad)

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from shapely.geometry import mapping, shape
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,21 @@ NON_VEG_CLASSES = {
 UMBRAL_VEG = 0.20
 UMBRAL_PEND = 0.15
 WATER_BUFFER_M = 150.0
+
+
+def _round_coords(coords: object, decimals: int = 5) -> object:
+    if isinstance(coords, (list, tuple)):
+        if coords and isinstance(coords[0], (int, float)):
+            return [round(float(coords[0]), decimals), round(float(coords[1]), decimals)]
+        return [_round_coords(c, decimals) for c in coords]
+    return coords
+
+
+def _simplify_feature_geometry(feature: dict, tolerance: float = 0.0008, decimals: int = 5) -> dict:
+    geom_obj = shape(feature["geometry"]).simplify(tolerance, preserve_topology=True)
+    geom_dict = mapping(geom_obj)
+    geom_dict["coordinates"] = _round_coords(geom_dict["coordinates"], decimals)
+    return {**feature, "geometry": geom_dict}
 
 
 def main() -> None:
@@ -190,10 +206,14 @@ def main() -> None:
         json.dumps(fc, ensure_ascii=False), encoding="utf-8"
     )
 
-    api_features = [f for f in features if f["properties"]["territory_type"] in {"province", "hydro_unit"}]
+    api_features = [
+        _simplify_feature_geometry(f, tolerance=0.0008, decimals=5)
+        for f in features
+        if f["properties"]["territory_type"] in {"province", "hydro_unit"}
+    ]
     fc_api = {"type": "FeatureCollection", "data_origin": "processed", "features": api_features}
     (OUT_PROCESSED / "territories.geojson").write_text(
-        json.dumps(fc_api, ensure_ascii=False), encoding="utf-8"
+        json.dumps(fc_api, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
 
     print(f"Distritos Ucayali: {len(df_stats)} | Provincias: {len(uca_prov)} | UH ANA: {len(uca_uh)}")

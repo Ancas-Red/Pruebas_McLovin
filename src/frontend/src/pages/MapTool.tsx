@@ -7,14 +7,28 @@ import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/Sprea
 import { DockBar } from "../components/DockBar";
 import type { ToolTab } from "../components/SiteNav";
 import {
+  ApiError,
+  availablePeriodsForSensor,
   exportCsvUrl,
+  fetchCalendar,
+  getBackendState,
   isAbort,
+  isAnalysisDateAvailable,
   isDateAvailable,
+  isEnvDateAvailable,
+  isEnvPeriodAvailable,
+  isPeriodAvailable,
+  isSummaryDateAvailable,
   lastAvailableDate,
+  metricNeedsSensor,
+  monthClampedSpan,
   monthRange,
   pad2,
   probeBackend,
+  publishedDaysInMonth,
+  rangeBounds,
   splitIso,
+  usefulDaysFromRows,
   type BackendState,
 } from "../api/client";
 import {
@@ -40,7 +54,13 @@ import {
   type TerritoryType,
 } from "../api/types";
 import { DEFAULT_TERRITORY, FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
-import { findCell, mergeAnomaly, monthlyCells, type MonthCell } from "../lib/calendar";
+import {
+  aggregateMonthly,
+  calendarFromApi,
+  findCell,
+  mergeAnomaly,
+  type MonthCell,
+} from "../lib/calendar";
 import { polygonCentroid, type LatLon } from "../lib/geo";
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
@@ -48,6 +68,12 @@ const MONTHS_ES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
+
+const MONTHLY_METRICS = new Set<MetricId>([
+  "fire_pixel_days_8_9",
+  "active_days",
+  "max_consecutive_active_days",
+]);
 
 interface Props {
   tab: ToolTab;
@@ -80,6 +106,7 @@ export function MapTool({ tab, onBackend }: Props) {
   const [sensor, setSensor] = useState<Sensor>("VIIRS_SNPP");
 
   const [metadata, setMetadata] = useState<Metadata | null>(null);
+  const [metadataOrigin, setMetadataOrigin] = useState<Origin>("fixture");
   const [metric, setMetric] = useState<MetricId>("activity_rate");
 
   const [showHotspots, setShowHotspots] = useState(true);
@@ -98,7 +125,9 @@ export function MapTool({ tab, onBackend }: Props) {
 
   const [hotspots, setHotspots] = useState<HotspotFeature[]>([]);
   const [daily, setDaily] = useState<DailyRow[]>([]);
+  const [dailyKey, setDailyKey] = useState<string>("");
   const [series, setSeries] = useState<DailyRow[]>([]);
+  const [apiCalendar, setApiCalendar] = useState<MonthCell[] | null>(null);
   const [summary, setSummary] = useState<TerritorySummary | null>(null);
   const [comparison, setComparison] = useState<SensorComparison | null>(null);
   const [choropleth, setChoropleth] = useState<MetricItem[]>([]);
@@ -149,9 +178,15 @@ export function MapTool({ tab, onBackend }: Props) {
   useEffect(() => {
     const ctrl = new AbortController();
     getMetadata(ctrl.signal)
-      .then((r) => setMetadata(r.data))
+      .then((r) => {
+        setMetadata(r.data);
+        setMetadataOrigin(r.origin);
+      })
       .catch((e) => {
-        if (!isAbort(e)) setMetadata(null);
+        if (!isAbort(e)) {
+          setMetadata(null);
+          setMetadataOrigin("fixture");
+        }
       });
     return () => ctrl.abort();
   }, []);
@@ -159,14 +194,18 @@ export function MapTool({ tab, onBackend }: Props) {
   /* ------------------------------------------------------- territorios --- */
   useEffect(() => {
     const ctrl = new AbortController();
+    setTerritories(null);
     getTerritories(territoryType, ctrl.signal)
       .then((r) => {
-        setTerritories(r.data);
+        const col = r.data;
+        setTerritories(col);
         // Al cambiar de tipo, el id anterior pertenece a otra familia: se
         // toma el primero del nuevo tipo en vez de dejar una selección que
         // no existe.
-        const ids = r.data.features.map((f) => f.properties.territory_id);
-        if (!ids.includes(territoryId)) setTerritoryId(ids[0] ?? "");
+        const ids = col?.features.map((f) => f.properties.territory_id) ?? [];
+        if (ids.length > 0 && !ids.includes(territoryId)) {
+          setTerritoryId(ids[0]);
+        }
       })
       .catch((e) => {
         if (!isAbort(e)) setTerritories(null);
@@ -186,30 +225,88 @@ export function MapTool({ tab, onBackend }: Props) {
 
   const span = granularity === "day" ? { from: dateIso, to: dateIso } : monthSpan;
 
-  /**
-   * Al llegar los metadatos, si la fecha abierta no existe para el sensor se
-   * salta a la última publicada. Arrancar en «hoy» contra un backend que
-   * sirve otro tramo daba una pantalla llena de avisos antes de que el
-   * usuario hiciera nada.
-   *
-   * Solo se mueve una vez por sensor: si después el usuario elige a mano una
-   * fecha sin datos, se le avisa y se respeta su elección.
-   */
-  const snapped = useRef<string | null>(null);
-  useEffect(() => {
-    if (!metadata) return;
-    if (isDateAvailable(dateIso, sensor, metadata)) return;
-    if (snapped.current === sensor) return;
+  const availablePeriods = useMemo(
+    () => availablePeriodsForSensor(sensor, metadata),
+    [metadata, sensor]
+  );
+  const sortedPeriodsDesc = useMemo(
+    () => [...availablePeriods].sort((a, b) => b.localeCompare(a)),
+    [availablePeriods]
+  );
+  const validYears = useMemo(() => {
+    const s = new Set<number>();
+    for (const pr of availablePeriods) {
+      const y = Number(pr.slice(0, 4));
+      if (Number.isFinite(y)) s.add(y);
+    }
+    return [...s].sort((a, b) => b - a);
+  }, [availablePeriods]);
 
-    const last = lastAvailableDate(sensor, metadata);
-    if (!last) return;
-    snapped.current = sensor;
-    const { year: y, month: m, day: d } = splitIso(last);
-    setYear(y);
-    setMonth(m);
-    setDay(d);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metadata, sensor]);
+  const userPickedPeriodRef = useRef(false);
+  const fallbackTriedPeriodsRef = useRef<Set<string>>(new Set());
+
+  const handleSensor = useCallback((nextSensor: Sensor) => {
+    userPickedPeriodRef.current = false;
+    fallbackTriedPeriodsRef.current.clear();
+    setSensor(nextSensor);
+  }, []);
+
+  const handlePeriod = useCallback((nextYear: number, nextMonth: number) => {
+    userPickedPeriodRef.current = true;
+    fallbackTriedPeriodsRef.current.clear();
+    setYear(nextYear);
+    setMonth(nextMonth);
+  }, []);
+
+  /**
+   * Al llegar los metadatos o cambiar de sensor/año/mes, si la fecha abierta
+   * no cae dentro de los períodos o rangos publicados del sensor activo, se
+   * ajusta automáticamente al último año/mes/día válido.
+   */
+  useEffect(() => {
+    if (!metadata || availablePeriods.size === 0) return;
+
+    if (!validYears.includes(year)) {
+      const targetYear = validYears[0];
+      const monthsInYear = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) =>
+        availablePeriods.has(`${targetYear}-${pad2(m)}`)
+      );
+      const targetMonth = monthsInYear[monthsInYear.length - 1] ?? 1;
+      const pubDays = publishedDaysInMonth(targetYear, targetMonth, sensor, metadata);
+      setYear(targetYear);
+      setMonth(targetMonth);
+      setDay(pubDays[pubDays.length - 1] ?? 1);
+      return;
+    }
+
+    if (!availablePeriods.has(period)) {
+      const monthsInYear = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) =>
+        availablePeriods.has(`${year}-${pad2(m)}`)
+      );
+      if (monthsInYear.length > 0) {
+        const targetMonth = monthsInYear[monthsInYear.length - 1];
+        const pubDays = publishedDaysInMonth(year, targetMonth, sensor, metadata);
+        setMonth(targetMonth);
+        setDay(pubDays[pubDays.length - 1] ?? 1);
+        return;
+      }
+    }
+
+    if (!isDateAvailable(dateIso, sensor, metadata)) {
+      const pubDays = publishedDaysInMonth(year, month, sensor, metadata);
+      if (pubDays.length > 0) {
+        setDay(pubDays[pubDays.length - 1]);
+        return;
+      }
+      const last = lastAvailableDate(sensor, metadata);
+      if (last) {
+        const { year: y, month: m, day: d } = splitIso(last);
+        setYear(y);
+        setMonth(m);
+        setDay(d);
+      }
+    }
+  }, [metadata, sensor, year, month, period, dateIso, availablePeriods, validYears]);
 
   /**
    * Las fechas publicadas las decide `metadata`, no esta interfaz. Si el día
@@ -225,28 +322,61 @@ export function MapTool({ tab, onBackend }: Props) {
   }, [dateIso, sensor, metadata]);
 
   /**
-   * Nada de datos hasta tener `metadata`: es quien dice qué fechas existen.
-   * Sin esta guardia, el primer render disparaba seis consultas con la fecha
-   * por defecto, el backend contestaba `PERIOD_NOT_AVAILABLE` a todas y se
-   * descartaban un instante después, al saltar a la última fecha publicada.
+   * Nada de datos hasta tener `metadata` y que `territories` haya sincronizado
+   * el `territoryId` activo para el tipo seleccionado. Sin esta guardia, el
+   * arranque o un cambio de tipo disparaban 404 con `2501` o un id ajeno.
    */
-  const ready = Boolean(metadata) && Boolean(territoryId);
+  const territoryReady = useMemo(() => {
+    if (!territories?.features?.length || !territoryId) return false;
+    return territories.features.some(
+      (f) =>
+        (!f.properties.territory_type || f.properties.territory_type === territoryType) &&
+        f.properties.territory_id === territoryId
+    );
+  }, [territories, territoryType, territoryId]);
+
+  const ready = Boolean(metadata) && territoryReady;
+  const activeMonthKey = `${territoryType}|${territoryId}|${sensor}|${period}`;
+  const dailyLoading = dailyKey !== activeMonthKey;
 
   /**
-   * ¿Está publicada la fecha abierta para el sensor activo? Si no, no se
-   * consulta la API —el contrato §5 dice que contestaría 422— y se sirve la
-   * muestra, rotulada en la barra de estado.
+   * Disponibilidad por endpoint según `metadata` (§5 del contrato).
+   * Si la fecha o el período no está publicado para ese endpoint, se omite
+   * la llamada para evitar `422 PERIOD_NOT_AVAILABLE` innecesarios.
    */
-  const dateOk = metadata ? isDateAvailable(dateIso, sensor, metadata) : false;
-  const skipApi = !dateOk;
+  const activityOk = metadata ? isDateAvailable(dateIso, sensor, metadata) : false;
+  const monthActivityOk = metadata
+    ? availablePeriods.has(period) && isPeriodAvailable(period, sensor, metadata)
+    : false;
+  const summaryOk = metadata ? isSummaryDateAvailable(dateIso, sensor, metadata) : false;
+  const analysisOk = metadata ? isAnalysisDateAvailable(dateIso, metadata) : false;
+  const usePeriodMetrics = granularity === "month" || MONTHLY_METRICS.has(metric);
+  const metricsOk = metadata
+    ? usePeriodMetrics
+      ? metricNeedsSensor(metric)
+        ? isPeriodAvailable(period, sensor, metadata)
+        : isEnvPeriodAvailable(period, metadata)
+      : metricNeedsSensor(metric)
+        ? isDateAvailable(dateIso, sensor, metadata)
+        : isEnvDateAvailable(dateIso, metadata)
+    : false;
+
+  const clampedMonthSpan = useMemo(
+    () => monthClampedSpan(year, month, sensor, metadata) ?? monthSpan,
+    [year, month, sensor, metadata, monthSpan]
+  );
 
   /* --------------------------------------------------------- hotspots ---- */
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
-    getHotspots({ type: territoryType, id: territoryId, date: dateIso, sensor }, ctrl.signal, skipApi)
+    getHotspots(
+      { type: territoryType, id: territoryId, date: dateIso, sensor },
+      ctrl.signal,
+      !activityOk
+    )
       .then((r) => {
-        setHotspots(r.data.features ?? []);
+        setHotspots(r.data?.features ?? []);
         setHotspotsOrigin(r.origin);
       })
       .catch((e) => {
@@ -254,56 +384,186 @@ export function MapTool({ tab, onBackend }: Props) {
         if (!isAbort(e)) setHotspots([]);
       });
     return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, territoryId, dateIso, sensor]);
+  }, [ready, activityOk, territoryType, territoryId, dateIso, sensor]);
 
   /* ------------------------------------------- serie diaria del mes ------ */
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
+    const targetKey = activeMonthKey;
+    if (!monthActivityOk) {
+      setDaily([]);
+      setDailyKey(targetKey);
+      return () => ctrl.abort();
+    }
     getActivity(
-      { type: territoryType, id: territoryId, sensor, from: monthSpan.from, to: monthSpan.to },
+      {
+        type: territoryType,
+        id: territoryId,
+        sensor,
+        from: clampedMonthSpan.from,
+        to: clampedMonthSpan.to,
+      },
       ctrl.signal,
-      skipApi
+      false
     )
-      .then((r) => setDaily(r.data.items ?? []))
+      .then((r) => {
+        setDaily(r.data?.items ?? []);
+        setDailyKey(targetKey);
+      })
       .catch((e) => {
-        if (!isAbort(e)) setDaily([]);
+        if (!isAbort(e)) {
+          setDaily([]);
+          setDailyKey(targetKey);
+        }
       });
     return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, territoryId, sensor, monthSpan.from, monthSpan.to]);
+  }, [
+    ready,
+    activeMonthKey,
+    monthActivityOk,
+    territoryType,
+    territoryId,
+    sensor,
+    clampedMonthSpan.from,
+    clampedMonthSpan.to,
+  ]);
+
+  const usefulDays = useMemo(() => {
+    if (dailyKey !== activeMonthKey) return [];
+    return usefulDaysFromRows(daily, year, month, sensor, metadata);
+  }, [dailyKey, activeMonthKey, daily, year, month, sensor, metadata]);
+
+  const calendarPeriodsWithData = useMemo(() => {
+    const cells = apiCalendar ?? (series.length ? aggregateMonthly(series, sensor) : []);
+    return new Set(
+      cells
+        .filter(
+          (c) =>
+            c.activity_rate !== null &&
+            (c.observation_coverage === null || c.observation_coverage >= 0.7)
+        )
+        .map((c) => c.period)
+    );
+  }, [apiCalendar, series, sensor]);
+
+  /**
+   * Cuando llega la serie diaria del mes activo, asegura que el día
+   * seleccionado pertenezca a `usefulDays` (cobertura ≥ 70 % y tasa no nula).
+   * Si no hay ningún día útil al arrancar o cambiar de sensor, retrocede al
+   * período anterior publicado con datos útiles.
+   */
+  useEffect(() => {
+    if (!ready || !metadata || dailyKey !== activeMonthKey) return;
+
+    if (usefulDays.length > 0) {
+      if (!usefulDays.includes(day)) {
+        setDay(usefulDays[usefulDays.length - 1]);
+      }
+      return;
+    }
+
+    if (userPickedPeriodRef.current) return;
+    fallbackTriedPeriodsRef.current.add(period);
+    if (fallbackTriedPeriodsRef.current.size > 12) return;
+
+    const candidates = sortedPeriodsDesc.filter(
+      (pr) => pr < period && !fallbackTriedPeriodsRef.current.has(pr)
+    );
+    const nextPeriod = candidates.find((pr) => calendarPeriodsWithData.has(pr)) ?? candidates[0];
+    if (!nextPeriod) return;
+    const [ny, nm] = nextPeriod.split("-").map(Number);
+    if (Number.isFinite(ny) && Number.isFinite(nm)) {
+      setYear(ny);
+      setMonth(nm);
+    }
+  }, [
+    ready,
+    metadata,
+    dailyKey,
+    activeMonthKey,
+    usefulDays,
+    day,
+    period,
+    sortedPeriodsDesc,
+    calendarPeriodsWithData,
+  ]);
 
   /* ------------------------------------------- serie larga (calendario) -- */
   /**
-   * El calendario necesita varios años. El contrato no tiene serie mensual,
-   * así que se pide el rango que `metadata` declara publicado para el sensor
-   * y se agrupa por mes en `lib/calendar.ts`.
+   * Intenta primero `GET /territories/{type}/{id}/calendar?sensor=...`. Si el
+   * backend aún no lo publica (404) o no está disponible, cae al rango diario
+   * completo y agrupa por mes en `lib/calendar.ts` (`aggregateMonthly`).
    */
   const longSpan = useMemo(() => {
     const ranges = metadata?.available_date_ranges_by_sensor?.[sensor];
     if (!ranges?.length) return null;
-    return { from: ranges[0].from, to: ranges[ranges.length - 1].to };
+    const bounds = ranges.map((r) => rangeBounds(r)).filter((b): b is { from: string; to: string } => b !== null);
+    if (!bounds.length) return null;
+    return { from: bounds[0].from, to: bounds[bounds.length - 1].to };
   }, [metadata, sensor]);
 
   useEffect(() => {
-    if (!ready || !longSpan) return setSeries([]);
+    if (!ready) {
+      setApiCalendar(null);
+      setSeries([]);
+      return;
+    }
     const ctrl = new AbortController();
-    getActivity(
-      { type: territoryType, id: territoryId, sensor, from: longSpan.from, to: longSpan.to },
-      ctrl.signal,
-      skipApi
-    )
-      .then((r) => setSeries(r.data.items ?? []))
-      .catch((e) => {
-        if (!isAbort(e)) setSeries([]);
-      });
-    return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, territoryId, sensor, longSpan]);
+    let active = true;
+
+    (async () => {
+      if (getBackendState() !== "offline" && metadataOrigin === "api") {
+        try {
+          const cal = await fetchCalendar(territoryType, territoryId, sensor, ctrl.signal);
+          if (!active) return;
+          setApiCalendar(calendarFromApi(cal.items ?? []));
+          setSeries([]);
+          return;
+        } catch (e) {
+          if (isAbort(e) || !active) return;
+          if (e instanceof ApiError && e.isPeriodUnavailable) {
+            setApiCalendar([]);
+            setSeries([]);
+            return;
+          }
+        }
+      }
+
+      if (!active) return;
+      setApiCalendar(null);
+      if (!longSpan) {
+        setSeries([]);
+        return;
+      }
+      try {
+        const r = await getActivity(
+          { type: territoryType, id: territoryId, sensor, from: longSpan.from, to: longSpan.to },
+          ctrl.signal,
+          false
+        );
+        if (!active) return;
+        setSeries(r.data?.items ?? []);
+      } catch (e) {
+        if (!isAbort(e) && active) setSeries([]);
+      }
+    })();
+
+    return () => {
+      active = false;
+      ctrl.abort();
+    };
+  }, [ready, territoryType, territoryId, sensor, longSpan]);
 
   /* ------------------------------------------------------------- ficha --- */
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
-    getSummary({ type: territoryType, id: territoryId, sensor, date: dateIso }, ctrl.signal, skipApi)
+    getSummary(
+      { type: territoryType, id: territoryId, sensor, date: dateIso },
+      ctrl.signal,
+      !summaryOk
+    )
       .then((r) => {
         setSummary(r.data);
         setOrigin(r.origin);
@@ -313,42 +573,55 @@ export function MapTool({ tab, onBackend }: Props) {
         if (!isAbort(e)) setSummary(null);
       });
     return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, territoryId, sensor, dateIso]);
+  }, [ready, summaryOk, territoryType, territoryId, sensor, dateIso]);
 
   /* ------------------------------------------------------ comparación ---- */
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
-    getSensorComparison({ type: territoryType, id: territoryId, date: dateIso }, ctrl.signal, skipApi)
+    getSensorComparison(
+      { type: territoryType, id: territoryId, date: dateIso },
+      ctrl.signal,
+      !analysisOk
+    )
       .then((r) => setComparison(r.data))
       .catch((e) => {
         if (!isAbort(e)) setComparison(null);
       });
     return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, territoryId, dateIso]);
+  }, [ready, analysisOk, territoryType, territoryId, dateIso]);
 
   /* -------------------------------------------------------- coropleta ---- */
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
-    getTerritoryMetrics({ type: territoryType, metric, date: dateIso, sensor }, ctrl.signal, skipApi)
+    getTerritoryMetrics(
+      usePeriodMetrics
+        ? { type: territoryType, metric, period, sensor }
+        : { type: territoryType, metric, date: dateIso, sensor },
+      ctrl.signal,
+      !metricsOk
+    )
       .then((r) => {
-        setChoropleth(r.data.items ?? []);
-        setMetricUnit(r.data.unit);
+        setChoropleth(r.data?.items ?? []);
+        setMetricUnit(r.data?.unit ?? null);
       })
       .catch((e) => {
         if (!isAbort(e)) setChoropleth([]);
       });
     return () => ctrl.abort();
-  }, [ready, skipApi, territoryType, metric, dateIso, sensor]);
+  }, [ready, metricsOk, usePeriodMetrics, territoryType, metric, dateIso, period, sensor]);
 
   /* --------------------------------------------------------- derivados --- */
 
   /** Calendario del sensor activo, con la anomalía del mes mirado. */
   const calendar: MonthCell[] = useMemo(() => {
-    const cells = monthlyCells(series.length ? series : daily, sensor);
+    if (apiCalendar !== null) {
+      return mergeAnomaly(apiCalendar, period, summary?.activity.historical_anomaly ?? null);
+    }
+    const cells = aggregateMonthly(series.length ? series : daily, sensor);
     return mergeAnomaly(cells, period, summary?.activity.historical_anomaly ?? null);
-  }, [series, daily, sensor, period, summary]);
+  }, [apiCalendar, series, daily, sensor, period, summary]);
 
   const cell = useMemo(() => findCell(calendar, year, month), [calendar, year, month]);
 
@@ -446,8 +719,8 @@ export function MapTool({ tab, onBackend }: Props) {
     };
 
     setSpreadParams((p) => {
-      const veg = num("vegetation_area_pct");
-      const slopePct = num("slope_pct");
+      const veg = num("vegetation_area_pct") ?? num("effective_vegetation_area_pct");
+      const slopePct = num("slope_class_area_pct") ?? num("slope_pct");
       const precip = num("precip_30d_mm");
       return {
         ...p,
@@ -494,10 +767,7 @@ export function MapTool({ tab, onBackend }: Props) {
               onClose={() => setLeftOpen(null)}
               year={year}
               month={month}
-              onPeriod={(y, m) => {
-                setYear(y);
-                setMonth(m);
-              }}
+              onPeriod={handlePeriod}
               day={day}
               onDay={setDay}
               dateIso={dateIso}
@@ -505,13 +775,15 @@ export function MapTool({ tab, onBackend }: Props) {
               onGranularity={setGranularity}
               metadata={metadata}
               daily={daily}
+              usefulDays={usefulDays}
+              dailyLoading={dailyLoading}
               territoryType={territoryType}
               onTerritoryType={setTerritoryType}
               territoryId={territoryId}
               onTerritoryId={setTerritoryId}
               territories={territories}
               sensor={sensor}
-              onSensor={setSensor}
+              onSensor={handleSensor}
               metric={metric}
               onMetric={setMetric}
               showHotspots={showHotspots}
@@ -563,18 +835,17 @@ export function MapTool({ tab, onBackend }: Props) {
             <CalendarStrip
               calendar={calendar}
               sensor={sensor}
-              onSensor={setSensor}
+              onSensor={handleSensor}
               year={year}
               month={month}
-              onPick={(y, m) => {
-                setYear(y);
-                setMonth(m);
-              }}
+              onPick={handlePeriod}
               daily={daily}
+              metadata={metadata}
               areaLabel={territoryName}
               onHide={() => setShowCalendar(false)}
               selectedDate={dateIso}
               onPickDay={(d) => {
+                if (usefulDays.length > 0 && !usefulDays.includes(d)) return;
                 setDay(d);
                 setGranularity("day");
               }}
@@ -645,6 +916,8 @@ export function MapTool({ tab, onBackend }: Props) {
         {unavailable && <span className="chip chip--warn">{unavailable}</span>}
         {origin === "fixture" ? (
           <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
+        ) : origin === "unavailable" ? (
+          <span className="chip chip--warn">Sin publicación para esta fecha en /api/v1</span>
         ) : (
           <span className="chip chip--term">Indicadores desde /api/v1</span>
         )}

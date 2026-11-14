@@ -56,17 +56,23 @@ const NODE_TEXT: Record<string, string> = {
   "N3a:no": "Viento sin elevación estacional",
   "N3b:yes": "Pendiente sobre el umbral",
   "N3b:no": "Pendiente por debajo del umbral",
+  "buffer_150m:attenuate":
+    "Atenuación por buffer de agua superficial (150 m): reduce susceptibilidad máxima",
 };
 
 /** Nombre legible de cada variable del árbol. */
 const VAR_TEXT: Record<string, string> = {
   vegetation_area_pct: "Vegetación combustible",
+  effective_vegetation_area_pct: "Vegetación efectiva (fuera de buffer 150 m)",
   precip_30d_mm: "Precipitación 30 d",
   wind_speed_10m_ms: "Viento a 10 m",
   temperature_2m_c: "Temp. del aire",
+  relative_humidity_2m_pct: "Humedad relativa (2 m)",
+  slope_class_area_pct: "Pendiente sobre umbral",
   slope_pct: "Pendiente",
   soil_moisture_surface: "Humedad del suelo",
   water_area_pct: "Agua y humedales",
+  water_buffer_150m_pct: "Buffer de agua superficial (150 m)",
   ndvi_median: "NDVI mediano",
 };
 

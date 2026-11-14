@@ -9,8 +9,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DailyRow, Sensor } from "../api/types";
-import { SENSORS, SENSOR_META } from "../api/types";
+import type { DailyRow, Metadata, Sensor } from "../api/types";
+import { NO_OBSERVATION, SENSORS, SENSOR_META, isUnobserved } from "../api/types";
+import { isUsefulDailyRow } from "../api/client";
 import type { MonthCell } from "../lib/calendar";
 import { cividisCss } from "../lib/palette";
 
@@ -28,6 +29,7 @@ interface Props {
   month: number;
   onPick: (y: number, m: number) => void;
   daily: DailyRow[];
+  metadata?: Metadata | null;
   areaLabel: string;
   onHide: () => void;
   selectedDate: string;
@@ -56,6 +58,14 @@ export function CalendarStrip(p: Props) {
   }, [calendar]);
 
   const selected = byKey.get(`${year}-${month}`);
+
+  const usefulDates = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of p.daily) {
+      if (isUsefulDailyRow(r, p.sensor, p.metadata)) set.add(r.date);
+    }
+    return set;
+  }, [p.daily, p.sensor, p.metadata]);
 
   // Escala con raiz cuadrada: evita que un unico mes extremo aplane el resto.
   const tone = (v: number) => Math.sqrt(v / max);
@@ -148,16 +158,35 @@ export function CalendarStrip(p: Props) {
                 <YAxis tickLine={false} axisLine={false} width={44} />
                 <Tooltip
                   cursor={{ fill: "rgba(216,255,51,0.08)" }}
-                  labelFormatter={(d: string) => `Día ${d}`}
-                  formatter={(v: number) => [v.toLocaleString("es-PE"), "Detecciones"]}
+                  labelFormatter={(d: string) => {
+                    const row = p.daily.find((r) => r.date === d);
+                    if (!row) return `Día ${d}`;
+                    if (isUnobserved(row) || row.fire_pixels_nominal_high == null) {
+                      return `Día ${d} · ${NO_OBSERVATION}`;
+                    }
+                    if (!usefulDates.has(d)) {
+                      const pct =
+                        row.observation_coverage != null
+                          ? `${Math.round(row.observation_coverage * 100)}%`
+                          : "—";
+                      return `Día ${d} · Cobertura ${pct} (< 70 %, no útil)`;
+                    }
+                    return `Día ${d}`;
+                  }}
+                  formatter={(v) => [
+                    typeof v === "number" && Number.isFinite(v)
+                      ? v.toLocaleString("es-PE")
+                      : NO_OBSERVATION,
+                    "Detecciones",
+                  ]}
                   labelStyle={{ color: "var(--fg-dim)" }}
                 />
                 <Bar
-                  dataKey="detections"
+                  dataKey="fire_pixels_nominal_high"
                   isAnimationActive={false}
                   cursor="pointer"
                   onClick={(d: { date?: string }) =>
-                    d?.date && p.onPickDay(Number(d.date.slice(8)))
+                    d?.date && usefulDates.has(d.date) && p.onPickDay(Number(d.date.slice(8)))
                   }
                 >
                   {p.daily.map((d) => (
@@ -166,6 +195,7 @@ export function CalendarStrip(p: Props) {
                       fill={
                         d.date === p.selectedDate ? "var(--acid)" : SENSOR_META[p.sensor].color
                       }
+                      fillOpacity={usefulDates.has(d.date) ? 1 : 0.25}
                     />
                   ))}
                 </Bar>
