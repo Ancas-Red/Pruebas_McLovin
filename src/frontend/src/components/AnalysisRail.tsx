@@ -147,7 +147,7 @@ export function AnalysisRail(p: Props) {
         </p>
       </Panel>
 
-      <Panel index="09" title="Árbol de susceptibilidad" note={p.areaLabel}>
+      <Panel index="09" title="Árbol de susceptibilidad" note={p.areaLabel} defaultOpen={false}>
         <span className={su.chip}>{su.text}</span>
 
         <ol className="tree" style={{ marginTop: 12 }}>

@@ -44,13 +44,35 @@ npm run typecheck
 
 ## Qué hace la aplicación
 
+Son dos páginas, con el mismo encabezado para pasar de una a otra.
+
+### Inicio — `#/`
+
+Portada de desplazamiento por bloques a pantalla completa, sobre un planeta animado:
+presentación, el problema, la solución, el flujo de datos, **el equipo** y el alcance.
+La navegación lateral de puntos salta a cada bloque.
+
+### Mapa — `#/mapa`
+
+La herramienta, con dos vistas:
+
 | Vista | Contenido |
 |---|---|
-| **Calendario** | Mapa del Perú con focos por sensor, selección de área por polígono o coordenadas, calendario de 26 años × 12 meses, serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad. |
-| **Simulación** | Simulación exploratoria de recorrido desde una ignición hipotética, con viento, humedad del combustible, vegetación, pendiente y horizonte configurables. |
+| **Calendario** | Mapa del Perú con focos por sensor, selección de área por polígono, rectángulo o coordenadas, calendario de años × meses, serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad. |
+| **Simulación** | Recorrido exploratorio desde una ignición hipotética, con viento, humedad del combustible, vegetación, pendiente y horizonte configurables. |
+
+Los paneles laterales se **pliegan** uno a uno, y el botón **Solo mapa** recoge todo
+para dejar el mapa a pantalla completa.
 
 Descargas: focos en CSV, calendario en CSV y área de interés en GeoJSON. Cada archivo
 lleva una columna `data_origin` que dice si la fila viene del backend o del juego de muestra.
+
+## Fotos del equipo
+
+Cada integrante deja su foto en `src/frontend/public/equipo/` con su nombre de archivo
+(`angelo.jpg`, `tom.jpg`, `jhan.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`). No hay que
+tocar código: si el archivo no está, la tarjeta muestra un monograma con las iniciales.
+Las instrucciones completas están en `src/frontend/public/equipo/README.md`.
 
 ## Límites que la interfaz declara siempre
 

@@ -31,6 +31,9 @@ interface Props {
   spreadTime: number;
   spreadHorizon: number;
   baseLayer: "dark" | "terrain" | "satellite";
+  /** Mapa a pantalla completa: oculta raíles y calendario. */
+  focusMap: boolean;
+  onToggleFocus: () => void;
 }
 
 /** Punto de cierre del poligono: tolerancia en pixeles sobre el primer vertice. */
@@ -72,6 +75,8 @@ export function MapStage(props: Props) {
     spreadTime,
     spreadHorizon,
     baseLayer,
+    focusMap,
+    onToggleFocus,
   } = props;
 
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +190,15 @@ export function MapStage(props: Props) {
       mapRef.current = null;
     };
   }, []);
+
+  /* -------------------------- reencuadre al ocultar o mostrar los railes -- */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    // La transicion de ancho dura 220 ms en CSS.
+    const id = setTimeout(() => map.invalidateSize({ animate: false }), 260);
+    return () => clearTimeout(id);
+  }, [focusMap]);
 
   /* -------------------------------------------------------- capa de base -- */
   useEffect(() => {
@@ -450,6 +464,17 @@ export function MapStage(props: Props) {
             title="Borrar el area y la ignicion"
           >
             Limpiar
+          </button>
+        </div>
+
+        <div className="toolbar toolbar--sep">
+          <button
+            className={`btn${focusMap ? " btn--on" : ""}`}
+            onClick={onToggleFocus}
+            title={focusMap ? "Mostrar los paneles" : "Mapa a pantalla completa"}
+            aria-pressed={focusMap}
+          >
+            {focusMap ? "Mostrar paneles" : "Solo mapa"}
           </button>
         </div>
       </div>

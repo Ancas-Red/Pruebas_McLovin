@@ -96,28 +96,52 @@ body {
 /* Layout ----------------------------------------------------------------- */
 .app {
   display: grid;
-  grid-template-rows: var(--h-header) 1fr var(--h-statusbar);
   height: 100%;
 }
+/* La portada se desplaza dentro de su propio contenedor y la cabecera flota
+   sobre ella. La herramienta reparte la ventana en filas fijas. */
+.app--inicio {
+  grid-template-rows: 1fr;
+}
+.app--mapa {
+  grid-template-rows: var(--h-header) 1fr var(--h-statusbar);
+}
 
-.app__body {
+.tool {
   display: grid;
   grid-template-columns: 300px 1fr 360px;
   min-height: 0;
   border-top: 1px solid var(--line);
+  transition: grid-template-columns 0.22s ease;
+}
+
+/* Solo mapa: los raíles se recogen y el calendario se esconde. */
+.tool--focus {
+  grid-template-columns: 0 1fr 0;
+}
+.tool--focus .rail {
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+}
+.tool--focus .calstrip {
+  display: none;
 }
 
 @media (max-width: 1280px) {
-  .app__body {
-    grid-template-columns: 260px 1fr 310px;
+  .tool {
+    grid-template-columns: 262px 1fr 312px;
   }
 }
 
 @media (max-width: 1000px) {
-  .app__body {
+  .tool {
     grid-template-columns: 1fr;
     grid-template-rows: auto 420px auto;
     overflow-y: auto;
+  }
+  .tool--focus {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -146,12 +170,51 @@ body {
   background: var(--surface-0);
 }
 
+.hdr--over {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.92) 30%, rgba(0, 0, 0, 0));
+  border-bottom: 0;
+}
+
 .hdr__mark {
   display: flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
   color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.hdr__mark:hover .hdr__name {
+  color: var(--acid);
+}
+.hdr__mark:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 4px;
+}
+.hdr__name,
+.hdr__tag {
+  display: block;
+}
+.hdr__sep {
+  width: 1px;
+  height: 20px;
+  background: var(--line-strong);
+  margin: 0 2px;
+}
+.hdr__glyph {
+  color: var(--fg);
+}
+.tab--sub[aria-selected="true"] {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+  color: var(--acid);
 }
 
 .hdr__glyph {
@@ -162,6 +225,7 @@ body {
 
 .hdr__name {
   font-family: var(--font-display);
+  transition: color 0.12s;
   font-weight: 800;
   font-size: 19px;
   letter-spacing: -0.02em;
@@ -253,15 +317,58 @@ body {
 }
 
 .panel__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--surface-1);
-  border-bottom: 1px solid var(--line);
+  margin: 0;
   position: sticky;
   top: 0;
   z-index: 2;
+  font-weight: 400;
+}
+
+.panel__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface-1);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.panel__btn:hover {
+  background: var(--surface-2);
+}
+.panel__btn:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: -2px;
+}
+.panel__btn--static {
+  cursor: default;
+}
+
+/* Galón: apunta abajo cuando el panel está abierto. */
+.panel__chev {
+  margin-left: 4px;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-right: 1.4px solid var(--fg-faint);
+  border-bottom: 1.4px solid var(--fg-faint);
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 0.16s ease;
+}
+.panel[data-open="false"] .panel__chev {
+  transform: rotate(-45deg) translate(-1px, -1px);
+}
+.panel[data-open="false"] .panel__btn {
+  border-bottom-color: transparent;
+}
+.panel__btn:hover .panel__chev {
+  border-color: var(--acid);
 }
 
 .panel__idx {
@@ -272,6 +379,9 @@ body {
 
 .panel__title {
   font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--fg);
@@ -281,6 +391,7 @@ body {
 
 .panel__note {
   margin-left: auto;
+  flex: none;
   font-size: 9.5px;
   color: var(--fg-faint);
   letter-spacing: 0.06em;
@@ -552,6 +663,10 @@ input[type="range"]:focus-visible {
 .ov--tl {
   top: 12px;
   left: 56px;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .ov--tr {
   top: 12px;
@@ -581,6 +696,8 @@ input[type="range"]:focus-visible {
   color: #000;
   font-weight: 700;
 }
+
+
 
 .hud {
   background: rgba(7, 7, 7, 0.93);
@@ -856,6 +973,11 @@ input[type="range"]:focus-visible {
 .status__spacer {
   flex: 1;
 }
+@media (max-width: 1100px) {
+  .status__src {
+    display: none;
+  }
+}
 .status__prompt {
   color: var(--term);
 }
@@ -933,6 +1055,18 @@ input[type="range"]:focus-visible {
   background: var(--surface-0);
   max-height: 46vh;
   overflow-y: auto;
+}
+
+.calstrip .panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+}
+.calstrip .panel__title {
+  white-space: nowrap;
 }
 
 .calstrip__body {

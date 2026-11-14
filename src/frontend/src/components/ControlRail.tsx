@@ -79,7 +79,7 @@ export function ControlRail(p: Props) {
 
   return (
     <aside className="rail rail--left" aria-label="Controles de consulta">
-      <Panel index="01" title="Período" note={`${MONTHS[p.month - 1]} ${p.year}`}>
+      <Panel index="01" title="Período" note={`${MONTHS[p.month - 1]} ${p.year}`} pinned>
         <div className="field">
           <label className="field__label" htmlFor="sel-year">
             Año
@@ -210,7 +210,7 @@ export function ControlRail(p: Props) {
         )}
       </Panel>
 
-      <Panel index="04" title="Capas">
+      <Panel index="04" title="Capas" defaultOpen={false}>
         <div className="field">
           <label className="field__label" htmlFor="sel-base">
             Mapa base
@@ -238,7 +238,7 @@ export function ControlRail(p: Props) {
         </button>
       </Panel>
 
-      <Panel index="05" title="Descargas">
+      <Panel index="05" title="Descargas" defaultOpen={false}>
         <div className="btn-row" style={{ flexDirection: "column" }}>
           <button
             className="btn btn--block"

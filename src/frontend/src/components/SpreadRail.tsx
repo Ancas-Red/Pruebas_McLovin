@@ -40,7 +40,7 @@ export function SpreadRail(p: Props) {
 
   return (
     <aside className="rail rail--right" aria-label="Simulación de recorrido">
-      <Panel index="S1" title="Simulación de recorrido">
+      <Panel index="S1" title="Simulación de recorrido" pinned>
         <div className="note note--ember">
           <b>Modelo exploratorio, no validado.</b> Estima hasta dónde podría avanzar un frente desde
           una ignición <i>hipotética</i>, con las condiciones que fijes abajo. No predice si habrá
@@ -253,7 +253,7 @@ export function SpreadRail(p: Props) {
             </dl>
           </Panel>
 
-          <Panel index="S6" title="Supuestos activos">
+          <Panel index="S6" title="Supuestos activos" defaultOpen={false}>
             <ul className="assume">
               {p.result.assumptions.map((a) => (
                 <li key={a}>{a}</li>
