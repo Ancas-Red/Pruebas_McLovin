@@ -27,6 +27,7 @@ interface Props {
   onPick: (y: number, m: number) => void;
   daily: DayPoint[];
   areaLabel: string;
+  onHide: () => void;
 }
 
 export function CalendarStrip(p: Props) {
@@ -74,6 +75,9 @@ export function CalendarStrip(p: Props) {
             </button>
           ))}
         </div>
+        <button className="calstrip__hide" onClick={p.onHide} aria-label="Ocultar el calendario">
+          ×
+        </button>
       </header>
 
       <div className="calstrip__body">

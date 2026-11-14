@@ -1,4 +1,5 @@
-import { Panel } from "./Panel";
+import { Drawer } from "./Drawer";
+import type { DockItem } from "./DockBar";
 import type { SpreadResult } from "../lib/spread";
 import { formatLatLon, type LatLon } from "../lib/geo";
 
@@ -11,10 +12,18 @@ export interface SpreadParams {
   horizonHours: number;
 }
 
+export const SPREAD_ITEMS: DockItem[] = [
+  { id: "escenario", label: "Escenario de simulación", icon: "flame" },
+  { id: "condiciones", label: "Condiciones", icon: "sliders" },
+  { id: "resultado", label: "Resultado y reproducción", icon: "play" },
+];
+
 const COMPASS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
-const cardinal = (deg: number) => COMPASS[Math.round(((deg % 360) / 45)) % 8];
+const cardinal = (deg: number) => COMPASS[Math.round((deg % 360) / 45) % 8];
 
 interface Props {
+  section: string;
+  onClose: () => void;
   params: SpreadParams;
   onParams: (p: SpreadParams) => void;
   ring: LatLon[] | null;
@@ -32,243 +41,190 @@ interface Props {
 }
 
 export function SpreadRail(p: Props) {
-  const { params: v } = p;
+  const v = p.params;
   const set = <K extends keyof SpreadParams>(k: K, value: SpreadParams[K]) =>
     p.onParams({ ...v, [k]: value });
-
   const ready = p.ring !== null && p.ignition !== null;
 
-  return (
-    <aside className="rail rail--right" aria-label="Simulación de recorrido">
-      <Panel index="S1" title="Simulación de recorrido" pinned>
-        <div className="note note--ember">
-          <b>Modelo exploratorio, no validado.</b> Estima hasta dónde podría avanzar un frente desde
-          una ignición <i>hipotética</i>, con las condiciones que fijes abajo. No predice si habrá
-          un incendio, ni dónde, ni cuándo. No usar para decisiones operativas ni de evacuación.
-        </div>
-      </Panel>
-
-      <Panel index="S2" title="Escenario">
-        <dl className="kv">
-          <dt>Área de interés</dt>
-          <dd data-null={!p.ring}>{p.ring ? `${p.ring.length} vértices` : "Sin definir"}</dd>
-          <dt>Ignición</dt>
-          <dd data-null={!p.ignition}>{p.ignition ? formatLatLon(p.ignition, 3) : "Sin definir"}</dd>
-        </dl>
-        <div className="btn-row" style={{ marginTop: 10 }}>
-          <button className="btn" onClick={p.onPickIgnition}>
-            Situar ignición
-          </button>
-          <button className="btn" onClick={p.onApplyEnv} disabled={p.envApplied}>
-            {p.envApplied ? "Clima aplicado" : "Usar clima del mes"}
-          </button>
-        </div>
-        {!p.ring && (
-          <div className="note note--warn" style={{ marginTop: 10 }}>
-            Dibuja primero un área en el mapa: define el dominio de la simulación.
+  switch (p.section) {
+    case "escenario":
+      return (
+        <Drawer title="Escenario" onClose={p.onClose}>
+          <div className="note note--ember">
+            <b>Modelo exploratorio, no validado.</b> Estima hasta dónde podría avanzar un frente
+            desde una ignición <i>hipotética</i>, con las condiciones que fijes. No predice si habrá
+            un incendio, ni dónde, ni cuándo. No usar para decisiones operativas ni de evacuación.
           </div>
-        )}
-      </Panel>
-
-      <Panel index="S3" title="Condiciones">
-        <div className="field">
-          <label className="field__label" htmlFor="sp-wind">
-            Viento a 10 m <span className="field__value">{v.windSpeedMs.toFixed(1)} m/s</span>
-          </label>
-          <input
-            id="sp-wind"
-            type="range"
-            min={0}
-            max={18}
-            step={0.5}
-            value={v.windSpeedMs}
-            onChange={(e) => set("windSpeedMs", Number(e.target.value))}
-          />
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="sp-dir">
-            Viento desde{" "}
-            <span className="field__value">
-              {Math.round(v.windDirDeg)}° {cardinal(v.windDirDeg)}
-            </span>
-          </label>
-          <input
-            id="sp-dir"
-            type="range"
-            min={0}
-            max={359}
-            step={5}
-            value={v.windDirDeg}
-            onChange={(e) => set("windDirDeg", Number(e.target.value))}
-          />
-          <div className="compass" aria-hidden="true">
-            <i style={{ transform: `rotate(${v.windDirDeg + 180}deg)` }} />
-            <span>avance</span>
+          <dl className="kv" style={{ marginTop: 13 }}>
+            <dt>Área de interés</dt>
+            <dd data-null={!p.ring}>{p.ring ? `${p.ring.length} vértices` : "Sin definir"}</dd>
+            <dt>Ignición</dt>
+            <dd data-null={!p.ignition}>{p.ignition ? formatLatLon(p.ignition, 3) : "Sin definir"}</dd>
+          </dl>
+          <div className="btn-row" style={{ marginTop: 11 }}>
+            <button className="btn" onClick={p.onPickIgnition}>Situar ignición</button>
+            <button className="btn" onClick={p.onApplyEnv} disabled={p.envApplied}>
+              {p.envApplied ? "Clima aplicado" : "Usar clima del mes"}
+            </button>
           </div>
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="sp-fm">
-            Humedad del combustible{" "}
-            <span className="field__value">{v.fuelMoisturePct.toFixed(0)} %</span>
-          </label>
-          <input
-            id="sp-fm"
-            type="range"
-            min={2}
-            max={30}
-            step={1}
-            value={v.fuelMoisturePct}
-            onChange={(e) => set("fuelMoisturePct", Number(e.target.value))}
-          />
-          <p className="mono-sm">A 30 % el frente se apaga: es el contenido de extinción.</p>
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="sp-veg">
-            Cobertura vegetal <span className="field__value">{v.vegetationPct.toFixed(0)} %</span>
-          </label>
-          <input
-            id="sp-veg"
-            type="range"
-            min={5}
-            max={100}
-            step={1}
-            value={v.vegetationPct}
-            onChange={(e) => set("vegetationPct", Number(e.target.value))}
-          />
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="sp-slope">
-            Pendiente media <span className="field__value">{v.slopeMeanDeg.toFixed(0)}°</span>
-          </label>
-          <input
-            id="sp-slope"
-            type="range"
-            min={0}
-            max={35}
-            step={1}
-            value={v.slopeMeanDeg}
-            onChange={(e) => set("slopeMeanDeg", Number(e.target.value))}
-          />
-        </div>
-
-        <div className="field">
-          <label className="field__label" htmlFor="sp-h">
-            Horizonte <span className="field__value">{v.horizonHours} h</span>
-          </label>
-          <input
-            id="sp-h"
-            type="range"
-            min={3}
-            max={48}
-            step={1}
-            value={v.horizonHours}
-            onChange={(e) => set("horizonHours", Number(e.target.value))}
-          />
-        </div>
-
-        <button
-          className="btn btn--ember btn--block"
-          disabled={!ready || p.running}
-          onClick={p.onRun}
-          style={{ marginTop: 4 }}
-        >
-          {p.running ? "Calculando…" : "Ejecutar simulación"}
-        </button>
-        {!ready && (
-          <p className="mono-sm" style={{ marginTop: 8 }}>
-            Faltan {!p.ring ? "el área" : ""}
-            {!p.ring && !p.ignition ? " y " : ""}
-            {!p.ignition ? "el punto de ignición" : ""}.
-          </p>
-        )}
-      </Panel>
-
-      {p.result && (
-        <>
-          <Panel index="S4" title="Reproducción" note={`t = ${p.time.toFixed(1)} h`}>
-            <div className="transport">
-              <button className="btn" onClick={p.onPlayPause} style={{ minWidth: 62 }}>
-                {p.playing ? "Pausa" : "Reproducir"}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={v.horizonHours}
-                step={0.25}
-                value={p.time}
-                onChange={(e) => p.onTime(Number(e.target.value))}
-                aria-label="Instante de la simulación"
-              />
+          {!p.ring && (
+            <div className="note note--warn" style={{ marginTop: 11 }}>
+              Dibuja primero un área en el mapa: define el dominio de la simulación.
             </div>
-            <div className="legend__scale" style={{ marginTop: 2 }}>
-              <span>0 h</span>
-              <span>{v.horizonHours} h</span>
-            </div>
-          </Panel>
+          )}
+          <button
+            className="btn btn--ember btn--block"
+            disabled={!ready || p.running}
+            onClick={p.onRun}
+            style={{ marginTop: 13 }}
+          >
+            {p.running ? "Calculando…" : "Ejecutar simulación"}
+          </button>
+        </Drawer>
+      );
 
-          <Panel index="S5" title="Resultado">
-            <div className="metric-grid">
-              <div className="metric">
-                <div className="metric__label">Superficie alcanzada</div>
-                <div className="metric__value">
-                  {areaAt(p.result, p.time).toLocaleString("es-PE")}
-                  <span className="metric__unit">ha</span>
-                </div>
-              </div>
-              <div className="metric">
-                <div className="metric__label">Avance de cabeza</div>
-                <div className="metric__value">
-                  {p.result.headRosMMin.toFixed(1)}
-                  <span className="metric__unit">m/min</span>
-                </div>
+    case "condiciones":
+      return (
+        <Drawer title="Condiciones" onClose={p.onClose}>
+          <div className="field">
+            <label className="field__label" htmlFor="sp-wind">
+              Viento a 10 m <span className="field__value">{v.windSpeedMs.toFixed(1)} m/s</span>
+            </label>
+            <input id="sp-wind" type="range" min={0} max={18} step={0.5}
+              value={v.windSpeedMs} onChange={(e) => set("windSpeedMs", Number(e.target.value))} />
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sp-dir">
+              Viento desde <span className="field__value">{Math.round(v.windDirDeg)}° {cardinal(v.windDirDeg)}</span>
+            </label>
+            <input id="sp-dir" type="range" min={0} max={359} step={5}
+              value={v.windDirDeg} onChange={(e) => set("windDirDeg", Number(e.target.value))} />
+            <div className="compass" aria-hidden="true">
+              <i style={{ transform: `rotate(${v.windDirDeg + 180}deg)` }} />
+              <span>avance</span>
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sp-fm">
+              Humedad del combustible <span className="field__value">{v.fuelMoisturePct.toFixed(0)} %</span>
+            </label>
+            <input id="sp-fm" type="range" min={2} max={30} step={1}
+              value={v.fuelMoisturePct} onChange={(e) => set("fuelMoisturePct", Number(e.target.value))} />
+            <p className="mono-sm">A 30 % el frente se apaga: es el contenido de extinción.</p>
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sp-veg">
+              Cobertura vegetal <span className="field__value">{v.vegetationPct.toFixed(0)} %</span>
+            </label>
+            <input id="sp-veg" type="range" min={5} max={100} step={1}
+              value={v.vegetationPct} onChange={(e) => set("vegetationPct", Number(e.target.value))} />
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sp-slope">
+              Pendiente media <span className="field__value">{v.slopeMeanDeg.toFixed(0)}°</span>
+            </label>
+            <input id="sp-slope" type="range" min={0} max={35} step={1}
+              value={v.slopeMeanDeg} onChange={(e) => set("slopeMeanDeg", Number(e.target.value))} />
+          </div>
+
+          <div className="field">
+            <label className="field__label" htmlFor="sp-h">
+              Horizonte <span className="field__value">{v.horizonHours} h</span>
+            </label>
+            <input id="sp-h" type="range" min={3} max={48} step={1}
+              value={v.horizonHours} onChange={(e) => set("horizonHours", Number(e.target.value))} />
+          </div>
+
+          <button className="btn btn--ember btn--block" disabled={!ready || p.running} onClick={p.onRun}>
+            {p.running ? "Calculando…" : "Ejecutar simulación"}
+          </button>
+          {!ready && (
+            <p className="mono-sm" style={{ marginTop: 9 }}>
+              Faltan {!p.ring ? "el área" : ""}{!p.ring && !p.ignition ? " y " : ""}
+              {!p.ignition ? "el punto de ignición" : ""}.
+            </p>
+          )}
+        </Drawer>
+      );
+
+    case "resultado":
+      if (!p.result) {
+        return (
+          <Drawer title="Resultado" onClose={p.onClose}>
+            <div className="note">
+              Todavía no hay simulación. Define un área y un punto de ignición, ajusta las
+              condiciones y pulsa <b>Ejecutar simulación</b>.
+            </div>
+          </Drawer>
+        );
+      }
+      return (
+        <Drawer title="Resultado" note={`t = ${p.time.toFixed(1)} h`} onClose={p.onClose}>
+          <div className="transport">
+            <button className="btn" onClick={p.onPlayPause} style={{ minWidth: 62 }}>
+              {p.playing ? "Pausa" : "Reproducir"}
+            </button>
+            <input type="range" min={0} max={v.horizonHours} step={0.25}
+              value={p.time} onChange={(e) => p.onTime(Number(e.target.value))}
+              aria-label="Instante de la simulación" />
+          </div>
+          <div className="legend__scale" style={{ marginTop: 2, marginBottom: 14 }}>
+            <span>0 h</span><span>{v.horizonHours} h</span>
+          </div>
+
+          <div className="metric-grid">
+            <div className="metric">
+              <div className="metric__label">Superficie alcanzada</div>
+              <div className="metric__value">
+                {areaAt(p.result, p.time).toLocaleString("es-PE")}
+                <span className="metric__unit">ha</span>
               </div>
             </div>
-
-            <div className="legend__title" style={{ marginTop: 13 }}>
-              Superficie acumulada
+            <div className="metric">
+              <div className="metric__label">Avance de cabeza</div>
+              <div className="metric__value">
+                {p.result.headRosMMin.toFixed(1)}
+                <span className="metric__unit">m/min</span>
+              </div>
             </div>
-            <dl className="kv">
-              {p.result.bands.map((b) => (
-                <div key={b.hours} style={{ display: "contents" }}>
-                  <dt>{b.hours} h</dt>
-                  <dd>{b.areaHa.toLocaleString("es-PE")} ha</dd>
-                </div>
-              ))}
-            </dl>
+          </div>
 
-            <hr className="hr" />
-            <dl className="kv">
-              <dt>Relación largo/ancho</dt>
-              <dd>{p.result.lengthToBreadth.toFixed(2)} : 1</dd>
-              <dt>Resolución de celda</dt>
-              <dd>{Math.round(p.result.cellSizeM)} m</dd>
-              <dt>Grilla</dt>
-              <dd>
-                {p.result.cols} × {p.result.rows}
-              </dd>
-            </dl>
-          </Panel>
+          <div className="legend__title" style={{ marginTop: 14 }}>Superficie acumulada</div>
+          <dl className="kv">
+            {p.result.bands.map((b) => (
+              <div key={b.hours} style={{ display: "contents" }}>
+                <dt>{b.hours} h</dt>
+                <dd>{b.areaHa.toLocaleString("es-PE")} ha</dd>
+              </div>
+            ))}
+          </dl>
 
-          <Panel index="S6" title="Supuestos activos" defaultOpen={false}>
-            <ul className="assume">
-              {p.result.assumptions.map((a) => (
-                <li key={a}>{a}</li>
-              ))}
-            </ul>
-            <div className="note" style={{ marginTop: 11 }}>
-              Forma elíptica de Anderson (1983), pendiente con la regla de duplicar la velocidad
-              cada 10°, y amortiguamiento por humedad de Rothermel. Cuando el backend publique
-              SRTM y cobertura reales, se reemplazan el relieve y el combustible sintéticos.
-            </div>
-          </Panel>
-        </>
-      )}
-    </aside>
-  );
+          <hr className="hr" />
+          <dl className="kv">
+            <dt>Relación largo/ancho</dt><dd>{p.result.lengthToBreadth.toFixed(2)} : 1</dd>
+            <dt>Resolución de celda</dt><dd>{Math.round(p.result.cellSizeM)} m</dd>
+            <dt>Grilla</dt><dd>{p.result.cols} × {p.result.rows}</dd>
+          </dl>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>Supuestos activos</div>
+          <ul className="assume">
+            {p.result.assumptions.map((a) => <li key={a}>{a}</li>)}
+          </ul>
+          <div className="note" style={{ marginTop: 11 }}>
+            Forma elíptica de Anderson (1983), pendiente con la regla de duplicar la velocidad cada
+            10°, y amortiguamiento por humedad de Rothermel. Cuando el backend publique SRTM y
+            cobertura reales, se reemplazan el relieve y el combustible sintéticos.
+          </div>
+        </Drawer>
+      );
+
+    default:
+      return null;
+  }
 }
 
 function areaAt(r: SpreadResult, t: number): number {

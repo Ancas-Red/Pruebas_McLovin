@@ -30,10 +30,9 @@ interface Props {
   spread: SpreadResult | null;
   spreadTime: number;
   spreadHorizon: number;
-  baseLayer: "dark" | "terrain" | "satellite";
-  /** Mapa a pantalla completa: oculta raíles y calendario. */
-  focusMap: boolean;
-  onToggleFocus: () => void;
+  baseLayer: "dark" | "relief" | "satellite";
+  /** Cambia cuando el ancho disponible cambia; obliga a Leaflet a reencuadrar. */
+  relayoutKey: string;
 }
 
 /** Punto de cierre del poligono: tolerancia en pixeles sobre el primer vertice. */
@@ -41,23 +40,34 @@ const CLOSE_TOLERANCE_PX = 14;
 /** Tope de puntos dibujados, para no bloquear el navegador. */
 const MAX_DRAWN_POINTS = 9000;
 
+/**
+ * Capas base sin clave de API.
+ *
+ * Se retiraron las teselas de CARTO porque ahora exigen una clave y el mapa
+ * aparecía cubierto de marcas "API KEY REQUIRED". El mapa oscuro se consigue
+ * invirtiendo por CSS las teselas estándar de OpenStreetMap, que no piden
+ * clave; las otras dos vienen de servicios abiertos de Esri y OpenTopoMap.
+ */
 const BASE_LAYERS = {
   dark: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
+    filtered: true,
   },
-  terrain: {
+  relief: {
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution:
-      'Datos de mapa &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Estilo: <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+      'Mapa &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Estilo: <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
     maxZoom: 17,
+    filtered: false,
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Imagenes: Esri, Maxar, Earthstar Geographics",
+    attribution: "Imágenes: Esri, Maxar, Earthstar Geographics",
     maxZoom: 18,
+    filtered: false,
   },
 } as const;
 
@@ -75,8 +85,7 @@ export function MapStage(props: Props) {
     spreadTime,
     spreadHorizon,
     baseLayer,
-    focusMap,
-    onToggleFocus,
+    relayoutKey,
   } = props;
 
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -191,14 +200,14 @@ export function MapStage(props: Props) {
     };
   }, []);
 
-  /* -------------------------- reencuadre al ocultar o mostrar los railes -- */
+  /* ----------------------- reencuadre cuando cambia el ancho disponible -- */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    // La transicion de ancho dura 220 ms en CSS.
+    // La transición de ancho dura 220 ms en CSS.
     const id = setTimeout(() => map.invalidateSize({ animate: false }), 260);
     return () => clearTimeout(id);
-  }, [focusMap]);
+  }, [relayoutKey]);
 
   /* -------------------------------------------------------- capa de base -- */
   useEffect(() => {
@@ -210,8 +219,12 @@ export function MapStage(props: Props) {
       attribution: cfg.attribution,
       maxZoom: cfg.maxZoom,
       maxNativeZoom: cfg.maxZoom,
+      crossOrigin: true,
     }).addTo(map);
     baseRef.current.setZIndex(1);
+    // El tema oscuro se obtiene invirtiendo las teselas claras por CSS.
+    const pane = map.getPane("tilePane");
+    if (pane) pane.classList.toggle("tilePane--dark", cfg.filtered);
   }, [baseLayer]);
 
   /* -------------------------------------------- teclado: Esc y Enter ------ */
@@ -464,17 +477,6 @@ export function MapStage(props: Props) {
             title="Borrar el area y la ignicion"
           >
             Limpiar
-          </button>
-        </div>
-
-        <div className="toolbar toolbar--sep">
-          <button
-            className={`btn${focusMap ? " btn--on" : ""}`}
-            onClick={onToggleFocus}
-            title={focusMap ? "Mostrar los paneles" : "Mapa a pantalla completa"}
-            aria-pressed={focusMap}
-          >
-            {focusMap ? "Mostrar paneles" : "Solo mapa"}
           </button>
         </div>
       </div>

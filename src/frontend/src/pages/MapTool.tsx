@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ControlRail } from "../components/ControlRail";
+import { ControlRail, LEFT_ITEMS } from "../components/ControlRail";
 import { MapStage, type DrawMode } from "../components/MapStage";
 import { CalendarStrip } from "../components/CalendarStrip";
-import { AnalysisRail } from "../components/AnalysisRail";
-import { SpreadRail, type SpreadParams } from "../components/SpreadRail";
+import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
+import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/SpreadRail";
+import { DockBar } from "../components/DockBar";
 import type { ToolTab } from "../components/SiteNav";
 import {
   deriveComparison,
@@ -39,14 +40,16 @@ export function MapTool({ tab, onBackend }: Props) {
   const [calendarSensor, setCalendarSensor] = useState<Sensor>("VIIRS_SNPP");
   const [includeLow, setIncludeLow] = useState(false);
   const [showHotspots, setShowHotspots] = useState(true);
-  const [baseLayer, setBaseLayer] = useState<"dark" | "terrain" | "satellite">("dark");
+  const [showCalendar, setShowCalendar] = useState(true);
+  const [baseLayer, setBaseLayer] = useState<"dark" | "relief" | "satellite">("dark");
 
   const [ring, setRing] = useState<LatLon[] | null>(null);
   const [ignition, setIgnition] = useState<LatLon | null>(null);
   const [mode, setMode] = useState<DrawMode>("pan");
 
-  /** Oculta los raíles laterales y el calendario: el mapa a pantalla completa. */
-  const [focusMap, setFocusMap] = useState(false);
+  /** Un cajón abierto a la vez por lado. Con los dos cerrados manda el mapa. */
+  const [leftOpen, setLeftOpen] = useState<string | null>(null);
+  const [rightOpen, setRightOpen] = useState<string | null>(null);
 
   const [hotspots, setHotspots] = useState<Hotspot[]>([]);
   const [calendars, setCalendars] = useState<Partial<Record<Sensor, MonthCell[]>>>({});
@@ -67,13 +70,14 @@ export function MapTool({ tab, onBackend }: Props) {
   const [playing, setPlaying] = useState(false);
   const [envApplied, setEnvApplied] = useState(false);
 
+  // Al cambiar de pestaña, el cajón derecho ya no corresponde.
+  useEffect(() => setRightOpen(null), [tab]);
+
   /* ----------------------------------------------------- sondeo backend -- */
   useEffect(() => {
     let alive = true;
     probeBackend().then((s) => alive && onBackend(s));
-    const id = setInterval(() => {
-      probeBackend().then((s) => alive && onBackend(s));
-    }, 120_000);
+    const id = setInterval(() => probeBackend().then((s) => alive && onBackend(s)), 120_000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -126,7 +130,6 @@ export function MapTool({ tab, onBackend }: Props) {
 
   /* --------------------------------------------------------- derivados --- */
   const calendar = calendars[calendarSensor] ?? [];
-
   const cell = useMemo(
     () => calendar.find((c) => c.year === year && c.month === month),
     [calendar, year, month]
@@ -175,6 +178,7 @@ export function MapTool({ tab, onBackend }: Props) {
         setSpread(r);
         setSpreadTime(spreadParams.horizonHours);
         setPlaying(true);
+        setRightOpen("resultado");
       } finally {
         setSpreadRunning(false);
       }
@@ -186,7 +190,6 @@ export function MapTool({ tab, onBackend }: Props) {
     if (!playing || !spread) return;
     let last = performance.now();
     if (spreadTime >= spreadParams.horizonHours) setSpreadTime(0);
-
     const step = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -221,34 +224,52 @@ export function MapTool({ tab, onBackend }: Props) {
   }, [env]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
+  const rightItems = tab === "calendario" ? ANALYSIS_ITEMS : SPREAD_ITEMS;
+
+  const leftItems = LEFT_ITEMS.map((it) =>
+    it.id === "sensores" ? { ...it, badge: String(sensors.length) } : it
+  );
 
   return (
     <>
-      <div className={`tool${focusMap ? " tool--focus" : ""}`}>
-        <ControlRail
-          year={year}
-          month={month}
-          onPeriod={(y, m) => {
-            setYear(y);
-            setMonth(m);
-          }}
-          sensors={sensors}
-          onSensors={setSensors}
-          calendarSensor={calendarSensor}
-          onCalendarSensor={setCalendarSensor}
-          includeLow={includeLow}
-          onIncludeLow={setIncludeLow}
-          showHotspots={showHotspots}
-          onShowHotspots={setShowHotspots}
-          baseLayer={baseLayer}
-          onBaseLayer={setBaseLayer}
-          ring={ring}
-          onRing={setRing}
-          hotspots={hotspots}
-          calendar={calendar}
-          origin={origin}
-          countsBySensor={countsBySensor}
-        />
+      <div
+        className="tool"
+        data-left={leftOpen ? "open" : "closed"}
+        data-right={rightOpen ? "open" : "closed"}
+      >
+        <DockBar items={leftItems} open={leftOpen} onOpen={setLeftOpen} side="left" />
+
+        <div className="dock dock--left">
+          {leftOpen && (
+            <ControlRail
+              section={leftOpen}
+              onClose={() => setLeftOpen(null)}
+              year={year}
+              month={month}
+              onPeriod={(y, m) => {
+                setYear(y);
+                setMonth(m);
+              }}
+              sensors={sensors}
+              onSensors={setSensors}
+              calendarSensor={calendarSensor}
+              includeLow={includeLow}
+              onIncludeLow={setIncludeLow}
+              showHotspots={showHotspots}
+              onShowHotspots={setShowHotspots}
+              showCalendar={showCalendar}
+              onShowCalendar={setShowCalendar}
+              baseLayer={baseLayer}
+              onBaseLayer={setBaseLayer}
+              ring={ring}
+              onRing={setRing}
+              hotspots={hotspots}
+              calendar={calendar}
+              origin={origin}
+              countsBySensor={countsBySensor}
+            />
+          )}
+        </div>
 
         <main className="center">
           <MapStage
@@ -264,74 +285,77 @@ export function MapTool({ tab, onBackend }: Props) {
             spreadTime={spreadTime}
             spreadHorizon={spreadParams.horizonHours}
             baseLayer={baseLayer}
-            focusMap={focusMap}
-            onToggleFocus={() => setFocusMap((v) => !v)}
+            relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
           />
 
-          <CalendarStrip
-            calendar={calendar}
-            sensor={calendarSensor}
-            onSensor={setCalendarSensor}
-            year={year}
-            month={month}
-            onPick={(y, m) => {
-              setYear(y);
-              setMonth(m);
-            }}
-            daily={daily}
-            areaLabel={areaLabel}
-          />
+          {showCalendar && (
+            <CalendarStrip
+              calendar={calendar}
+              sensor={calendarSensor}
+              onSensor={setCalendarSensor}
+              year={year}
+              month={month}
+              onPick={(y, m) => {
+                setYear(y);
+                setMonth(m);
+              }}
+              daily={daily}
+              areaLabel={areaLabel}
+              onHide={() => setShowCalendar(false)}
+            />
+          )}
         </main>
 
-        {tab === "calendario" ? (
-          <AnalysisRail
-            cell={cell}
-            comparison={comparison}
-            susceptibility={susceptibility}
-            env={env}
-            areaLabel={areaLabel}
-            periodLabel={periodLabel}
-          />
-        ) : (
-          <SpreadRail
-            params={spreadParams}
-            onParams={(p) => {
-              setSpreadParams(p);
-              setEnvApplied(false);
-            }}
-            ring={ring}
-            ignition={ignition}
-            onPickIgnition={() => setMode("ignition")}
-            result={spread}
-            running={spreadRunning}
-            time={spreadTime}
-            onTime={(t) => {
-              setPlaying(false);
-              setSpreadTime(t);
-            }}
-            onRun={runSpread}
-            onPlayPause={() => setPlaying((v) => !v)}
-            playing={playing}
-            envApplied={envApplied}
-            onApplyEnv={applyEnvToSpread}
-          />
-        )}
+        <div className="dock dock--right">
+          {rightOpen && tab === "calendario" && (
+            <AnalysisRail
+              section={rightOpen}
+              onClose={() => setRightOpen(null)}
+              cell={cell}
+              comparison={comparison}
+              susceptibility={susceptibility}
+              env={env}
+              areaLabel={areaLabel}
+              periodLabel={periodLabel}
+            />
+          )}
+          {rightOpen && tab === "simulacion" && (
+            <SpreadRail
+              section={rightOpen}
+              onClose={() => setRightOpen(null)}
+              params={spreadParams}
+              onParams={(p) => {
+                setSpreadParams(p);
+                setEnvApplied(false);
+              }}
+              ring={ring}
+              ignition={ignition}
+              onPickIgnition={() => setMode("ignition")}
+              result={spread}
+              running={spreadRunning}
+              time={spreadTime}
+              onTime={(t) => {
+                setPlaying(false);
+                setSpreadTime(t);
+              }}
+              onRun={runSpread}
+              onPlayPause={() => setPlaying((v) => !v)}
+              playing={playing}
+              envApplied={envApplied}
+              onApplyEnv={applyEnvToSpread}
+            />
+          )}
+        </div>
+
+        <DockBar items={rightItems} open={rightOpen} onOpen={setRightOpen} side="right" />
       </div>
 
       <footer className="status">
         <span className="status__prompt">root@mchanaq ~ %</span>
-        <span>
-          <b>período</b> {periodLabel}
-        </span>
-        <span>
-          <b>área</b> {areaLabel}
-        </span>
-        <span>
-          <b>focos</b> {hotspots.length.toLocaleString("es-PE")}
-        </span>
-        <span>
-          <b>sensores</b> {sensors.length}/3
-        </span>
+        <span><b>período</b> {periodLabel}</span>
+        <span><b>área</b> {areaLabel}</span>
+        <span><b>focos</b> {hotspots.length.toLocaleString("es-PE")}</span>
+        <span><b>sensores</b> {sensors.length}/3</span>
         <span className="status__spacer" />
         {origin === "fixture" && (
           <span className="chip chip--warn">Datos de muestra · no son observaciones reales</span>
