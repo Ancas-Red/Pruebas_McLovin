@@ -1,96 +1,105 @@
 /**
  * Marca de McHanaq: globo de meridianos con dos órbitas y un satélite.
  *
- * Dibujo propio en SVG, así que es nítido a cualquier tamaño y en cualquier
- * pantalla. El fondo es transparente: se apoya sobre el negro de la página.
+ * Monocroma a propósito. Un solo tono —negro o blanco— y el volumen se
+ * construye con grosores y opacidades, no con color. Así la marca se lee
+ * igual sobre el negro de la portada, sobre un mapa satelital y en un
+ * impreso a una tinta, y nunca compite con el dato, que sí usa color.
+ *
+ * El dibujo toma `currentColor`, de modo que el tono lo decide el CSS del
+ * sitio donde se coloque: basta cambiar `color`.
  */
 
 interface Props {
   size?: number;
-  /** Añade un disco negro detrás, para apoyarlo sobre fondos claros. */
+  /**
+   * `light`: marca blanca, para fondos oscuros (el caso normal).
+   * `dark`: marca negra, para fondos claros.
+   * `auto`: hereda el `color` del contenedor.
+   */
+  tone?: "light" | "dark" | "auto";
+  /** Disco de contraste detrás, cuando el fondo es una imagen. */
   plate?: boolean;
 }
 
-export function Logo({ size = 34, plate = false }: Props) {
+export function Logo({ size = 34, tone = "light", plate = false }: Props) {
+  const color = tone === "light" ? "#fff" : tone === "dark" ? "#000" : "currentColor";
+  const plateFill = tone === "light" ? "#000" : "#fff";
+
   return (
     <svg
-      className="logo"
+      className={`logo logo--${tone}`}
       width={size}
       height={size}
       viewBox="0 0 64 64"
       role="img"
       aria-label="McHanaq"
       fill="none"
+      style={{ color }}
     >
-      {plate && <circle cx="32" cy="32" r="32" fill="#000" />}
+      {plate && <circle cx="32" cy="32" r="32" fill={plateFill} opacity="0.62" />}
 
       <defs>
-        <linearGradient id="mcq-sea" x1="14" y1="12" x2="48" y2="52" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#123955" />
-          <stop offset="1" stopColor="#061420" />
-        </linearGradient>
-        <clipPath id="mcq-clip">
-          <circle cx="30" cy="33" r="17" />
+        {/* Recorta meridianos y masas al disco del planeta. */}
+        <clipPath id="mcq-globe">
+          <circle cx="31" cy="33" r="17.5" />
         </clipPath>
       </defs>
 
-      {/* Órbita trasera */}
-      <ellipse
-        cx="30"
-        cy="33"
-        rx="27"
-        ry="11"
-        stroke="#3c6f8c"
-        strokeWidth="1.3"
-        transform="rotate(-28 30 33)"
-        opacity="0.55"
-      />
+      <g stroke="currentColor" fill="none" strokeLinecap="round">
+        {/* Órbita trasera: tenue, pasa por detrás del planeta. */}
+        <ellipse
+          cx="31"
+          cy="33"
+          rx="27.5"
+          ry="11"
+          strokeWidth="1.2"
+          transform="rotate(-28 31 33)"
+          opacity="0.3"
+        />
 
-      {/* Cuerpo del planeta */}
-      <circle cx="30" cy="33" r="17" fill="url(#mcq-sea)" />
+        {/* Borde del planeta. */}
+        <circle cx="31" cy="33" r="17.5" strokeWidth="1.9" opacity="0.95" />
 
-      {/* Meridianos y paralelos */}
-      <g clipPath="url(#mcq-clip)" stroke="#4fbfd8" strokeWidth="1.15" opacity="0.85">
-        <circle cx="30" cy="33" r="17" fill="none" opacity="0.5" />
-        <ellipse cx="30" cy="33" rx="6.5" ry="17" fill="none" />
-        <ellipse cx="30" cy="33" rx="13" ry="17" fill="none" opacity="0.6" />
-        <path d="M13 26.5h34M13 33h34M13 39.5h34" opacity="0.6" />
+        {/* Meridianos y paralelos. */}
+        <g clipPath="url(#mcq-globe)" strokeWidth="1.1" opacity="0.5">
+          <ellipse cx="31" cy="33" rx="6" ry="17.5" />
+          <ellipse cx="31" cy="33" rx="12.4" ry="17.5" opacity="0.72" />
+          <path d="M13.5 26h35M13.5 33h35M13.5 40h35" opacity="0.6" />
+        </g>
+
+        {/* Órbita delantera: trazo firme, cruza por delante. */}
+        <ellipse
+          cx="31"
+          cy="33"
+          rx="27.5"
+          ry="11"
+          strokeWidth="1.7"
+          transform="rotate(-28 31 33)"
+          strokeDasharray="0 88 62 0"
+          opacity="0.9"
+        />
       </g>
 
-      {/* Masa de tierra sugerida, no un continente concreto */}
-      <g clipPath="url(#mcq-clip)" fill="#5fd0e4" opacity="0.72">
-        <path d="M18 25c3-2 7-1 9 1s1 5-2 6-6 0-8-2-1-4 1-5Z" />
-        <path d="M31 38c4-2 8 0 9 3s-2 6-5 6-6-2-6-5c0-2 1-3 2-4Z" />
-        <path d="M38 22c2-1 5 0 5 2s-2 4-4 4-4-2-3-4c0-1 1-2 2-2Z" />
+      {/* Masas de tierra sugeridas: formas propias, no un continente real. */}
+      <g clipPath="url(#mcq-globe)" fill="currentColor" opacity="0.26">
+        <path d="M18.5 25.5c3.2-2.1 7.4-1 9.4 1.2s.9 5.2-2.2 6.2-6.3 0-8.3-2.2-1-4.2 1.1-5.2Z" />
+        <path d="M32 38.5c4.1-2 8.2 0 9.1 3.1s-2.1 6.1-5.2 6.1-6.2-2-6.2-5.1c0-2 1.1-3.1 2.3-4.1Z" />
+        <path d="M39.5 22.5c2-1 5 0 5 2s-2 4-4 4-4-2-3-4c0-1 1-2 2-2Z" />
       </g>
 
-      {/* Brasa: el fuego que la plataforma observa */}
-      <circle cx="35.5" cy="42" r="3.4" fill="#ff5a2c" />
-      <circle cx="35.5" cy="42" r="1.3" fill="#ffd27a" />
+      {/* La brasa: lo que la plataforma observa. Relleno pleno para que sea
+          el punto más denso de la marca y se encuentre de inmediato. */}
+      <circle cx="36.5" cy="42.5" r="3.6" fill="currentColor" />
+      <circle cx="36.5" cy="42.5" r="1.4" fill={plate ? plateFill : tone === "light" ? "#000" : "#fff"} />
 
-      {/* Órbita delantera */}
-      <ellipse
-        cx="30"
-        cy="33"
-        rx="27"
-        ry="11"
-        stroke="#8fd3e6"
-        strokeWidth="1.3"
-        transform="rotate(-28 30 33)"
-        strokeDasharray="0 86 60 0"
-        opacity="0.95"
-      />
-
-      {/* Satélite sobre la órbita */}
-      <g transform="translate(50 17) rotate(-28)">
-        <rect x="-3" y="-3" width="6" height="6" fill="#06121c" stroke="#cfe6f7" strokeWidth="1.2" />
-        <rect x="-11" y="-2.6" width="6" height="5.2" fill="none" stroke="#cfe6f7" strokeWidth="1.1" />
-        <rect x="5" y="-2.6" width="6" height="5.2" fill="none" stroke="#cfe6f7" strokeWidth="1.1" />
-        <path d="M0-3v-3.5" stroke="#cfe6f7" strokeWidth="1.1" />
+      {/* Satélite sobre la órbita delantera. */}
+      <g transform="translate(51 17.5) rotate(-28)" stroke="currentColor" strokeWidth="1.2" fill="none">
+        <rect x="-3" y="-3" width="6" height="6" fill="currentColor" />
+        <rect x="-11" y="-2.6" width="6" height="5.2" opacity="0.8" />
+        <rect x="5" y="-2.6" width="6" height="5.2" opacity="0.8" />
+        <path d="M0-3.2v-3.6" />
       </g>
-
-      {/* Acento de marca */}
-      <circle cx="30" cy="33" r="17" stroke="#d8ff33" strokeWidth="1.1" opacity="0.32" />
     </svg>
   );
 }

@@ -9,8 +9,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DayPoint, MonthCell, Sensor } from "../api/types";
+import type { DailyRow, Sensor } from "../api/types";
 import { SENSORS, SENSOR_META } from "../api/types";
+import type { MonthCell } from "../lib/calendar";
 import { cividisCss } from "../lib/palette";
 
 const M_SHORT = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
@@ -26,7 +27,7 @@ interface Props {
   year: number;
   month: number;
   onPick: (y: number, m: number) => void;
-  daily: DayPoint[];
+  daily: DailyRow[];
   areaLabel: string;
   onHide: () => void;
   selectedDate: string;
@@ -180,7 +181,11 @@ export function CalendarStrip(p: Props) {
             <dt>Racha máxima</dt>
             <dd>{selected ? `${selected.max_consecutive_active_days} d` : "—"}</dd>
             <dt>Cobertura observada</dt>
-            <dd>{selected ? `${Math.round(selected.observation_coverage * 100)} %` : "—"}</dd>
+            <dd data-null={selected?.observation_coverage == null}>
+              {selected?.observation_coverage != null
+                ? `${Math.round(selected.observation_coverage * 100)} %`
+                : "Sin datos"}
+            </dd>
             <dt>Anomalía robusta</dt>
             <dd data-null={selected?.historical_anomaly == null}>
               {selected?.historical_anomaly != null
@@ -238,7 +243,9 @@ function MonthRow({
             title={
               `${M_FULL[monthIndex]} ${year}\n` +
               `${cell.detections.toLocaleString("es-PE")} detecciones\n` +
-              `cobertura ${Math.round(cell.observation_coverage * 100)}%\n` +
+              (cell.observation_coverage != null
+                ? `cobertura ${Math.round(cell.observation_coverage * 100)}%\n`
+                : "cobertura sin datos\n") +
               (anomaly != null ? `anomalía z = ${anomaly.toFixed(2)}` : "anomalía no estimable")
             }
             aria-label={`${M_FULL[monthIndex]} de ${year}, ${cell.detections} detecciones`}

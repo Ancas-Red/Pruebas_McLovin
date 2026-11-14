@@ -29,7 +29,10 @@ export function SiteNav({ route, onRoute, tab, onTab, backend }: Props) {
   return (
     <header className={`hdr${route === "inicio" ? " hdr--over" : ""}`}>
       <button className="brand" onClick={() => onRoute("inicio")} title="Ir al inicio">
-        <Logo size={38} />
+        {/* Blanco: las dos pantallas tienen cabecera oscura, y la marca
+            monocroma se lee mejor sobre negro que cualquier versión con
+            color. `tone="dark"` queda disponible para fondos claros. */}
+        <Logo size={36} tone="light" />
         <span className="brand__text">
           <span className="brand__name">McHanaq</span>
           <span className="brand__tag">Actividad térmica · Perú</span>

@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import type { Hotspot } from "../api/types";
-import { SENSOR_META } from "../api/types";
+import type {
+  Classification,
+  HotspotFeature,
+  MetricId,
+  MetricItem,
+  TerritoryCollection,
+} from "../api/types";
+import { CLASSIFICATION_LABELS, METRIC_LABELS, SENSOR_META } from "../api/types";
 import {
   PERU_BOUNDS,
   PERU_CENTER,
   formatLatLon,
   rectRing,
   ringAreaKm2,
+  ringFromGeoJson,
   type LatLon,
 } from "../lib/geo";
+import { cividisCss } from "../lib/palette";
 import { renderSpreadPNG, type SpreadResult } from "../lib/spread";
 
 export type DrawMode = "pan" | "polygon" | "rect" | "ignition";
@@ -25,8 +33,18 @@ interface Props {
   onRingChange: (r: LatLon[] | null) => void;
   ignition: LatLon | null;
   onIgnitionChange: (p: LatLon | null) => void;
-  hotspots: Hotspot[];
+  hotspots: HotspotFeature[];
   showHotspots: boolean;
+
+  /** Límites de los territorios del tipo activo. */
+  territories: TerritoryCollection | null;
+  /** Un valor por territorio. Vacío = coropleta apagada. */
+  choropleth: MetricItem[];
+  metric: MetricId;
+  metricUnit: string | null;
+  selectedId: string;
+  onSelectTerritory: (id: string) => void;
+
   spread: SpreadResult | null;
   spreadTime: number;
   spreadHorizon: number;
@@ -86,6 +104,12 @@ export function MapStage(props: Props) {
     onIgnitionChange,
     hotspots,
     showHotspots,
+    territories,
+    choropleth,
+    metric,
+    metricUnit,
+    selectedId,
+    onSelectTerritory,
     spread,
     spreadTime,
     spreadHorizon,
@@ -99,6 +123,7 @@ export function MapStage(props: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const baseRef = useRef<L.TileLayer | null>(null);
+  const territoryLayer = useRef<L.LayerGroup | null>(null);
   const hotspotLayer = useRef<L.LayerGroup | null>(null);
   const drawLayer = useRef<L.LayerGroup | null>(null);
   const spreadOverlay = useRef<L.ImageOverlay | null>(null);
@@ -140,6 +165,9 @@ export function MapStage(props: Props) {
     L.control.scale({ imperial: false, position: "bottomright", maxWidth: 160 }).addTo(map);
 
     rendererRef.current = L.canvas({ padding: 0.4 });
+    // El orden de alta fija el orden de pintado: los límites van debajo de
+    // los focos, para que un punto nunca quede tapado por su territorio.
+    territoryLayer.current = L.layerGroup().addTo(map);
     hotspotLayer.current = L.layerGroup().addTo(map);
     drawLayer.current = L.layerGroup().addTo(map);
 
@@ -252,6 +280,88 @@ export function MapStage(props: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, draft, onRingChange, onModeChange]);
 
+  /* ------------------------------------------------- coropleta y límites -- */
+
+  /** Techo de la escala: percentil 95, para que un valor extremo no la aplaste. */
+  const scale = useMemo(() => {
+    const vals = choropleth
+      .map((it) => it.value)
+      .filter((v): v is number => typeof v === "number" && isFinite(v))
+      .sort((a, b) => a - b);
+    if (!vals.length) return null;
+    const lo = vals[0];
+    const hi = vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.95))];
+    return { lo, hi: hi > lo ? hi : lo + 1 };
+  }, [choropleth]);
+
+  useEffect(() => {
+    const layer = territoryLayer.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!territories?.features?.length) return;
+
+    const byId = new Map(choropleth.map((it) => [it.territory_id, it.value]));
+
+    // La clasificación es cualitativa: cuatro escalones de la misma rampa,
+    // no una interpolación, porque entre «moderada» y «alta» no hay medios.
+    const classStop: Record<Classification, number> = {
+      not_evaluable: 0,
+      partial: 0.2,
+      low: 0.3,
+      moderate: 0.62,
+      high: 0.95,
+    };
+
+    for (const f of territories.features) {
+      const id = f.properties.territory_id;
+      const raw = byId.get(id);
+      const selected = id === selectedId;
+
+      let t: number | null = null;
+      if (typeof raw === "number" && scale) {
+        t = Math.max(0, Math.min(1, (raw - scale.lo) / (scale.hi - scale.lo)));
+      } else if (typeof raw === "string" && raw in classStop) {
+        t = classStop[raw as Classification];
+      }
+
+      // Sin dato no se pinta un color de la rampa: se deja hueco y se dice
+      // «Sin datos». Pintarlo con el extremo bajo sería leerlo como cero.
+      const hasValue = t !== null && raw !== null && raw !== undefined;
+
+      const rings =
+        f.geometry.type === "Polygon"
+          ? [f.geometry.coordinates as number[][][]].map((c) => c[0])
+          : (f.geometry.coordinates as number[][][][]).map((poly) => poly[0]);
+
+      for (const r of rings) {
+        const latlngs = ringFromGeoJson(r as [number, number][]);
+        const poly = L.polygon(latlngs, {
+          renderer: rendererRef.current ?? undefined,
+          color: selected ? "#d8ff33" : "rgba(255,255,255,0.3)",
+          weight: selected ? 2.2 : 0.8,
+          fillColor: hasValue ? cividisCss(t as number) : "#2a2f36",
+          fillOpacity: choropleth.length === 0 ? 0.04 : hasValue ? 0.72 : 0.22,
+        });
+
+        const label = f.properties.territory_name ?? id;
+        const shown =
+          raw === null || raw === undefined
+            ? "Sin datos"
+            : typeof raw === "string"
+              ? (CLASSIFICATION_LABELS[raw as Classification] ?? raw)
+              : `${Number(raw).toLocaleString("es-PE", { maximumFractionDigits: 6 })}${metricUnit ? ` ${metricUnit}` : ""}`;
+
+        poly
+          .bindTooltip(`<b>${label}</b><br/>${METRIC_LABELS[metric]}: ${shown}`, {
+            direction: "top",
+            opacity: 0.95,
+          })
+          .on("click", () => onSelectTerritory(id))
+          .addTo(layer);
+      }
+    }
+  }, [territories, choropleth, metric, metricUnit, selectedId, onSelectTerritory, scale]);
+
   /* ------------------------------------------------------------ hotspots -- */
   useEffect(() => {
     const layer = hotspotLayer.current;
@@ -265,20 +375,28 @@ export function MapStage(props: Props) {
     const radius = zoom < 6 ? 1.6 : zoom < 8 ? 2.4 : zoom < 10 ? 3.4 : 4.6;
 
     for (let i = 0; i < hotspots.length; i += step) {
-      const h = hotspots[i];
-      const color = SENSOR_META[h.sensor].color;
-      L.circleMarker([h.lat, h.lon], {
+      const f = hotspots[i];
+      const [lon, lat] = f.geometry.coordinates;
+      const pr = f.properties;
+      const conf = pr.confidence;
+
+      // La clase 7 es confianza baja y se dibuja apagada: va aparte del
+      // indicador principal, que usa 8–9.
+      const low = conf === 7 || conf === "low";
+      const high = conf === 9 || conf === "high";
+
+      L.circleMarker([lat, lon], {
         renderer: rendererRef.current ?? undefined,
         radius,
         stroke: false,
-        fillColor: color,
-        fillOpacity: h.confidence === "low" ? 0.32 : h.confidence === "high" ? 0.95 : 0.7,
+        fillColor: SENSOR_META[pr.sensor]?.color ?? "#f8850c",
+        fillOpacity: low ? 0.32 : high ? 0.95 : 0.7,
         interactive: zoom >= 8,
       })
         .bindTooltip(
-          `<b>${SENSOR_META[h.sensor].short}</b> · ${h.date} ${h.acq_time}Z<br/>` +
-            `FRP ${h.frp} MW · confianza ${h.confidence}<br/>` +
-            `${h.lat.toFixed(4)}, ${h.lon.toFixed(4)}`,
+          `<b>${SENSOR_META[pr.sensor]?.short ?? pr.sensor}</b> · ${pr.date}<br/>` +
+            `${pr.frp_mw !== null && pr.frp_mw !== undefined ? `FRP ${pr.frp_mw} MW · ` : ""}` +
+            `confianza ${conf ?? "—"}<br/>${lat.toFixed(4)}, ${lon.toFixed(4)}`,
           { direction: "top", opacity: 0.95 }
         )
         .addTo(layer);

@@ -38,6 +38,10 @@ interface Props {
   playing: boolean;
   envApplied: boolean;
   onApplyEnv: () => void;
+  /** ¿Llegó la ficha del territorio? Sin ella no hay clima que aplicar. */
+  hasEnv: boolean;
+  /** Centro del territorio activo; orienta al usuario al dibujar el recorte. */
+  center: LatLon | null;
 }
 
 export function SpreadRail(p: Props) {
@@ -65,11 +69,22 @@ export function SpreadRail(p: Props) {
             <dd data-null={!p.ring}>{p.ring ? `${p.ring.length} vértices` : "Sin definir"}</dd>
             <dt>Ignición</dt>
             <dd data-null={!p.ignition}>{p.ignition ? formatLatLon(p.ignition, 3) : "Sin definir"}</dd>
+            <dt>Centro del territorio</dt>
+            <dd data-null={!p.center}>{p.center ? formatLatLon(p.center, 3) : "Sin definir"}</dd>
           </dl>
           <div className="btn-row" style={{ marginTop: 11 }}>
             <button className="btn" onClick={p.onPickIgnition}>Situar ignición</button>
-            <button className="btn" onClick={p.onApplyEnv} disabled={p.envApplied}>
-              {p.envApplied ? "Clima aplicado" : "Usar clima del mes"}
+            <button
+              className="btn"
+              onClick={p.onApplyEnv}
+              disabled={p.envApplied || !p.hasEnv}
+              title={
+                p.hasEnv
+                  ? "Toma el viento del día y los factores del árbol de decisión"
+                  : "Aún no llegó la ficha del territorio"
+              }
+            >
+              {p.envApplied ? "Clima aplicado" : "Usar clima del día"}
             </button>
           </div>
           {!p.ring && (

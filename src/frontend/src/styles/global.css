@@ -98,10 +98,12 @@ body {
   display: grid;
   height: 100%;
 }
-/* La portada se desplaza dentro de su propio contenedor y la cabecera flota
-   sobre ella. La herramienta reparte la ventana en filas fijas. */
+/* La cabecera es una fila propia del armazón, igual en la portada que en la
+   herramienta: queda fuera del contenedor que se desplaza, así que siempre
+   está visible y nunca se mueve ni tapa el texto. Lo que se desplaza es la
+   fila de abajo. */
 .app--inicio {
-  grid-template-rows: 1fr;
+  grid-template-rows: var(--h-header) 1fr;
 }
 .app--mapa {
   grid-template-rows: var(--h-header) 1fr var(--h-statusbar);
@@ -339,20 +341,18 @@ body {
   background: var(--surface-0);
 }
 
-/* Sobre la portada la cabecera flota: se le da aire arriba y a los lados para
-   que no quede pegada al borde de la ventana. */
+/* En la portada la cabecera comparte el negro del fondo y se separa con una
+   línea fina en vez de un degradado. Antes flotaba por encima del contenido
+   y, al desplazar, el texto pasaba por debajo con el degradado a medias: se
+   veía sucio. Ahora ocupa su propia fila y no se superpone a nada. */
 .hdr--over {
-  position: fixed;
-  inset: 0 0 auto 0;
-  z-index: 60;
-  min-height: 0;
-  padding: 26px 44px 20px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.92) 30%, rgba(0, 0, 0, 0));
-  border-bottom: 0;
+  background: #000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 44px;
 }
 @media (max-width: 760px) {
   .hdr--over {
-    padding: 16px 20px 14px;
+    padding: 0 20px;
   }
 }
 
