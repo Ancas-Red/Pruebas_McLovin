@@ -1,0 +1,279 @@
+import { useState } from "react";
+import { Panel } from "./Panel";
+import type { Hotspot, MonthCell, Sensor } from "../api/types";
+import { SENSORS, SENSOR_META } from "../api/types";
+import { FIXTURE_FIRST_YEAR, FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
+import { calendarCsv, download, hotspotsCsv, ringGeoJson } from "../lib/csv";
+import { insidePeru, ringAreaKm2, type LatLon } from "../lib/geo";
+
+const MONTHS = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+interface Props {
+  year: number;
+  month: number;
+  onPeriod: (y: number, m: number) => void;
+  sensors: Sensor[];
+  onSensors: (s: Sensor[]) => void;
+  calendarSensor: Sensor;
+  onCalendarSensor: (s: Sensor) => void;
+  includeLow: boolean;
+  onIncludeLow: (v: boolean) => void;
+  showHotspots: boolean;
+  onShowHotspots: (v: boolean) => void;
+  baseLayer: "dark" | "terrain" | "satellite";
+  onBaseLayer: (v: "dark" | "terrain" | "satellite") => void;
+  ring: LatLon[] | null;
+  onRing: (r: LatLon[] | null) => void;
+  hotspots: Hotspot[];
+  calendar: MonthCell[];
+  origin: string;
+  countsBySensor: Record<string, number>;
+}
+
+export function ControlRail(p: Props) {
+  const [lat, setLat] = useState("-8.90");
+  const [lon, setLon] = useState("-73.92");
+  const [radius, setRadius] = useState("60");
+  const [coordError, setCoordError] = useState<string | null>(null);
+
+  const years: number[] = [];
+  for (let y = FIXTURE_LAST_YEAR; y >= FIXTURE_FIRST_YEAR; y--) years.push(y);
+
+  const monthDisabled = (m: number) => p.year === FIXTURE_LAST_YEAR && m > FIXTURE_LAST_MONTH;
+
+  function applyCoords() {
+    const la = Number(lat);
+    const lo = Number(lon);
+    const r = Number(radius);
+    if (!isFinite(la) || !isFinite(lo) || !isFinite(r) || r <= 0) {
+      setCoordError("Revisa los valores: deben ser números y el radio mayor que cero.");
+      return;
+    }
+    if (!insidePeru([la, lo])) {
+      setCoordError("Ese punto cae fuera del Perú. La herramienta solo cubre territorio peruano.");
+      return;
+    }
+    setCoordError(null);
+    // Caja aproximada de lado 2r alrededor del punto.
+    const dLat = r / 110.574;
+    const dLon = r / (111.32 * Math.cos((la * Math.PI) / 180));
+    p.onRing([
+      [la + dLat, lo - dLon],
+      [la + dLat, lo + dLon],
+      [la - dLat, lo + dLon],
+      [la - dLat, lo - dLon],
+    ]);
+  }
+
+  function toggleSensor(s: Sensor) {
+    const has = p.sensors.includes(s);
+    // Siempre queda al menos un sensor activo.
+    if (has && p.sensors.length === 1) return;
+    p.onSensors(has ? p.sensors.filter((x) => x !== s) : [...p.sensors, s]);
+  }
+
+  const stamp = `${p.year}${String(p.month).padStart(2, "0")}`;
+
+  return (
+    <aside className="rail rail--left" aria-label="Controles de consulta">
+      <Panel index="01" title="Período" note={`${MONTHS[p.month - 1]} ${p.year}`}>
+        <div className="field">
+          <label className="field__label" htmlFor="sel-year">
+            Año
+          </label>
+          <select
+            id="sel-year"
+            value={p.year}
+            onChange={(e) => {
+              const y = Number(e.target.value);
+              const m = y === FIXTURE_LAST_YEAR && p.month > FIXTURE_LAST_MONTH ? FIXTURE_LAST_MONTH : p.month;
+              p.onPeriod(y, m);
+            }}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="sel-month">
+            Mes
+          </label>
+          <select
+            id="sel-month"
+            value={p.month}
+            onChange={(e) => p.onPeriod(p.year, Number(e.target.value))}
+          >
+            {MONTHS.map((name, i) => (
+              <option key={name} value={i + 1} disabled={monthDisabled(i + 1)}>
+                {name}
+                {monthDisabled(i + 1) ? " — sin datos" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mono-sm">
+          Solo se ofrecen meses calendario completos. El período común entre sensores lo publica el
+          backend en <code>metadata.json</code>.
+        </p>
+      </Panel>
+
+      <Panel index="02" title="Sensores en el mapa" note={`${p.sensors.length}/3`}>
+        {SENSORS.map((s) => {
+          const on = p.sensors.includes(s);
+          const meta = SENSOR_META[s];
+          const n = p.countsBySensor[s] ?? 0;
+          return (
+            <button
+              key={s}
+              className="toggle"
+              aria-pressed={on}
+              onClick={() => toggleSensor(s)}
+              title={`${meta.product} · desde ${meta.since}`}
+            >
+              <i
+                className="toggle__box"
+                style={{ background: on ? meta.color : "transparent" }}
+              />
+              <span>{meta.label}</span>
+              <span className="toggle__meta">{on ? n.toLocaleString("es-PE") : "—"}</span>
+            </button>
+          );
+        })}
+
+        <hr className="hr" />
+
+        <button
+          className="toggle"
+          aria-pressed={p.includeLow}
+          onClick={() => p.onIncludeLow(!p.includeLow)}
+        >
+          <i
+            className="toggle__box"
+            style={{ background: p.includeLow ? "var(--acid)" : "transparent" }}
+          />
+          <span>Incluir confianza baja</span>
+        </button>
+        <p className="mono-sm">
+          El indicador principal usa clases 8–9. La clase 7 se guarda aparte, para análisis de
+          sensibilidad.
+        </p>
+      </Panel>
+
+      <Panel index="03" title="Área de interés">
+        <p className="mono-sm" style={{ marginTop: 0 }}>
+          Dibuja un polígono en el mapa, o define un cuadro por coordenadas.
+        </p>
+        <div className="field">
+          <label className="field__label">
+            Latitud <span className="field__value">°S/N</span>
+          </label>
+          <input type="text" inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field__label">
+            Longitud <span className="field__value">°E/W</span>
+          </label>
+          <input type="text" inputMode="decimal" value={lon} onChange={(e) => setLon(e.target.value)} />
+        </div>
+        <div className="field">
+          <label className="field__label">
+            Radio <span className="field__value">{radius} km</span>
+          </label>
+          <input type="text" inputMode="numeric" value={radius} onChange={(e) => setRadius(e.target.value)} />
+        </div>
+        <div className="btn-row">
+          <button className="btn btn--primary" onClick={applyCoords}>
+            Aplicar
+          </button>
+          <button className="btn" disabled={!p.ring} onClick={() => p.onRing(null)}>
+            Quitar
+          </button>
+        </div>
+        {coordError && (
+          <div className="note note--warn" style={{ marginTop: 10 }}>
+            {coordError}
+          </div>
+        )}
+        {p.ring && (
+          <dl className="kv" style={{ marginTop: 11 }}>
+            <dt>Vértices</dt>
+            <dd>{p.ring.length}</dd>
+            <dt>Superficie</dt>
+            <dd>{Math.round(ringAreaKm2(p.ring)).toLocaleString("es-PE")} km²</dd>
+          </dl>
+        )}
+      </Panel>
+
+      <Panel index="04" title="Capas">
+        <div className="field">
+          <label className="field__label" htmlFor="sel-base">
+            Mapa base
+          </label>
+          <select
+            id="sel-base"
+            value={p.baseLayer}
+            onChange={(e) => p.onBaseLayer(e.target.value as Props["baseLayer"])}
+          >
+            <option value="dark">Oscuro</option>
+            <option value="terrain">Relieve</option>
+            <option value="satellite">Satelital</option>
+          </select>
+        </div>
+        <button
+          className="toggle"
+          aria-pressed={p.showHotspots}
+          onClick={() => p.onShowHotspots(!p.showHotspots)}
+        >
+          <i
+            className="toggle__box"
+            style={{ background: p.showHotspots ? "var(--acid)" : "transparent" }}
+          />
+          <span>Focos térmicos</span>
+        </button>
+      </Panel>
+
+      <Panel index="05" title="Descargas">
+        <div className="btn-row" style={{ flexDirection: "column" }}>
+          <button
+            className="btn btn--block"
+            disabled={p.hotspots.length === 0}
+            onClick={() => download(`mchanaq_focos_${stamp}.csv`, hotspotsCsv(p.hotspots, p.origin))}
+          >
+            Focos CSV ({p.hotspots.length.toLocaleString("es-PE")})
+          </button>
+          <button
+            className="btn btn--block"
+            disabled={p.calendar.length === 0}
+            onClick={() =>
+              download(
+                `mchanaq_calendario_${p.calendarSensor}.csv`,
+                calendarCsv(p.calendar, p.calendarSensor, p.origin)
+              )
+            }
+          >
+            Calendario CSV
+          </button>
+          <button
+            className="btn btn--block"
+            disabled={!p.ring}
+            onClick={() =>
+              p.ring && download(`mchanaq_area_${stamp}.geojson`, ringGeoJson(p.ring, ringAreaKm2(p.ring)), "application/geo+json")
+            }
+          >
+            Área GeoJSON
+          </button>
+        </div>
+        <p className="mono-sm" style={{ marginTop: 10 }}>
+          Cada archivo lleva una columna <code>data_origin</code> que indica si la fila viene del
+          backend o del juego de muestra.
+        </p>
+      </Panel>
+    </aside>
+  );
+}
