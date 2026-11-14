@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "items": [
+    {
+      "date": "2025-09-15",
+      "territory_type": "province",
+      "territory_id": "1501",
+      "sensor": "MODIS_TERRA",
+      "fire_pixels_low": 1,
+      "fire_pixels_nominal_high": 2,
+      "valid_land_pixels": 360,
+      "expected_land_pixels_per_day": 400,
+      "observation_coverage": 0.9,
+      "activity_rate": 0.00556,
+      "t_amb_c": 19.2,
+      "relative_humidity_2m_pct": 44.5,
+      "t_suelo_c": 30.1,
+      "lst_valid_pixel_pct": 85.0,
+      "wind_dir_deg": 140.0,
+      "wind_speed_10m_ms": 3.6,
+      "elevation_m": 2850.0,
+      "dem_source": "COPERNICUS_DEM_GLO30"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "items": [
+    {
+      "period_id": "2025-09",
+      "territory_type": "province",
+      "territory_id": "1501",
+      "classification": "moderate",
+      "decision_path": ["N0:pass", "N1:yes", "N2:yes", "N3a:no"],
+      "evidence": [
+        { "variable": "t_amb_c", "value": 19.2, "unit": "°C", "rule_status": "above_p75", "source_product": "ERA5_LAND_HOURLY", "source_period": "2025-09" },
+        { "variable": "relative_humidity_2m_pct", "value": 44.5, "unit": "%", "rule_status": "normal", "source_product": "ERA5_LAND_HOURLY", "source_period": "2025-09" }
+      ],
+      "missing_variables": []
+    }
+  ]
+}

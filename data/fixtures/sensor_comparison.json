@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "items": [
+    {
+      "period_id": "2025-09",
+      "territory_type": "province",
+      "territory_id": "1501",
+      "status": "discordant",
+      "sensors": {
+        "MODIS_TERRA": { "available": true, "activity_rate": 0.00261, "historical_anomaly": 1.4, "observation_coverage": 0.7667, "signal_status": "not_elevated" },
+        "MODIS_AQUA": { "available": true, "activity_rate": 0.00110, "historical_anomaly": 0.2, "observation_coverage": 0.71, "signal_status": "not_elevated" },
+        "VIIRS_SNPP": { "available": true, "activity_rate": 0.00320, "historical_anomaly": 2.1, "observation_coverage": 0.82, "signal_status": "elevated" }
+      },
+      "interpretation": "Fixture de prueba: revisar cobertura y sobrevuelo.",
+      "method_version": "0.1.0"
+    }
+  ]
+}
