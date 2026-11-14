@@ -46,4 +46,6 @@ git checkout <tu-rama>
 ```
 
 * **Motor geoespacial:** Google Earth Engine (exportando `daily_activity.csv` y `environmental_daily.csv` por bloques de 1–2 años sobre el área piloto).
-* **Backend en modo fixtures:** `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000`
+* **Backend en modo fixtures:**
+  * Bash/Linux/macOS: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000`
+  * Windows PowerShell: `$env:MCHANAQ_DATA_DIR="data/fixtures"; $env:MCHANAQ_NO_CACHE="1"; uvicorn backend.app.main:app --port 8000`

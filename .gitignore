@@ -16,9 +16,11 @@ frontend/dist/
 .env.*
 !.env.example
 
-# Heavy intermediate GEE exports (ver docs/McHanaq_documento_tecnico_operativo_v1.7.md §8.3)
+# Heavy intermediate GEE exports & raw local satellite folders (>3 GB)
 data/intermediate/*
 !data/intermediate/.gitkeep
+MODIS/
+VIRS/
 
 # OS / Editors
 .DS_Store
