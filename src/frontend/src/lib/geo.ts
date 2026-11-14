@@ -70,6 +70,26 @@ export function ringCentroid(ring: LatLon[]): LatLon {
   return [lat, lon];
 }
 
+/**
+ * Centroide de un anillo en coordenadas GeoJSON.
+ *
+ * GeoJSON guarda `[lon, lat]` y el resto de la aplicación trabaja en
+ * `[lat, lon]`, que es el orden de Leaflet. Invertir el par al entrar, en un
+ * solo sitio, evita el error silencioso de pintar el Perú en medio del
+ * Pacífico.
+ */
+export function polygonCentroid(ring: [number, number][]): LatLon {
+  if (!ring.length) return PERU_CENTER;
+  const lon = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+  const lat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  return [lat, lon];
+}
+
+/** Convierte un anillo GeoJSON (`[lon, lat]`) al orden de Leaflet. */
+export function ringFromGeoJson(ring: [number, number][]): LatLon[] {
+  return ring.map(([lon, lat]) => [lat, lon] as LatLon);
+}
+
 /** Distancia haversine en kilometros. */
 export function distanceKm(a: LatLon, b: LatLon): number {
   const dLat = toRad(b[0] - a[0]);

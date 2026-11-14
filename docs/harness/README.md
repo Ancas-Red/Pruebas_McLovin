@@ -111,7 +111,72 @@ de alerta, despacho o evacuación.
 
 ## 7. Estado del frontend
 
-Alineado con el contrato v1.2. Mientras `/api/v1` no responda, la interfaz usa su juego
-de datos de muestra —con la **misma forma** del contrato— y lo indica en el encabezado,
-en la barra de estado y en la columna `data_origin` de cada CSV. En cuanto el backend
-responda, cambia solo.
+Alineado con el contrato v1.2 y **verificado contra el backend real** de `src/backend/`
+sirviendo `data/fixtures/`. Mientras `/api/v1` no responda, la interfaz usa su juego de
+datos de muestra —con la **misma forma** del contrato— y lo indica en la barra de estado
+y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia solo.
+
+### 7.1. Cómo está organizado
+
+| Archivo | Responsabilidad |
+|---|---|
+| `src/api/types.ts` | Tipos y enumerados del contrato, etiquetas en castellano. Nadie cambia aquí un nombre, tipo o unidad sin tocar primero `contracts/`. |
+| `src/api/client.ts` | Los 9 endpoints, uno por función. Habla el contrato y nada más. |
+| `src/api/source.ts` | Decide API o muestra, y etiqueta la procedencia. El día que el backend sea estable, se borra este archivo sin tocar pantallas. |
+| `src/lib/fixtures.ts` | Muestra determinista con la forma del contrato, endpoint por endpoint. |
+| `src/lib/calendar.ts` | Agrupación mensual para el calendario (ver 7.3). |
+| `src/pages/MapTool.tsx` | Estado de la herramienta. Consulta siempre por tipo + id de territorio. |
+
+### 7.2. Reglas que el frontend cumple y conviene no romper
+
+* **Consulta por territorio.** Tipo + id en toda llamada. Provincias y cuencas no se
+  mezclan; al cambiar de tipo se reselecciona el primer id del tipo nuevo.
+* **Un sensor activo.** La interfaz tiene *un* sensor seleccionado, no varios. Es la
+  forma de que no exista la tentación de sumar conteos. El contraste entre los tres se
+  ve en «Comparación», que lo resuelve el backend.
+* **`metadata` manda.** No se dispara ninguna consulta de datos antes de tener
+  `metadata`, y si la fecha abierta no está publicada para el sensor no se consulta la
+  API en absoluto: el contrato ya dice que contestaría `422`. Al arrancar, la
+  herramienta salta a la última fecha publicada.
+* **El frontend no calcula.** Tasa, anomalía, estado de señal y clasificación llegan de
+  `/summary` y `/sensor-comparison`. Se borraron las derivaciones que había antes.
+* **`null` nunca es `0`.** Un día sin observación se rotula «Sin observación», un valor
+  ausente «Sin datos», una anomalía sin línea base «Historial insuficiente». En la
+  coropleta, un territorio sin dato se deja en hueco gris, nunca en el extremo bajo de
+  la rampa.
+* **Procedencia separada.** El rótulo de los indicadores y el de los focos son
+  independientes: `/hotspots` es prioridad 3 y puede faltar sin que eso convierta en
+  muestra lo que sí vino de la API.
+* **Cividis** para magnitudes en mapa y calendario; la rampa cálida solo para el frente
+  simulado, donde el color codifica tiempo. Los colores por sensor son categóricos.
+
+### 7.3. Hueco del contrato: falta una serie mensual
+
+El reto pide un calendario plurianual por territorio, y el contrato v1.2 solo tiene
+serie **diaria** (`/activity`) y resumen de **un** período (dentro de `/summary`). Hoy el
+frontend agrupa por mes la serie diaria en `src/lib/calendar.ts`, lo que obliga a traer
+años de filas y deja la anomalía en `not_estimable` salvo en el mes consultado, porque
+la anomalía exige la distribución de los años anteriores y el umbral `robust_z`, que
+viven en el backend.
+
+**Petición al equipo:** un `GET /territories/{type}/{id}/calendar?sensor=…` con la serie
+mensual (`period_id`, `fire_pixel_days_8_9`, `activity_rate`, `observation_coverage`,
+`active_days`, `max_consecutive_active_days`, `historical_anomaly` con su `status` y
+`baseline_years`). Mientras no exista, el calendario de años completos solo se puede
+pintar con datos de muestra. Cambio de contrato → PR de Jean que toque a la vez
+`contracts/` y `data/fixtures/` (§8 del contrato).
+
+### 7.4. Variable de entorno del frontend
+
+`VITE_API_BASE` fija la base de la API al compilar; por omisión
+`http://localhost:8000/api/v1`. En Render apunta al servicio del backend. El backend debe
+incluir el origen del frontend en `MCHANAQ_CORS_ORIGINS`.
+
+### 7.5. Comprobado en navegador
+
+Prueba sin interfaz (Chrome headless) contra `uvicorn` + `data/fixtures`: cabecera
+estática sin solapar el contenido, bloques de la portada a la altura exacta del
+contenedor, sin `scroll-snap`, ningún texto visible con `opacity: 0`, sin capas de
+composición retenidas, los 5 espacios de foto del equipo, territorios desde
+`/territories`, e indicadores desde `/summary`. Cero peticiones desperdiciadas: ningún
+`422` en el arranque.

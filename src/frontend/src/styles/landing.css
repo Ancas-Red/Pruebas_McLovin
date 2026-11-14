@@ -7,25 +7,29 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Proximidad en vez de obligatorio: el ajuste acompaña al gesto en vez de
-     secuestrarlo, que es lo que hace que el desplazamiento se sienta suave. */
-  scroll-snap-type: y proximity;
-  scroll-behavior: smooth;
   background: #000;
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .landing {
-    scroll-snap-type: none;
-    scroll-behavior: auto;
-  }
+  /* Sin ajuste por bloques y sin `scroll-behavior: smooth` en el contenedor.
+     Las dos cosas peleaban con el gesto: el ajuste por proximidad volvía a
+     apuntar el destino a mitad del desplazamiento y el suavizado alargaba
+     cada corrección, de modo que un gesto normal terminaba en un salto y el
+     texto se quedaba congelado a medio aparecer. El desplazamiento nativo es
+     el más suave que hay; los saltos de la navegación se piden uno a uno
+     desde el código, que sí van suaves. */
+  overscroll-behavior-y: contain;
+
+  /* El navegador puede componer el desplazamiento aparte del repintado. */
+  -webkit-overflow-scrolling: touch;
 }
 
 /* --- Fondo ---------------------------------------------------------------- */
 
+/* Queda fijo a la ventana para no repintarse en cada desplazamiento, pero
+   empieza bajo la cabecera: así el globo se centra en el hueco que de verdad
+   se ve, y no medio tapado por la barra. */
 .landing__bg {
   position: fixed;
-  inset: 0;
+  inset: var(--h-header) 0 0 0;
   z-index: 0;
   background: #000;
 }
@@ -63,15 +67,19 @@
 
 /* --- Bloques -------------------------------------------------------------- */
 
+/* La altura se mide contra el contenedor que se desplaza (`100%`), no contra
+   la ventana (`100vh`). Con la cabecera ocupando su propia fila, `100vh`
+   dejaba cada bloque 72 px más alto que el hueco real: ninguna sección
+   llegaba a encajar, el desplazamiento quedaba siempre a medio camino y el
+   texto se veía cortado o a medio aparecer. Ese era el defecto. */
 .block {
   position: relative;
   z-index: 1;
-  min-height: 100vh;
-  scroll-snap-align: start;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: calc(var(--h-header) + 56px) 0 64px;
+  padding: 72px 0 80px;
 }
 
 .wrap {
@@ -101,15 +109,14 @@
     grid-column: 1;
     padding-left: 0;
   }
+  /* En una columna el globo se ve arriba y el texto debajo: el primer bloque
+     le deja sitio, los demás no lo necesitan. */
   .block {
     min-height: auto;
-    padding: calc(var(--h-header) + 300px) 0 64px;
+    padding: 56px 0 64px;
   }
-  .block--team {
-    padding-top: calc(var(--h-header) + 56px);
-  }
-  .landing {
-    scroll-snap-type: none;
+  #inicio.block {
+    padding-top: 320px;
   }
   .landing__bg::after {
     background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.9) 36%, #000 60%);
@@ -118,18 +125,39 @@
 
 /* --- Entrada escalonada --------------------------------------------------- */
 
+/* Recorrido corto y transición más breve que antes. Un desplazamiento de 26 px
+   con 720 ms de duración y hasta 640 ms de espera dejaba párrafos invisibles
+   mucho después de estar en pantalla: se leía como un fallo, no como una
+   entrada. */
 [data-reveal] {
   opacity: 0;
-  transform: translate3d(0, 26px, 0);
+  transform: translate3d(0, 14px, 0);
   transition:
-    opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: var(--d, 0ms);
+}
+
+/* `will-change` solo mientras dura la entrada. Dejarlo puesto en todos los
+   elementos mantenía una capa de composición por párrafo para siempre, y en
+   esas capas el texto se vuelve a trazar con otro suavizado: de ahí que las
+   palabras se vieran borrosas o temblaran al desplazar. */
+[data-reveal]:not(.is-done) {
   will-change: opacity, transform;
 }
+
 [data-reveal].is-in {
   opacity: 1;
-  transform: translate3d(0, 0, 0);
+  transform: none;
+}
+
+/* Terminada la entrada se quita toda transformación: el elemento vuelve al
+   flujo normal y el texto se dibuja nítido. */
+[data-reveal].is-done {
+  opacity: 1;
+  transform: none;
+  transition: none;
+  will-change: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   [data-reveal] {
