@@ -25,6 +25,22 @@ export interface BaseLayerId {
   id: "dark" | "terrain" | "satellite";
 }
 
+/**
+ * Ficha que acompaña al puntero.
+ *
+ * La arma la página con lo que devuelve el backend; el mapa solo la coloca.
+ * `state` distingue los tres momentos del apunte —se pidió, llegó, falló—
+ * porque taparlos todos con un hueco en blanco haría parecer que la
+ * plataforma no responde cuando en realidad está consultando.
+ */
+export interface HoverCard {
+  id: string;
+  title: string;
+  state: "loading" | "ready" | "error";
+  rows: { k: string; v: string }[];
+  foot?: string;
+}
+
 interface Props {
   mode: DrawMode;
   onModeChange: (m: DrawMode) => void;
@@ -44,6 +60,14 @@ interface Props {
   selectedId: string;
   onSelectTerritory: (id: string) => void;
 
+  /**
+   * El puntero entró o salió de un territorio. El identificador va hacia
+   * arriba para que la página consulte al backend; aquí solo se detecta.
+   */
+  onHoverTerritory: (id: string | null) => void;
+  /** Lo que se muestra junto al puntero mientras dura el apunte. */
+  hoverCard: HoverCard | null;
+
   spread: SpreadResult | null;
   spreadTime: number;
   spreadHorizon: number;
@@ -61,6 +85,48 @@ interface Props {
 
 /** Punto de cierre del poligono: tolerancia en pixeles sobre el primer vertice. */
 const CLOSE_TOLERANCE_PX = 14;
+
+/** Tamaño reservado para la ficha del puntero, al separarla del borde. */
+const CARD_W = 256;
+const CARD_H = 184;
+
+/** Extremos de la leyenda: pocos dígitos, para que no partan la caja. */
+function fmtShort(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  if (a >= 1000) return v.toLocaleString("es-PE", { maximumFractionDigits: 0 });
+  if (a >= 1) return v.toLocaleString("es-PE", { maximumFractionDigits: 1 });
+  return v.toLocaleString("es-PE", { maximumFractionDigits: 3 });
+}
+
+/** Trazo del territorio apuntado: blanco fino y relleno un punto más opaco. */
+function hoverStyle(base: L.PathOptions): L.PathOptions {
+  return {
+    ...base,
+    color: "#ffffff",
+    weight: Math.max(2, (base.weight ?? 1) + 1.4),
+    fillOpacity: Math.min(0.92, (base.fillOpacity ?? 0) + 0.14),
+  };
+}
+
+/**
+ * Dónde colocar la ficha para que no se salga del mapa.
+ *
+ * Se ancla una vez, al entrar en el territorio, y no sigue al puntero: con la
+ * respuesta del backend llegando a destiempo, una ficha que persigue el ratón
+ * y cambia de alto al cargar da un salto desagradable justo cuando se está
+ * intentando leer.
+ */
+function anchorFor(e: L.LeafletMouseEvent, size: L.Point | undefined): { x: number; y: number } {
+  const w = size?.x ?? 900;
+  const h = size?.y ?? 600;
+  const x = e.containerPoint.x + 18;
+  const y = e.containerPoint.y + 18;
+  return {
+    x: Math.max(8, Math.min(x, w - CARD_W - 8)),
+    y: Math.max(8, Math.min(y, h - CARD_H - 8)),
+  };
+}
 /** Tope de puntos dibujados, para no bloquear el navegador. */
 const MAX_DRAWN_POINTS = 9000;
 
@@ -111,6 +177,8 @@ export function MapStage(props: Props) {
     metricUnit,
     selectedId,
     onSelectTerritory,
+    onHoverTerritory,
+    hoverCard,
     spread,
     spreadTime,
     spreadHorizon,
@@ -135,6 +203,21 @@ export function MapStage(props: Props) {
   const [draft, setDraft] = useState<LatLon[]>([]);
   const [cursor, setCursor] = useState<LatLon | null>(null);
   const [zoom, setZoom] = useState(5.4);
+
+  /* ------------------------------------------------------- apuntar ------ */
+  /** Polígonos por territorio, para poder resaltarlos sin reconstruirlos. */
+  const polysById = useRef<Map<string, { poly: L.Polygon; base: L.PathOptions }[]>>(new Map());
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  /** Dónde se ancla la ficha, en píxeles del contenedor del mapa. */
+  const [hoverPt, setHoverPt] = useState<{ x: number; y: number } | null>(null);
+  /** Lo lee el constructor de polígonos, que no debe depender del estado. */
+  const hoverIdRef = useRef<string | null>(null);
+  /**
+   * Un territorio con varios anillos dispara `mouseout` al pasar de uno al
+   * siguiente. Sin esta espera corta la ficha parpadearía en cada frontera
+   * interna, que no es una salida real del territorio.
+   */
+  const leaveTimer = useRef<number | undefined>(undefined);
 
   // Los manejadores viven en un ref para no recrear los listeners de Leaflet
   // en cada render.
@@ -293,6 +376,7 @@ export function MapStage(props: Props) {
     const layer = territoryLayer.current;
     if (!layer) return;
     layer.clearLayers();
+    polysById.current.clear();
     if (!territories?.features?.length) return;
 
     const byId = new Map(choropleth.map((it) => [it.territory_id, it.value]));
@@ -330,36 +414,71 @@ export function MapStage(props: Props) {
 
       for (const r of rings) {
         const latlngs = ringFromGeoJson(r as [number, number][]);
-        const poly = L.polygon(latlngs, {
+        const base: L.PathOptions = {
           renderer: rendererRef.current ?? undefined,
-          color: selected ? "#d8ff33" : "rgba(255,255,255,0.3)",
+          color: selected ? "#d8ff33" : "rgba(236,246,235,0.34)",
           weight: selected ? 2.2 : 0.8,
-          fillColor: hasValue ? cividisCss(t as number) : "#2a2f36",
-          fillOpacity: choropleth.length === 0 ? 0.04 : hasValue ? 0.72 : 0.22,
-        });
+          fillColor: hasValue ? cividisCss(t as number) : "#1b2a21",
+          fillOpacity: choropleth.length === 0 ? 0.05 : hasValue ? 0.72 : 0.22,
+        };
+        const poly = L.polygon(latlngs, base);
 
-        const label = f.properties.territory_name ?? id;
-        const shown =
-          raw === null || raw === undefined
-            ? "Sin datos"
-            : typeof raw === "string"
-              ? (CLASSIFICATION_LABELS[raw as Classification] ?? raw)
-              : `${Number(raw).toLocaleString("es-PE", { maximumFractionDigits: 6 })}${metricUnit ? ` ${metricUnit}` : ""}`;
-
+        /* El globo de Leaflet se retiró a propósito: ahora el apunte abre la
+           ficha con datos del backend, y tener las dos cosas flotando sobre
+           el mismo territorio se pisaba una a la otra. */
         poly
-          .bindTooltip(`<b>${label}</b><br/>${METRIC_LABELS[metric]}: ${shown}`, {
-            direction: "top",
-            opacity: 0.95,
-          })
+          /* El clic solo selecciona en modo mover, y no se propaga al mapa:
+             si no, dibujar un área sobre un territorio acababa cambiando el
+             territorio activo. Ese arreglo viene de la rama de analítica. */
           .on("click", (e: L.LeafletMouseEvent) => {
             if (handlers.current.mode !== "pan") return;
             L.DomEvent.stopPropagation(e as unknown as Event);
             onSelectTerritory(id);
           })
+          .on("mouseover", (e: L.LeafletMouseEvent) => {
+            if (handlers.current.mode !== "pan") return;
+            window.clearTimeout(leaveTimer.current);
+            hoverIdRef.current = id;
+            setHoverId(id);
+            setHoverPt(anchorFor(e, mapRef.current?.getSize()));
+            onHoverTerritory(id);
+          })
+          .on("mouseout", () => {
+            window.clearTimeout(leaveTimer.current);
+            leaveTimer.current = window.setTimeout(() => {
+              hoverIdRef.current = null;
+              setHoverId(null);
+              setHoverPt(null);
+              onHoverTerritory(null);
+            }, 70);
+          })
           .addTo(layer);
+
+        const entry = polysById.current.get(id);
+        if (entry) entry.push({ poly, base });
+        else polysById.current.set(id, [{ poly, base }]);
+
+        if (hoverIdRef.current === id) poly.setStyle(hoverStyle(base));
       }
     }
-  }, [territories, choropleth, metric, metricUnit, selectedId, onSelectTerritory, scale]);
+  }, [territories, choropleth, metric, metricUnit, selectedId, onSelectTerritory, onHoverTerritory, scale]);
+
+  /**
+   * Resalte del territorio apuntado.
+   *
+   * Va aparte de la construcción: mover el puntero no debe rehacer cientos de
+   * polígonos, solo cambiar el trazo de los que entran y salen.
+   */
+  useEffect(() => {
+    polysById.current.forEach((entries, id) => {
+      for (const { poly, base } of entries) {
+        poly.setStyle(id === hoverId ? hoverStyle(base) : base);
+      }
+    });
+  }, [hoverId]);
+
+  /** Al soltar el componente no debe quedar un temporizador vivo. */
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
 
   /* ------------------------------------------------------------ hotspots -- */
   useEffect(() => {
@@ -671,7 +790,83 @@ export function MapStage(props: Props) {
         </div>
       </div>
 
+      {/* Ficha del puntero: lo que el backend responde del territorio apuntado.
+          Vive fuera de las capas de Leaflet para que no la recorte el mapa ni
+          se repinte con cada desplazamiento. */}
+      {hoverCard && hoverPt && (
+        <div
+          className={`hovercard hovercard--${hoverCard.state}`}
+          style={{ left: hoverPt.x, top: hoverPt.y }}
+          aria-live="polite"
+        >
+          <div className="hovercard__name">{hoverCard.title}</div>
+          {hoverCard.state === "loading" ? (
+            <div className="hovercard__wait">
+              <i className="hovercard__spark" aria-hidden="true" />
+              Consultando al backend…
+            </div>
+          ) : hoverCard.state === "error" ? (
+            <div className="hovercard__wait hovercard__wait--err">Sin respuesta del backend</div>
+          ) : (
+            <dl className="hovercard__rows">
+              {hoverCard.rows.map((r) => (
+                <div key={r.k}>
+                  <dt>{r.k}</dt>
+                  <dd>{r.v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {hoverCard.foot && <div className="hovercard__foot">{hoverCard.foot}</div>}
+        </div>
+      )}
+
       <div className="ov ov--bl">
+        {/* Clave de la coropleta. Sin ella el mapa pinta territorios de colores
+            que nadie puede leer: es el primer dato que hay que poder traducir. */}
+        {choropleth.length > 0 && (
+          <div className="legend legend--ramp">
+            {/* La unidad va en su propia línea: algunas son una frase entera
+                («píxeles-día detectados / píxeles-día válidos»), y pegarla al
+                título estiraba la caja hasta ocupar medio mapa. */}
+            <div className="legend__title">{METRIC_LABELS[metric]}</div>
+            {metric === "conditions_classification" ? (
+              <div className="legend__items legend__items--flush">
+                {(["low", "moderate", "high", "partial"] as Classification[]).map((c) => (
+                  <div className="legend__item" key={c}>
+                    <i
+                      className="legend__swatch"
+                      style={{
+                        background: cividisCss(
+                          { not_evaluable: 0, partial: 0.2, low: 0.3, moderate: 0.62, high: 0.95 }[c]
+                        ),
+                      }}
+                    />
+                    <span>{CLASSIFICATION_LABELS[c] ?? c}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="legend__ramp">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <i key={i} style={{ background: cividisCss(i / 9) }} />
+                  ))}
+                </div>
+                <div className="legend__scale">
+                  <span>{scale ? fmtShort(scale.lo) : "—"}</span>
+                  <span>{scale ? fmtShort(scale.hi) : "—"}</span>
+                </div>
+                {metricUnit && <div className="legend__unit">{metricUnit}</div>}
+              </>
+            )}
+            <div className="legend__item legend__item--nodata">
+              <i className="legend__swatch" style={{ background: "#1b2a21" }} />
+              <span>Sin datos publicados</span>
+            </div>
+          </div>
+        )}
+
         <div className="legend">
           <div className="legend__title">Sensor</div>
           <div className="legend__items" style={{ marginTop: 0, borderTop: 0, paddingTop: 0 }}>

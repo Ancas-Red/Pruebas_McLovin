@@ -102,7 +102,7 @@
 /* --- Terminal interactiva (inspiración telemetry CLI) --------------------- */
 
 .tech-term {
-  background: #050505;
+  background: var(--bg);
   border: 1px solid var(--line-strong);
   border-right-color: rgba(255, 74, 36, 0.35);
   border-top-color: rgba(255, 74, 36, 0.25);
@@ -337,7 +337,7 @@
 }
 
 .tech-card-slot {
-  background: #060606;
+  background: var(--surface-0);
 }
 
 .tech-card {
@@ -346,12 +346,12 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: #060606;
+  background: var(--surface-0);
   transition: background 0.2s;
 }
 
 .tech-card:hover {
-  background: #101010;
+  background: var(--surface-1);
 }
 
 .tech-card__top {
@@ -499,7 +499,7 @@
 }
 
 .pipeline__step {
-  background: #060606;
+  background: var(--surface-0);
   padding: 20px 18px;
   display: flex;
   flex-direction: column;
@@ -609,7 +609,7 @@
 }
 
 .spec {
-  background: #060606;
+  background: var(--surface-0);
   padding: 20px 18px;
 }
 

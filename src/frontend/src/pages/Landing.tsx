@@ -228,9 +228,8 @@ export function Landing({ onOpenMap, onOpenTech, suspendTypewriter = false }: Pr
             </p>
             <HeroTypewriterTitle suspended={suspendTypewriter} />
             <p className="hero__lead" data-reveal style={{ "--d": "160ms" } as React.CSSProperties}>
-              Más de catorce años de focos térmicos repartidos entre satélites que no se pueden
-              comparar directamente. McHanaq los reúne en un calendario territorial del Perú y
-              evalúa las condiciones del terreno ante una ignición hipotética.
+              Más de catorce años de focos térmicos de MODIS y VIIRS en un calendario territorial
+              del Perú, con las condiciones del terreno ante una ignición hipotética.
             </p>
             <div className="hero__cta" data-reveal style={{ "--d": "280ms" } as React.CSSProperties}>
               <button className="btn btn--primary btn--lg" onClick={onOpenMap}>
@@ -273,21 +272,10 @@ export function Landing({ onOpenMap, onOpenTech, suspendTypewriter = false }: Pr
             </h2>
             <p className="block__lead" data-reveal style={{ "--d": "80ms" } as React.CSSProperties}>
               Ver dónde hay focos hoy es el primer paso, no el último. McHanaq responde si lo
-              observado es inusual para esta época, cuánto alcanzó a ver el satélite y si las
-              fuentes coinciden; y, sobre esa base, describe qué tan favorable es el terreno a que
-              un fuego se extienda.
+              observado es inusual para esta época y cuánto alcanzó a ver el satélite.
             </p>
 
-            <div className="goal" data-reveal style={{ "--d": "120ms" } as React.CSSProperties}>
-              <span className="goal__tag">Objetivo</span>
-              <p>
-                Convertir observaciones históricas de MODIS y VIIRS en un calendario territorial
-                comparable, con anomalías, cobertura y trazabilidad por sensor, para apoyar la
-                planificación del monitoreo de incendios en el Perú.
-              </p>
-            </div>
-
-            <div className="scope" data-reveal style={{ "--d": "160ms" } as React.CSSProperties}>
+            <div className="scope" data-reveal style={{ "--d": "120ms" } as React.CSSProperties}>
               <div className="scope__col scope__col--yes">
                 <h3>Sí hace</h3>
                 <ul>
@@ -302,8 +290,8 @@ export function Landing({ onOpenMap, onOpenTech, suspendTypewriter = false }: Pr
                 <ul>
                   <li>Predecir dónde o cuándo se iniciará un incendio</li>
                   <li>Estimar probabilidad de ignición</li>
-                  <li>Confundir un foco térmico con un incendio confirmado</li>
-                  <li>Servir como sistema de alerta operativa</li>
+                  <li>Confirmar que un foco térmico sea un incendio</li>
+                  <li>Servir como alerta operativa</li>
                 </ul>
               </div>
             </div>

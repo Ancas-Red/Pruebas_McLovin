@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlRail, LEFT_ITEMS } from "../components/ControlRail";
-import { MapStage, type DrawMode } from "../components/MapStage";
+import { MapStage, type DrawMode, type HoverCard } from "../components/MapStage";
 import { CalendarStrip } from "../components/CalendarStrip";
 import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
 import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/SpreadRail";
@@ -45,6 +45,10 @@ import {
 } from "../api/source";
 import {
   SENSOR_META,
+  CLASSIFICATION_LABELS,
+  METRIC_LABELS,
+  type ActivitySummary,
+  type Classification,
   type DailyRow,
   type HotspotFeature,
   type Metadata,
@@ -140,6 +144,68 @@ const MONTHLY_METRICS = new Set<MetricId>([
   "active_days",
   "max_consecutive_active_days",
 ]);
+/* -------------------------------------------------------------------------- */
+/* Ficha del puntero                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Valor de una métrica tal como se muestra.
+ *
+ * `null` y `0` se escriben distinto a propósito: el primero es «el indicador
+ * no está publicado» y el segundo «se calculó y vale cero». Confundirlos en
+ * la interfaz es el error que el contrato prohíbe expresamente.
+ */
+function formatMetricValue(v: number | string | null | undefined, unit: string | null): string {
+  if (v === null || v === undefined) return "Sin dato";
+  if (typeof v === "string") return CLASSIFICATION_LABELS[v as Classification] ?? v;
+  const n = v.toLocaleString("es-PE", { maximumFractionDigits: 3 });
+  return unit ? `${n} ${unit}` : n;
+}
+
+function formatCoverage(v: number | null): string {
+  if (v === null || v === undefined) return "Sin dato";
+  // La cobertura llega como fracción 0–1; se muestra en porcentaje.
+  return `${(v * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })} %`;
+}
+
+function formatAnomaly(a: ActivitySummary["historical_anomaly"]): string {
+  if (a.status === "insufficient_baseline") return "Serie insuficiente";
+  if (a.status === "not_estimable" || a.value === null) return "No estimable";
+  const s = a.value > 0 ? "+" : "";
+  return `${s}${a.value.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
+}
+
+/** Arma la ficha con lo que respondió `/summary`, sin interpretar de más. */
+function buildHoverCard(
+  id: string,
+  name: string,
+  painted: { k: string; v: string },
+  s: TerritorySummary,
+  origin: Origin
+): HoverCard {
+  return {
+    id,
+    title: name,
+    state: "ready",
+    rows: [
+      painted,
+      { k: "Días activos", v: s.activity.active_days?.toLocaleString("es-PE") ?? "Sin dato" },
+      { k: "Cobertura", v: formatCoverage(s.activity.observation_coverage) },
+      { k: "Anomalía", v: formatAnomaly(s.activity.historical_anomaly) },
+      {
+        k: "Condiciones",
+        v:
+          CLASSIFICATION_LABELS[s.environmental_conditions.classification] ??
+          s.environmental_conditions.classification,
+      },
+    ],
+    /* No se dice por qué son de muestra: `fixture` tapa tres casos distintos
+       —fecha no publicada, el backend no contestó, o contestó un error del
+       contrato— y atribuirlo al backend sería afirmar algo que aquí no se
+       sabe. El rótulo de la cabecera ya informa si hay conexión. */
+    foot: origin === "fixture" ? "Datos de muestra" : "Backend · /api/v1",
+  };
+}
 
 interface Props {
   tab: ToolTab;
@@ -759,6 +825,105 @@ export function MapTool({
       dateIso: `${year}-${pad2(month)}-${pad2(day)}`,
     });
   }, [onContextChange, departmentName, territoryName, territoryType, navDateLabel, year, month, day]);
+
+  /* --------------------------------------------------------- apuntar ---- */
+
+  /**
+   * Apuntar un territorio con el puntero lo consulta al backend.
+   *
+   * Es una consulta por territorio, no por pantalla: pedir la ficha de los
+   * ciento noventa y seis al cargar sería desperdiciar la mayor parte. Tres
+   * cosas la hacen barata: una espera corta antes de disparar, para que al
+   * cruzar el mapa de lado a lado no se pida nada de lo que se atraviesa; una
+   * caché por territorio, fecha y sensor, que hace instantáneo el segundo
+   * apunte; y la cancelación de la petición en vuelo cuando el puntero se va
+   * antes de que llegue.
+   */
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [hoverCard, setHoverCard] = useState<HoverCard | null>(null);
+  const hoverCache = useRef(new Map<string, { summary: TerritorySummary; origin: Origin }>());
+
+  /** Valor que la coropleta ya tiene en memoria para ese territorio. */
+  const choroplethById = useMemo(
+    () => new Map(choropleth.map((it) => [it.territory_id, it.value])),
+    [choropleth]
+  );
+
+  useEffect(() => {
+    if (!hoverId) {
+      setHoverCard(null);
+      return;
+    }
+
+    const name =
+      territories?.features.find((f) => f.properties.territory_id === hoverId)?.properties
+        .territory_name ?? hoverId;
+
+    /* Lo que ya está en memoria se muestra sin pedir nada: el valor pintado
+       en el mapa no necesita otro viaje al backend. */
+    const painted = choroplethById.get(hoverId);
+    const localRow = {
+      k: METRIC_LABELS[metric],
+      v: formatMetricValue(painted, metricUnit),
+    };
+
+    const key = `${territoryType}|${hoverId}|${sensor}|${dateIso}`;
+    const hit = hoverCache.current.get(key);
+    if (hit) {
+      setHoverCard(buildHoverCard(hoverId, name, localRow, hit.summary, hit.origin));
+      return;
+    }
+
+    setHoverCard({ id: hoverId, title: name, state: "loading", rows: [localRow] });
+
+    if (!ready) return;
+
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => {
+      getSummary(
+        { type: territoryType, id: hoverId, sensor, date: dateIso },
+        ctrl.signal,
+        !summaryOk
+      )
+        .then((r) => {
+          // Sin ficha publicada no se inventa nada: queda el valor que el
+          // mapa ya pintaba y se dice que no hay ficha para esa fecha.
+          if (!r.data) {
+            setHoverCard({
+              id: hoverId,
+              title: name,
+              state: "ready",
+              rows: [localRow],
+              foot: "Sin ficha publicada para esta fecha",
+            });
+            return;
+          }
+          hoverCache.current.set(key, { summary: r.data, origin: r.origin });
+          setHoverCard(buildHoverCard(hoverId, name, localRow, r.data, r.origin));
+        })
+        .catch((e) => {
+          if (isAbort(e)) return;
+          setHoverCard({ id: hoverId, title: name, state: "error", rows: [localRow] });
+        });
+    }, 170);
+
+    return () => {
+      window.clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [
+    hoverId,
+    ready,
+    summaryOk,
+    territories,
+    territoryType,
+    sensor,
+    dateIso,
+    metric,
+    metricUnit,
+    choroplethById,
+  ]);
+
   /** Centro del territorio: lo usa la simulación cuando no hay recorte. */
   const territoryCenter = useMemo<LatLon | null>(() => {
     const f = territories?.features.find((x) => x.properties.territory_id === territoryId);
@@ -954,6 +1119,8 @@ export function MapTool({
             metricUnit={metricUnit}
             selectedId={territoryId}
             onSelectTerritory={setTerritoryId}
+            onHoverTerritory={setHoverId}
+            hoverCard={hoverCard}
             spread={visibleSpread}
             spreadTime={spreadTime}
             spreadHorizon={spreadParams.horizonHours}

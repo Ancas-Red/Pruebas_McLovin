@@ -3,11 +3,18 @@ import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
 import { createStars, drawStars, type Star } from "../lib/starfield";
 
 /**
- * Fondo de la portada: campo de estrellas sobre negro y un globo terráqueo de
- * puntos que gira, con órbitas y un satélite.
+ * Fondo de la portada: un planeta sobre campo de estrellas.
  *
- * El globo se puede arrastrar con el ratón o el dedo y conserva inercia.
- * Los pulsos naranjas son adorno, no detecciones de nuestro conjunto de datos.
+ * El dibujo es una esfera de verdad, no un disco con textura. Cada punto vive
+ * en coordenadas de esfera, se rota al punto de vista y se sombrea contra una
+ * dirección de sol fija: de ahí salen el volumen, el terminador —la frontera
+ * entre día y noche— y el borde iluminado. En la cara nocturna quedan encendidas
+ * las luces de ciudad, que es lo que termina de leerse como un planeta visto
+ * desde órbita y no como un círculo de puntos.
+ *
+ * Se arrastra con el ratón o el dedo y conserva inercia. Los pulsos cálidos son
+ * adorno —no son detecciones de nuestro conjunto de datos— y brillan más sobre
+ * la cara oscura, como se ven de noche los incendios reales desde un satélite.
  * Respeta `prefers-reduced-motion` y se detiene con la pestaña oculta.
  */
 
@@ -18,39 +25,58 @@ interface Props {
   lightsActive?: boolean;
 }
 
-const POINTS = 9500;
-const LIGHT_LEVELS = 14;
+const POINTS = 22000;
+const LIGHT_LEVELS = 24;
 /** Resolución de la máscara de tierra, en grados por píxel ÷ 2. */
 const MASK_W = 720;
 const MASK_H = 360;
 
+/** Dirección del sol en coordenadas de cámara, ya normalizada. */
+const SUN = (() => {
+  const v = [-0.78, 0.26, 0.38];
+  const n = Math.hypot(v[0], v[1], v[2]);
+  return { x: v[0] / n, y: v[1] / n, z: v[2] / n };
+})();
+
 type Orbit = { inc: number; roll: number; rr: number; sp: number };
 
 const ORBITS: Orbit[] = [
-  { inc: 1.05, roll: -0.55, rr: 1.42, sp: 0.55 },
-  { inc: 0.55, roll: 0.75, rr: 1.3, sp: 0 },
-  { inc: 1.3, roll: 1.9, rr: 1.52, sp: 0 },
+  { inc: 1.05, roll: -0.55, rr: 1.3, sp: 0.5 },
+  { inc: 0.55, roll: 0.75, rr: 1.19, sp: 0 },
+  { inc: 1.3, roll: 1.9, rr: 1.4, sp: 0 },
 ];
 
-function buildPalette(rgb: [number, number, number], aMin: number, aMax: number): string[] {
+/**
+ * Rampa de un material: del tono en sombra al tono a pleno sol.
+ *
+ * Se precalcula porque componer la cadena `rgba(...)` para cada punto y cada
+ * cuadro —trece mil veces, sesenta veces por segundo— cuesta más que el
+ * dibujo en sí.
+ */
+function ramp(dark: [number, number, number], lit: [number, number, number]): string[] {
   const out: string[] = [];
   for (let k = 0; k < LIGHT_LEVELS; k++) {
     const t = k / (LIGHT_LEVELS - 1);
-    const a = aMin + (aMax - aMin) * t;
-    const s = 0.45 + 0.55 * t;
-    out.push(
-      `rgba(${Math.round(rgb[0] * s)},${Math.round(rgb[1] * s)},${Math.round(rgb[2] * s)},${a.toFixed(3)})`
-    );
+    const r = Math.round(dark[0] + (lit[0] - dark[0]) * t);
+    const g = Math.round(dark[1] + (lit[1] - dark[1]) * t);
+    const b = Math.round(dark[2] + (lit[2] - dark[2]) * t);
+    out.push(`rgb(${r},${g},${b})`);
   }
   return out;
 }
 
-const LAND_PAL = buildPalette([95, 205, 228], 0.25, 1);
-const SEA_PAL = buildPalette([40, 95, 150], 0.1, 0.55);
+/* Tierra y mar en tonos terrestres: la vegetación tira a verde oliva, como el
+   resto del sitio, y el océano a azul profundo. */
+const LAND_PAL = ramp([9, 24, 18], [128, 186, 112]);
+const SEA_PAL = ramp([5, 13, 26], [38, 104, 168]);
+/** Franja del amanecer: el terminador no es un corte, es una banda cálida. */
+const DUSK_PAL = ramp([26, 14, 16], [196, 104, 58]);
 
 export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  /* El objetivo vive en una referencia para que cambiarlo no reinicie el
+     lienzo: el bucle de dibujo lo lee en cada cuadro y se acerca a él. */
   const lightsTargetRef = useRef(lightsActive);
 
   useEffect(() => {
@@ -102,6 +128,8 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
     const PY = new Float32Array(POINTS);
     const PZ = new Float32Array(POINTS);
     const PL = new Uint8Array(POINTS);
+    /** Luz de ciudad: 0 si no hay, 0.35–1 según intensidad. Fija por punto. */
+    const PC = new Float32Array(POINTS);
     const GA = Math.PI * (3 - Math.sqrt(5));
     for (let i = 0; i < POINTS; i++) {
       const y = 1 - (2 * (i + 0.5)) / POINTS;
@@ -112,7 +140,13 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       PX[i] = x;
       PY[i] = y;
       PZ[i] = z;
-      PL[i] = isLand((Math.atan2(x, z) * 180) / Math.PI, (Math.asin(y) * 180) / Math.PI) ? 1 : 0;
+      const lat = (Math.asin(y) * 180) / Math.PI;
+      const land = isLand((Math.atan2(x, z) * 180) / Math.PI, lat);
+      PL[i] = land ? 1 : 0;
+      // Las luces se agrupan en latitudes medias y escasean hacia los polos,
+      // que es, a grandes rasgos, cómo se reparte la población.
+      const band = 1 - Math.min(1, Math.abs(lat) / 72);
+      PC[i] = land && Math.random() < 0.16 * band ? 0.4 + Math.random() * 0.6 : 0;
     }
 
     const toVec = ([lon, lat]: [number, number]) => {
@@ -138,7 +172,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
     let lastX = 0;
     let lastY = 0;
     let satA = 0.6;
-    const AUTO = reduced ? 0 : 0.085;
+    const AUTO = reduced ? 0 : 0.075;
 
     function resize() {
       dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -148,7 +182,9 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       canvas!.height = Math.max(1, Math.round(H * dpr));
       canvas!.style.width = `${W}px`;
       canvas!.style.height = `${H}px`;
-      R = Math.min(W * 0.27, H * 0.385);
+      // Más grande que antes: el planeta es lo primero que se ve de la
+      // portada, y a tamaño pequeño el terminador y las luces no se apreciaban.
+      R = W < 820 ? Math.min(W * 0.4, H * 0.29) : Math.min(W * 0.27, H * 0.43);
 
       stars = createStars(W, H);
     }
@@ -157,7 +193,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
     ro.observe(host);
 
     const cxOf = () => (W < 820 ? W * 0.5 : W * anchorX);
-    const cyOf = () => (W < 820 ? H * 0.38 : H * 0.52);
+    const cyOf = () => (W < 820 ? H * 0.36 : H * 0.52);
 
     function orbPt(o: Orbit, a: number) {
       const c = Math.cos(a);
@@ -176,8 +212,6 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       const cy = cyOf();
       const SEG = 140;
       let prev: { sx: number; sy: number } | null = null;
-      ctx!.save();
-      ctx!.globalAlpha = alpha;
       ctx!.lineWidth = 1;
       for (let k = 0; k <= SEG; k++) {
         const a = (k / SEG) * Math.PI * 2;
@@ -185,7 +219,8 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
         const sx = cx + R * p.x;
         const sy = cy - R * p.y;
         if (prev && p.z >= 0 === front) {
-          ctx!.strokeStyle = front ? "rgba(170,210,235,.42)" : "rgba(170,210,235,.15)";
+          ctx!.globalAlpha = alpha;
+          ctx!.strokeStyle = front ? "rgba(150,205,215,.3)" : "rgba(150,205,215,.1)";
           ctx!.beginPath();
           ctx!.moveTo(prev.sx, prev.sy);
           ctx!.lineTo(sx, sy);
@@ -193,7 +228,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
         }
         prev = { sx, sy };
       }
-      ctx!.restore();
+      ctx!.globalAlpha = 1;
     }
 
     function drawSat(front: boolean, alpha: number) {
@@ -207,7 +242,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       const sy = cy - R * p.y;
       const q = orbPt(o, satA + 0.02);
       const ang = Math.atan2(-(q.y - p.y), q.x - p.x);
-      const u = R / 260;
+      const u = R / 300;
       ctx!.save();
       ctx!.translate(sx, sy);
       ctx!.rotate(ang + Math.PI / 4);
@@ -228,6 +263,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       ctx!.lineTo(0, -10 * u);
       ctx!.stroke();
       ctx!.restore();
+      ctx!.globalAlpha = 1;
     }
 
     let raf = 0;
@@ -241,6 +277,8 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       prevT = now;
       t += dt;
 
+      /* Atenuado: baja más rápido de lo que sube, para que al llegar a la
+         sección de equipo el planeta se apague con decisión y vuelva despacio. */
       const lt = lightsTargetRef.current ? 1 : 0;
       if (reduced) {
         lights = lt;
@@ -268,120 +306,194 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       /* --- estrellas --- */
       drawStars(ctx!, stars, W, H, dt, t);
 
-      /* --- halo (en #equipo permanece suave como silueta) --- */
-      ctx!.globalAlpha = 0.52 + 0.48 * lights;
-      const g = ctx!.createRadialGradient(cx, cy, R * 0.95, cx, cy, R * 1.4);
-      g.addColorStop(0, "rgba(60,150,200,.22)");
-      g.addColorStop(1, "rgba(60,150,200,0)");
-      ctx!.fillStyle = g;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, R * 1.4, 0, 7);
-      ctx!.fill();
+      /* --- atmósfera exterior ---
+         Un halo estrecho pegado al borde, no un disco. Con el radio grande y
+         la suma de luces, un degradado ancho se convertía en una mancha azul
+         que se comía media portada; el aire de un planeta se ve como una
+         línea fina, así que eso es lo que se dibuja. */
+      {
+        const g = ctx!.createRadialGradient(cx, cy, R * 0.99, cx, cy, R * 1.22);
+        g.addColorStop(0, "rgba(120,200,240,.1)");
+        g.addColorStop(0.18, "rgba(95,175,225,.055)");
+        g.addColorStop(0.45, "rgba(70,140,200,.022)");
+        g.addColorStop(1, "rgba(50,110,170,0)");
+        ctx!.globalCompositeOperation = "lighter";
+        ctx!.globalAlpha = 0.45 + 0.55 * lights;
+        ctx!.fillStyle = g;
+        ctx!.beginPath();
+        ctx!.arc(cx, cy, R * 1.22, 0, 7);
+        ctx!.fill();
+        ctx!.globalAlpha = 1;
+        ctx!.globalCompositeOperation = "source-over";
+      }
 
       ORBITS.forEach((o) => drawOrbit(o, false, orbitAlpha));
       drawSat(false, lights);
 
-      /* --- disco y borde (silueta del planeta) --- */
-      ctx!.globalAlpha = 1;
-      const d = ctx!.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
-      d.addColorStop(0, "#0e2c48");
-      d.addColorStop(0.6, "#081a30");
-      d.addColorStop(1, "#02070e");
-      ctx!.fillStyle = d;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, R, 0, 7);
-      ctx!.fill();
-      ctx!.globalAlpha = 0.55 + 0.45 * lights;
-      ctx!.strokeStyle = "rgba(120,200,230,.3)";
-      ctx!.lineWidth = 1;
-      ctx!.beginPath();
-      ctx!.arc(cx, cy, R, 0, 7);
-      ctx!.stroke();
+      /* --- disco base ---
+         El relleno ya lleva la luz: claro del lado del sol y casi negro del
+         opuesto. Los puntos se apoyan encima, de modo que los huecos entre
+         ellos no dejan ver el fondo estrellado a través del planeta. */
+      {
+        const gx = cx + SUN.x * R * 0.62;
+        const gy = cy - SUN.y * R * 0.62;
+        const d = ctx!.createRadialGradient(gx, gy, R * 0.04, cx, cy, R * 1.05);
+        d.addColorStop(0, "#2b6b9c");
+        d.addColorStop(0.3, "#19496f");
+        d.addColorStop(0.58, "#0b2742");
+        d.addColorStop(0.82, "#04101f");
+        d.addColorStop(1, "#01050a");
+        ctx!.fillStyle = d;
+        ctx!.beginPath();
+        ctx!.arc(cx, cy, R, 0, 7);
+        ctx!.fill();
+      }
 
-      /* --- superficie (continentes y mar se atenúan en #equipo) --- */
+      /* --- superficie --- */
       const cl = Math.cos(viewLon);
       const sl = Math.sin(viewLon);
       const ct = Math.cos(tilt);
       const st = Math.sin(tilt);
-      const u = R / 260;
-      const sizeL = 2.0 * u;
-      const sizeS = 1.15 * u;
-      if (surfaceAlpha > 0.004) {
-        ctx!.globalAlpha = surfaceAlpha;
-        for (let i = 0; i < POINTS; i++) {
-          const x0 = PX[i];
-          const z0 = PZ[i];
-          const x = x0 * cl - z0 * sl;
-          const z = x0 * sl + z0 * cl;
-          const y0 = PY[i];
-          const y = y0 * ct - z * st;
-          const z2 = y0 * st + z * ct;
-          if (z2 <= 0.02) continue;
-          const lit = Math.max(0, Math.min(1, 0.55 * z2 + 0.25 * (-x * 0.6 + y * 0.5) + 0.25));
-          const lv = Math.max(0, Math.min(LIGHT_LEVELS - 1, Math.round(lit * (LIGHT_LEVELS - 1))));
-          const sx = cx + R * x;
-          const sy = cy - R * y;
-          if (PL[i]) {
-            ctx!.fillStyle = LAND_PAL[lv];
-            const s = sizeL * (0.55 + 0.45 * z2);
+      const u = R / 300;
+      /* Las casillas se solapan un poco a propósito: con la rejilla de
+         Fibonacci, dejar aire entre ellas dibujaba espirales concéntricas muy
+         visibles —el ojo las lee como un patrón, no como un planeta—. Al
+         solaparse, el muaré desaparece y la superficie se cierra. */
+      const sizeL = 3.4 * u;
+      const sizeS = 3.1 * u;
+      const last = LIGHT_LEVELS - 1;
+
+      ctx!.globalAlpha = surfaceAlpha;
+      for (let i = 0; i < POINTS; i++) {
+        const x0 = PX[i];
+        const z0 = PZ[i];
+        const x = x0 * cl - z0 * sl;
+        const z = x0 * sl + z0 * cl;
+        const y0 = PY[i];
+        const y = y0 * ct - z * st;
+        const z2 = y0 * st + z * ct;
+        if (z2 <= 0.015) continue;
+
+        const sx = cx + R * x;
+        const sy = cy - R * y;
+
+        /* La normal de una esfera unitaria es su propia posición: el producto
+           escalar con el sol da directamente cuánta luz recibe el punto. */
+        const sun = x * SUN.x + y * SUN.y + z2 * SUN.z;
+        const land = PL[i] === 1;
+
+        if (sun > 0.06) {
+          /* Día. */
+          const lit = Math.min(1, 0.24 + sun * 0.95);
+          const lv = Math.round(lit * last);
+          ctx!.fillStyle = land ? LAND_PAL[lv] : SEA_PAL[lv];
+          const s = (land ? sizeL : sizeS) * (0.62 + 0.38 * z2);
+          ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+        } else if (sun > -0.07) {
+          /* Terminador: banda cálida y estrecha, el borde del amanecer. */
+          const k = (sun + 0.07) / 0.13;
+          const lv = Math.round(Math.min(1, k) * last);
+          ctx!.fillStyle = DUSK_PAL[lv];
+          const s = (land ? sizeL : sizeS) * (0.62 + 0.38 * z2) * 0.92;
+          ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+        } else {
+          /* Noche: tierra apenas insinuada y, encima, las luces. */
+          if (land) {
+            ctx!.fillStyle = "#0b1712";
+            const s = sizeL * (0.62 + 0.38 * z2) * 0.85;
             ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
-          } else {
-            ctx!.fillStyle = SEA_PAL[lv];
-            const s = sizeS * (0.6 + 0.4 * z2);
+          }
+          const city = PC[i];
+          if (city > 0) {
+            // Se apagan cerca del terminador para que no aparezcan de golpe.
+            const fade = Math.min(1, (-sun - 0.07) * 9);
+            ctx!.globalAlpha = city * fade * (0.5 + 0.5 * z2) * surfaceAlpha;
+            ctx!.fillStyle = "#ffdcab";
+            const s = 2 * u;
             ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+            ctx!.globalAlpha = surfaceAlpha;
           }
         }
       }
 
-      /* --- puntos luminosos en los continentes (se apagan en #equipo) --- */
-      if (beaconAlpha > 0.004) {
-        for (const v of pulses) {
-          const hx = v.x * cl - v.z * sl;
-          const hz = v.x * sl + v.z * cl;
-          const hy = v.y * ct - hz * st;
-          const hz2 = v.y * st + hz * ct;
-          if (hz2 <= 0.05) continue;
+      /* --- borde iluminado ---
+         Un aro fino justo por dentro del limbo, más intenso del lado del sol.
+         Es lo que separa el planeta del espacio y lo que lo hace parecer una
+         esfera y no un recorte. */
+      ctx!.globalAlpha = 1;
+      {
+        ctx!.save();
+        ctx!.globalAlpha = 0.35 + 0.65 * lights;
+        ctx!.beginPath();
+        ctx!.arc(cx, cy, R, 0, 7);
+        ctx!.clip();
+        ctx!.globalCompositeOperation = "lighter";
+        const g = ctx!.createRadialGradient(cx, cy, R * 0.82, cx, cy, R);
+        g.addColorStop(0, "rgba(90,180,225,0)");
+        g.addColorStop(0.72, "rgba(90,180,225,.1)");
+        g.addColorStop(1, "rgba(150,220,255,.5)");
+        ctx!.fillStyle = g;
+        ctx!.beginPath();
+        ctx!.arc(cx, cy, R, 0, 7);
+        ctx!.fill();
+        ctx!.restore();
+        ctx!.globalCompositeOperation = "source-over";
+      }
+
+      /* --- pulsos ---
+         Brillan más sobre la cara nocturna: así se ven los incendios de noche
+         desde un satélite. Siguen siendo adorno, no datos. */
+      for (const v of pulses) {
+        const hx = v.x * cl - v.z * sl;
+        const hz = v.x * sl + v.z * cl;
+        const hy = v.y * ct - hz * st;
+        const hz2 = v.y * st + hz * ct;
+        if (hz2 <= 0.05) continue;
+        const sx = cx + R * hx;
+        const sy = cy - R * hy;
+        const sun = hx * SUN.x + hy * SUN.y + hz2 * SUN.z;
+        const night = Math.max(0.35, Math.min(1, 0.5 - sun));
+        const pulse = (Math.sin(t * 2.2 + v.ph) + 1) / 2;
+        ctx!.globalAlpha = Math.min(1, hz2 * 2.2) * night * beaconAlpha;
+        ctx!.globalCompositeOperation = "lighter";
+        ctx!.fillStyle = `rgba(255,120,50,${(0.16 + 0.22 * pulse).toFixed(2)})`;
+        ctx!.beginPath();
+        ctx!.arc(sx, sy, (3 + 3.4 * pulse) * u * 1.3, 0, 7);
+        ctx!.fill();
+        ctx!.fillStyle = "#ffb070";
+        ctx!.beginPath();
+        ctx!.arc(sx, sy, 1.5 * u * 1.3, 0, 7);
+        ctx!.fill();
+        ctx!.globalCompositeOperation = "source-over";
+        ctx!.globalAlpha = 1;
+      }
+
+      /* --- marca del Perú --- */
+      {
+        const hx = peru.x * cl - peru.z * sl;
+        const hz = peru.x * sl + peru.z * cl;
+        const hy = peru.y * ct - hz * st;
+        const hz2 = peru.y * st + hz * ct;
+        if (hz2 > 0.08) {
           const sx = cx + R * hx;
           const sy = cy - R * hy;
-          const pulse = (Math.sin(t * 2.2 + v.ph) + 1) / 2;
-          ctx!.globalAlpha = Math.min(1, hz2 * 2.2) * beaconAlpha;
-          ctx!.fillStyle = `rgba(255,138,76,${(0.18 + 0.2 * pulse).toFixed(2)})`;
+          const ring = 6.5 + 3.5 * ((Math.sin(t * 1.5) + 1) / 2);
+          ctx!.globalAlpha = Math.min(1, hz2 * 2) * beaconAlpha;
+          ctx!.strokeStyle = "rgba(216,255,51,.9)";
+          ctx!.lineWidth = 1.4;
           ctx!.beginPath();
-          ctx!.arc(sx, sy, (5 + 7 * pulse) * u * 1.2, 0, 7);
-          ctx!.fill();
-          ctx!.fillStyle = "#ff9a5c";
+          ctx!.arc(sx, sy, ring * u * 1.3, 0, 7);
+          ctx!.stroke();
+          ctx!.fillStyle = "#d8ff33";
           ctx!.beginPath();
-          ctx!.arc(sx, sy, 2.6 * u * 1.2, 0, 7);
+          ctx!.arc(sx, sy, 2.4 * u * 1.3, 0, 7);
           ctx!.fill();
-        }
-
-        /* --- marca del Perú --- */
-        {
-          const hx = peru.x * cl - peru.z * sl;
-          const hz = peru.x * sl + peru.z * cl;
-          const hy = peru.y * ct - hz * st;
-          const hz2 = peru.y * st + hz * ct;
-          if (hz2 > 0.08) {
-            const sx = cx + R * hx;
-            const sy = cy - R * hy;
-            const ring = 9 + 5 * ((Math.sin(t * 1.5) + 1) / 2);
-            ctx!.globalAlpha = Math.min(1, hz2 * 2) * beaconAlpha;
-            ctx!.strokeStyle = "rgba(216,255,51,.85)";
-            ctx!.lineWidth = 1.3;
-            ctx!.beginPath();
-            ctx!.arc(sx, sy, ring * u * 1.2, 0, 7);
-            ctx!.stroke();
-            ctx!.fillStyle = "#d8ff33";
-            ctx!.beginPath();
-            ctx!.arc(sx, sy, 2.4 * u * 1.2, 0, 7);
-            ctx!.fill();
-          }
+          ctx!.globalAlpha = 1;
         }
       }
 
       ORBITS.forEach((o) => drawOrbit(o, true, orbitAlpha));
       drawSat(true, lights);
-      ctx!.globalAlpha = 1;
 
       if (running) raf = requestAnimationFrame(frame);
     }
