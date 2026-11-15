@@ -38,6 +38,7 @@ export interface HoverCard {
   title: string;
   state: "loading" | "ready" | "error";
   rows: { k: string; v: string }[];
+  notice?: string;
   foot?: string;
 }
 
@@ -80,6 +81,8 @@ interface Props {
   showWind: boolean;
   /** Cambia cuando el ancho disponible cambia; obliga a Leaflet a reencuadrar. */
   relayoutKey: string;
+  /** Aviso breve cuando la fecha, territorio o sensor activo no tiene datos válidos. */
+  dataNotice?: string | null;
   children?: ReactNode;
 }
 
@@ -188,6 +191,7 @@ export function MapStage(props: Props) {
     windSpeedMs,
     showWind,
     relayoutKey,
+    dataNotice,
     children,
   } = props;
 
@@ -822,6 +826,11 @@ export function MapStage(props: Props) {
             </div>
           )}
           {hint && <div className="hud__hint">{hint} · Esc cancela</div>}
+          {dataNotice && (
+            <div className="hud__notice" role="status">
+              {dataNotice}
+            </div>
+          )}
         </div>
       </div>
 
@@ -841,16 +850,21 @@ export function MapStage(props: Props) {
               Consultando al backend…
             </div>
           ) : hoverCard.state === "error" ? (
-            <div className="hovercard__wait hovercard__wait--err">Sin respuesta del backend</div>
+            <div className="hovercard__wait hovercard__wait--err">
+              La data no está disponible o no es válida en este momento (sin respuesta del backend).
+            </div>
           ) : (
-            <dl className="hovercard__rows">
-              {hoverCard.rows.map((r) => (
-                <div key={r.k}>
-                  <dt>{r.k}</dt>
-                  <dd>{r.v}</dd>
-                </div>
-              ))}
-            </dl>
+            <>
+              <dl className="hovercard__rows">
+                {hoverCard.rows.map((r) => (
+                  <div key={r.k}>
+                    <dt>{r.k}</dt>
+                    <dd>{r.v}</dd>
+                  </div>
+                ))}
+              </dl>
+              {hoverCard.notice && <div className="hovercard__notice">{hoverCard.notice}</div>}
+            </>
           )}
           {hoverCard.foot && <div className="hovercard__foot">{hoverCard.foot}</div>}
         </div>

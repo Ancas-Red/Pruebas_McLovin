@@ -172,11 +172,19 @@ const MONTHLY_METRICS = new Set<MetricId>([
  * no está publicado» y el segundo «se calculó y vale cero». Confundirlos en
  * la interfaz es el error que el contrato prohíbe expresamente.
  */
+function compactTooltipUnit(unit: string | null): string | null {
+  if (!unit) return null;
+  if (/adimensional/i.test(unit)) return "(adim.)";
+  if (unit.length > 22) return unit.slice(0, 20).trimEnd() + "…";
+  return unit;
+}
+
 function formatMetricValue(v: number | string | null | undefined, unit: string | null): string {
   if (v === null || v === undefined) return "Sin dato";
   if (typeof v === "string") return CLASSIFICATION_LABELS[v as Classification] ?? v;
   const n = v.toLocaleString("es-PE", { maximumFractionDigits: 3 });
-  return unit ? `${n} ${unit}` : n;
+  const shortUnit = compactTooltipUnit(unit);
+  return shortUnit ? `${n} ${shortUnit}` : n;
 }
 
 function formatCoverage(v: number | null): string {
@@ -188,8 +196,9 @@ function formatCoverage(v: number | null): string {
 function formatAnomaly(a: ActivitySummary["historical_anomaly"]): string {
   if (a.status === "insufficient_baseline") return "Serie insuficiente";
   if (a.status === "not_estimable" || a.value === null) return "No estimable";
-  const s = a.value > 0 ? "+" : "";
-  return `${s}${a.value.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
+  const rounded = Math.abs(a.value) < 0.005 ? 0 : a.value;
+  const s = rounded > 0 ? "+" : "";
+  return `${s}${rounded.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
 }
 
 /** Arma la ficha con lo que respondió `/summary`, sin interpretar de más. */
@@ -200,6 +209,21 @@ function buildHoverCard(
   s: TerritorySummary,
   origin: Origin
 ): HoverCard {
+  const dailyInvalid =
+    s.daily != null &&
+    ((s.daily.valid_land_pixels ?? 0) === 0 || (s.daily.observation_coverage ?? 0) === 0);
+  const noValidSummary =
+    s.data_quality?.status === "insufficient" ||
+    (s.activity.activity_rate == null && s.activity.observation_coverage == null);
+
+  const notice = dailyInvalid
+    ? "Sin observación válida en esta fecha: la data no es válida en este momento."
+    : noValidSummary
+      ? "La data no es válida en este momento o no está disponible para este territorio."
+      : s.data_quality?.status === "partial"
+        ? "Cobertura parcial: algunos indicadores no están disponibles."
+        : undefined;
+
   return {
     id,
     title: name,
@@ -216,6 +240,7 @@ function buildHoverCard(
           s.environmental_conditions.classification,
       },
     ],
+    notice,
     /* No se dice por qué son de muestra: `fixture` tapa tres casos distintos
        —fecha no publicada, el backend no contestó, o contestó un error del
        contrato— y atribuirlo al backend sería afirmar algo que aquí no se
@@ -593,7 +618,7 @@ export function MapTool({
     setUnavailable(
       isDateAvailable(dateIso, sensor, metadata)
         ? null
-        : `${sensor} no publica datos del ${dateIso}`
+        : `${SENSOR_META[sensor].label}: la data del ${dateIso} no es válida o no está disponible`
     );
   }, [dateIso, sensor, metadata]);
 
@@ -1049,7 +1074,8 @@ export function MapTool({
               title: name,
               state: "ready",
               rows: [localRow],
-              foot: "Sin ficha publicada para esta fecha",
+              notice: "La data no es válida en este momento o no está disponible para esta fecha.",
+              foot: r.origin === "unavailable" ? "Sin publicación en /api/v1" : "Sin ficha publicada",
             });
             return;
           }
@@ -1510,6 +1536,33 @@ export function MapTool({
   ]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
+  const dataValidityNotice = useMemo(() => {
+    if (!ready) return null;
+    if (unavailable) return unavailable;
+    if (origin === "unavailable") {
+      return `La data de ${dateIso} no es válida en este momento o no está disponible.`;
+    }
+    if (
+      dayRow &&
+      ((dayRow.valid_land_pixels ?? 0) === 0 || (dayRow.observation_coverage ?? 0) === 0)
+    ) {
+      return `Sin observación válida el ${dateIso}: la data no está disponible (0 píxeles de tierra válidos).`;
+    }
+    if (
+      dayRow &&
+      (dayRow.activity_rate == null ||
+        (dayRow.observation_coverage != null && dayRow.observation_coverage < 0.7))
+    ) {
+      return `Cobertura < 70 % el ${dateIso}: la data no es válida para estimar actividad térmica.`;
+    }
+    if (summary?.data_quality?.status === "insufficient") {
+      return "Calidad insuficiente: la data de este período no es válida o no está disponible.";
+    }
+    if (!dailyLoading && usefulDays.length === 0) {
+      return `Sin días válidos disponibles en este mes para ${SENSOR_META[sensor].label}.`;
+    }
+    return null;
+  }, [ready, unavailable, origin, dateIso, dayRow, summary, dailyLoading, usefulDays.length, sensor]);
   const isHighSusceptibility =
     summary?.environmental_conditions?.classification === "high";
   const highAlertKey = `${territoryType}|${territoryId}|${period}`;
@@ -1617,6 +1670,7 @@ export function MapTool({
             windSpeedMs={envApplied ? spreadParams.windSpeedMs : dayRow?.wind_speed_10m_ms ?? null}
             showWind={tab === "simulacion"}
             relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
+            dataNotice={tab === "calendario" ? dataValidityNotice : null}
           >
             <OrbitalLoader
               scope="stage"
@@ -1771,11 +1825,16 @@ export function MapTool({
           <b>Detecciones (conf. nominal/alta)</b> {nominalHigh.toLocaleString("es-PE")}
         </span>
         <span className="status__spacer" />
-        {unavailable && <span className="chip chip--warn">{unavailable}</span>}
+        {unavailable ? (
+          <span className="chip chip--warn">{unavailable}</span>
+        ) : (
+          origin !== "unavailable" &&
+          dataValidityNotice && <span className="chip chip--warn">{dataValidityNotice}</span>
+        )}
         {origin === "fixture" ? (
           <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
         ) : origin === "unavailable" ? (
-          <span className="chip chip--warn">Sin publicación para esta fecha en /api/v1</span>
+          <span className="chip chip--warn">Data no válida o no disponible para esta fecha en /api/v1</span>
         ) : (
           <span className="chip chip--term">Indicadores desde /api/v1</span>
         )}

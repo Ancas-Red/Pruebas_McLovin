@@ -116,7 +116,21 @@ export function AnalysisRail(p: Props) {
             </span>
           )}
 
-          <div className="metric-grid" style={{ marginTop: quality ? 11 : 0 }}>
+          {!p.summary && !p.dayRow && (
+            <div className="note note--warn" style={{ marginTop: quality ? 10 : 0 }}>
+              <b>Datos no disponibles.</b> La data de este territorio o fecha no es válida o no está
+              disponible en este momento.
+            </div>
+          )}
+
+          {quality?.status === "insufficient" && (
+            <div className="note note--warn" style={{ marginTop: 10 }}>
+              <b>Calidad insuficiente.</b> La data actual no alcanza los requisitos mínimos de
+              cobertura o línea base para validar estos indicadores.
+            </div>
+          )}
+
+          <div className="metric-grid" style={{ marginTop: quality || (!p.summary && !p.dayRow) ? 11 : 0 }}>
             <div className="metric">
               <div className="metric__label">Tasa de actividad</div>
               <div className="metric__value">
@@ -255,7 +269,10 @@ export function AnalysisRail(p: Props) {
       if (!p.comparison) {
         return (
           <Drawer title="Comparación multisensor" note={p.periodLabel} onClose={p.onClose}>
-            <div className="note">Sin comparación publicada para esta fecha.</div>
+            <div className="note note--warn">
+              La data de comparación multisensor no es válida en este momento o no está disponible
+              para esta fecha.
+            </div>
           </Drawer>
         );
       }
@@ -330,7 +347,10 @@ export function AnalysisRail(p: Props) {
       if (!cond) {
         return (
           <Drawer title="Árbol de susceptibilidad" note={p.areaLabel} onClose={p.onClose}>
-            <div className="note">Sin evaluación publicada para esta fecha.</div>
+            <div className="note note--warn">
+              La evaluación contextual no es válida en este momento o no está disponible para esta
+              fecha.
+            </div>
           </Drawer>
         );
       }
