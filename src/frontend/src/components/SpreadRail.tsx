@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
 import { API_BASE } from "../api/client";
@@ -50,6 +51,44 @@ export function SpreadRail(p: Props) {
   const set = <K extends keyof SpreadParams>(k: K, value: SpreadParams[K]) =>
     p.onParams({ ...v, [k]: value });
   const ready = p.ring !== null && p.ignition !== null;
+  const [exporting, setExporting] = useState(false);
+  const [exportInfo, setExportInfo] = useState<string | null>(null);
+
+  async function handleServerExport() {
+    setExporting(true);
+    setExportInfo(null);
+    try {
+      const pt = p.ignition ?? p.center ?? [-8.19833, -75.26669];
+      const res = await fetch(`${API_BASE}/spread-export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: pt[0],
+          lon: pt[1],
+          horizon_h: Math.max(6, Math.min(48, Math.round(v.horizonHours))),
+          wind_speed_10m_ms: v.windSpeedMs,
+          wind_dir_deg: v.windDirDeg,
+          vegetation_pct: v.vegetationPct,
+          slope_mean_deg: v.slopeMeanDeg,
+          fuel_moisture_pct: v.fuelMoisturePct,
+          use_open_meteo: true,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const t = data?.timings_s?.total_s;
+      const ws = data?.data_sources?.wind_source ?? "local";
+      const ds = data?.slope_summary?.dem_source ?? "DEM";
+      setExportInfo(
+        `Paquete ${data?.horizon_h ?? 48}h generado${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds}).`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error de red";
+      setExportInfo(`Exportación en vivo no disponible (${msg}); descargas precalculadas activas.`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   switch (p.section) {
     case "escenario":
@@ -239,6 +278,18 @@ export function SpreadRail(p: Props) {
           </dl>
 
           <div className="legend__title" style={{ marginTop: 14 }}>Productos GIS · 48 h (Python)</div>
+          <button
+            type="button"
+            className="btn btn--block"
+            disabled={exporting}
+            onClick={handleServerExport}
+            style={{ marginTop: 6 }}
+          >
+            {exporting ? "Generando GIF, MP4, SHP e infografías…" : "Generar reporte 48 h (Python / API)"}
+          </button>
+          {exportInfo && (
+            <p className="mono-sm" style={{ marginTop: 6 }}>{exportInfo}</p>
+          )}
           <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
             <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif`} target="_blank" rel="noreferrer">GIF 48h</a>
             <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} target="_blank" rel="noreferrer">MP4 48h</a>

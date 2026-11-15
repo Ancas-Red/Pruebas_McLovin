@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-11-15T12:20:31.953624Z",
+  "generated_at": "2026-11-15T13:45:09.574284Z",
   "default_key": "province:2501",
   "items": [
     {
@@ -2004,6 +2004,12 @@
         "Humedad del combustible fino 9% (contenido de extincion Rothermel 30%).",
         "Modelo exploratorio condicional a ignicion hipotetica; sin supresion activa, pavesas ni fuego de copas."
       ],
+      "data_sources": {
+        "vegetation_index": "SAVI_HUETE1988_VEG_CALIBRATED",
+        "dem_source": "COPERNICUS_DEM_GLO30_PARAMETRIC",
+        "wind_source": "era5_daily_diurnal_profile",
+        "framework_reference": "Argentina Ley 26.815 / SNMF / CONAE - Instituto Gulich (UNC) / SARTiv"
+      },
       "outputs": {
         "gif": "/api/v1/spread-outputs/simulacion_48h.gif",
         "mp4": "/api/v1/spread-outputs/pronostico_48h.mp4",
@@ -2018,6 +2024,14 @@
           "Argentina Ley 26.815 / SNMF / CONAE - Instituto Gulich (UNC) / SARTiv",
           "Rothermel (1972); Anderson (1983); Alexander (1985); Huete (1988) SAVI"
         ]
+      },
+      "timings_s": {
+        "simulation_s": 0.199,
+        "shapefiles_s": 0.247,
+        "infographics_s": 1.675,
+        "animation_s": 3.144,
+        "total_export_s": 5.065,
+        "total_s": 5.264
       }
     }
   ]

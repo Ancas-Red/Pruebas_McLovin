@@ -27,6 +27,7 @@ import heapq
 import json
 import math
 from pathlib import Path
+import time
 from typing import Any
 import urllib.request
 import zipfile
@@ -355,6 +356,58 @@ def get_hourly_wind_series(
 # ---------------------------------------------------------------------------
 
 
+def _bilinear_resize(arr: np.ndarray, out_rows: int, out_cols: int) -> np.ndarray:
+    """Redimensiona una matriz 2D mediante interpolación bilineal en NumPy puro."""
+    in_rows, in_cols = arr.shape
+    y = np.linspace(0.0, in_rows - 1.0, out_rows)
+    x = np.linspace(0.0, in_cols - 1.0, out_cols)
+    y0 = np.floor(y).astype(int)
+    x0 = np.floor(x).astype(int)
+    y1 = np.minimum(y0 + 1, in_rows - 1)
+    x1 = np.minimum(x0 + 1, in_cols - 1)
+    wy = (y - y0)[:, None]
+    wx = (x - x0)[None, :]
+    top = arr[y0[:, None], x0[None, :]] * (1.0 - wx) + arr[y0[:, None], x1[None, :]] * wx
+    bot = arr[y1[:, None], x0[None, :]] * (1.0 - wx) + arr[y1[:, None], x1[None, :]] * wx
+    return (top * (1.0 - wy) + bot * wy).astype(np.float32)
+
+
+def _fetch_open_meteo_dem_grid(
+    bounds: dict[str, float],
+    rows: int,
+    cols: int,
+    seed: int = 0,
+) -> np.ndarray | None:
+    """Consulta elevación global Copernicus GLO-90 vía Open-Meteo Elevation API (malla 8x8)."""
+    sample_n = 8
+    lats = np.linspace(bounds["north"], bounds["south"], sample_n)
+    lons = np.linspace(bounds["west"], bounds["east"], sample_n)
+    lat_pts: list[str] = []
+    lon_pts: list[str] = []
+    for lat_v in lats:
+        for lon_v in lons:
+            lat_pts.append(f"{float(lat_v):.5f}")
+            lon_pts.append(f"{float(lon_v):.5f}")
+
+    url = (
+        "https://api.open-meteo.com/v1/elevation"
+        f"?latitude={','.join(lat_pts)}&longitude={','.join(lon_pts)}"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "McHanaq-Phase2/1.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        elev = payload.get("elevation") or []
+        if len(elev) != sample_n * sample_n:
+            return None
+        coarse = np.array([float(v) for v in elev], dtype=np.float32).reshape((sample_n, sample_n))
+        fine = _bilinear_resize(coarse, rows, cols)
+        micro = (_fbm_grid(rows, cols, seed=seed ^ 0x517CC1B7, scale_x=6.0, scale_y=6.0, octaves=3) - 0.5) * 6.0
+        return np.maximum(0.0, fine + micro).astype(np.float32)
+    except Exception:
+        return None
+
+
 def build_territory_grids(
     territory_geom: Any,
     ignition_lat: float,
@@ -366,6 +419,7 @@ def build_territory_grids(
     side_max: int = 120,
     savi_tif: Path | None = None,
     dem_tif: Path | None = None,
+    use_open_meteo: bool = False,
 ) -> dict[str, Any]:
     """Construye grillas georreferenciadas de SAVI, elevación DEM, pendiente y combustible."""
     lat_mid = ignition_lat
@@ -394,6 +448,10 @@ def build_territory_grids(
     # 1. Elevación y pendiente
     dem_arr = _load_geotiff_resampled(dem_tif, bounds, rows, cols) if dem_tif and dem_tif.exists() else None
     dem_source = "COPERNICUS_DEM_GLO30_TIF"
+    if (dem_arr is None or np.all(np.isnan(dem_arr))) and use_open_meteo:
+        dem_arr = _fetch_open_meteo_dem_grid(bounds, rows, cols, seed=seed)
+        if dem_arr is not None:
+            dem_source = "COPERNICUS_DEM_GLO90_OPEN_METEO"
     if dem_arr is None or np.all(np.isnan(dem_arr)):
         dem_noise = _fbm_grid(rows, cols, seed=seed, scale_x=5.0, scale_y=5.0, octaves=4)
         ridge_y = np.linspace(-1.0, 1.0, rows)[:, None]
@@ -578,6 +636,7 @@ def simulate_spread_48h(
         side_max=side_max,
         savi_tif=savi_tif,
         dem_tif=dem_tif,
+        use_open_meteo=use_open_meteo,
     )
     hourly_wind = get_hourly_wind_series(
         lat=ignition_lat,
@@ -921,6 +980,7 @@ def export_animation_gif_mp4(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.patches import Polygon as MplPolygon
     from PIL import Image
     import imageio.v2 as imageio
 
@@ -948,130 +1008,186 @@ def export_animation_gif_mp4(
     max_area = max(10.0, max(areas_y) if areas_y else 10.0)
 
     frames: list[np.ndarray] = []
-    # 960 x 544 (múltiplo exacto de 16 para codec H.264)
+    # 960 x 544 (múltiplo exacto de 16 para codec H.264); reutilizar figura y artistas estáticos
     fig = plt.figure(figsize=(9.6, 5.44), dpi=100, facecolor="#0b1016")
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.48, 1.04], height_ratios=[1.0, 0.36], wspace=0.18, hspace=0.24)
+    ax_map = fig.add_subplot(gs[:, 0])
+    ax_curve = fig.add_subplot(gs[0, 1])
+    ax_info = fig.add_subplot(gs[1, 1])
 
+    ax_map.set_facecolor("#090d12")
+    ax_map.imshow(result.savi, extent=extent, origin="upper", cmap=savi_cmap, vmin=0.0, vmax=0.80, alpha=0.88)
+    ax_map.contour(
+        np.linspace(extent[0], extent[1], result.cols),
+        np.linspace(extent[3], extent[2], result.rows),
+        result.elevation,
+        levels=7,
+        colors="#64748b",
+        linewidths=0.45,
+        alpha=0.35,
+    )
+    arr = result.arrival_h
+    im_heat = ax_map.imshow(
+        np.full_like(arr, np.nan, dtype=np.float32),
+        extent=extent,
+        origin="upper",
+        cmap=fire_cmap,
+        vmin=0.0,
+        vmax=1.0,
+        alpha=0.92,
+        animated=True,
+    )
+    ig_marker = ax_map.scatter(
+        [result.ignition_lon],
+        [result.ignition_lat],
+        s=55,
+        c="#ffffff",
+        edgecolors="#ff4500",
+        zorder=6,
+        animated=True,
+    )
+    arrow_len = (extent[1] - extent[0]) * 0.14
+    wind_quiver = ax_map.quiver(
+        [result.ignition_lon],
+        [result.ignition_lat],
+        [0.0],
+        [0.0],
+        angles="xy",
+        scale_units="xy",
+        scale=1.0,
+        color="#38bdf8",
+        width=0.009,
+        headwidth=4.0,
+        headlength=4.5,
+        zorder=7,
+        animated=True,
+    )
+    ax_map.set_title(
+        f"McHanaq Fase 2 ({result.horizon_h}h) — {result.territory_name} ({result.date})",
+        color="#f8fafc",
+        fontsize=9.3,
+        fontweight="bold",
+        pad=8,
+        loc="left",
+    )
+    ax_map.set_xlabel("Longitud (°)", color="#94a3b8", fontsize=8)
+    ax_map.set_ylabel("Latitud (°)", color="#94a3b8", fontsize=8)
+    ax_map.tick_params(colors="#94a3b8", labelsize=7.5)
+    for sp in ax_map.spines.values():
+        sp.set_edgecolor("#1e293b")
+
+    badge_txt = ax_map.text(
+        0.02,
+        0.03,
+        "",
+        transform=ax_map.transAxes,
+        color="#f8fafc",
+        fontsize=8.5,
+        fontweight="bold",
+        bbox=dict(boxstyle="round,pad=0.35", facecolor="#0f172a", edgecolor="#334155", alpha=0.92),
+        zorder=8,
+        animated=True,
+    )
+
+    ax_curve.set_facecolor("#0f172a")
+    ax_curve.plot(hours_x, areas_y, color="#334155", lw=1.2, ls="--")
+    fill_patch = MplPolygon(
+        [(hours_x[0], 0.0)],
+        closed=True,
+        facecolor="#f97316",
+        alpha=0.28,
+        edgecolor="none",
+        animated=True,
+    )
+    ax_curve.add_patch(fill_patch)
+    line_prog, = ax_curve.plot([], [], color="#fb923c", lw=2.2, animated=True)
+    pt_prog = ax_curve.scatter([hours_x[0]], [areas_y[0]], color="#fde047", s=38, zorder=5, animated=True)
+    ax_curve.set_xlim(1, result.horizon_h)
+    ax_curve.set_ylim(0, max_area * 1.12)
+    ax_curve.set_title("Superficie acumulada (ha)", color="#e2e8f0", fontsize=9.5, fontweight="bold", loc="left")
+    ax_curve.set_xlabel("Hora de pronóstico", color="#94a3b8", fontsize=8)
+    ax_curve.tick_params(colors="#94a3b8", labelsize=7.5)
+    ax_curve.grid(color="#1e293b", lw=0.6)
+    for sp in ax_curve.spines.values():
+        sp.set_edgecolor("#1e293b")
+
+    ax_info.set_facecolor("#0f172a")
+    ax_info.axis("off")
+    info_box = ax_info.text(
+        0.02,
+        0.92,
+        "",
+        va="top",
+        ha="left",
+        color="#e2e8f0",
+        fontsize=7.1,
+        family="monospace",
+        bbox=dict(boxstyle="round,pad=0.45", facecolor="#111827", edgecolor="#334155"),
+        animated=True,
+    )
+    ax_info.text(
+        0.02,
+        0.04,
+        "Exploratorio (SNMF / CONAE-Gulich AC + Rothermel). No operativo.",
+        color="#94a3b8",
+        fontsize=6.2,
+    )
+    fig.subplots_adjust(left=0.075, right=0.965, top=0.91, bottom=0.10)
+    fig.canvas.draw()
+    bg = fig.canvas.copy_from_bbox(fig.bbox)
+
+    horizon_scale = max(4.0, float(result.horizon_h) * 0.65)
     for idx in range(result.horizon_h):
-        fig.clf()
         h = idx + 1
         hw = result.hourly_wind[idx]
         prog = result.hourly_progression[idx]
 
-        gs = fig.add_gridspec(2, 2, width_ratios=[1.55, 1.0], height_ratios=[1.0, 0.34], wspace=0.14, hspace=0.22)
-        ax_map = fig.add_subplot(gs[:, 0])
-        ax_curve = fig.add_subplot(gs[0, 1])
-        ax_info = fig.add_subplot(gs[1, 1])
+        fig.canvas.restore_region(bg)
 
-        ax_map.set_facecolor("#090d12")
-        ax_map.imshow(result.savi, extent=extent, origin="upper", cmap=savi_cmap, vmin=0.0, vmax=0.80, alpha=0.88)
-        ax_map.contour(
-            np.linspace(extent[0], extent[1], result.cols),
-            np.linspace(extent[3], extent[2], result.rows),
-            result.elevation,
-            levels=7,
-            colors="#64748b",
-            linewidths=0.45,
-            alpha=0.35,
-        )
-
-        # Máscara de fuego activo / quemado en la hora h
-        arr = result.arrival_h
         active_mask = np.isfinite(arr) & (arr <= float(h))
         heat = np.full_like(arr, np.nan, dtype=np.float32)
-        # Celda más reciente = 1.0 (amarillo brillante), quemada antes = más oscura
-        age_norm = np.clip((float(h) - arr) / max(4.0, float(result.horizon_h) * 0.65), 0.0, 0.92)
+        age_norm = np.clip((float(h) - arr) / horizon_scale, 0.0, 0.92)
         heat[active_mask] = 1.0 - age_norm[active_mask]
-        ax_map.imshow(heat, extent=extent, origin="upper", cmap=fire_cmap, vmin=0.0, vmax=1.0, alpha=0.92)
+        im_heat.set_data(heat)
 
-        # Punto de ignición + flecha de viento horario
-        ax_map.scatter([result.ignition_lon], [result.ignition_lat], s=55, c="#ffffff", edgecolors="#ff4500", zorder=6)
         ang = math.radians((float(hw["wind_dir_deg"]) + 180.0) % 360.0)
-        arrow_len = (extent[1] - extent[0]) * 0.14
-        ax_map.annotate(
-            "",
-            xy=(result.ignition_lon + math.sin(ang) * arrow_len, result.ignition_lat + math.cos(ang) * arrow_len),
-            xytext=(result.ignition_lon, result.ignition_lat),
-            arrowprops=dict(arrowstyle="-|>,head_width=0.35,head_length=0.5", color="#38bdf8", lw=2.0),
-            zorder=7,
+        wind_quiver.set_UVC([math.sin(ang) * arrow_len], [math.cos(ang) * arrow_len])
+        badge_txt.set_text(
+            f"HORA {h:02d}/{result.horizon_h:02d}  |  Viento: {hw['wind_speed_kmh']:.1f} km/h desde {round(hw['wind_dir_deg'])}° ({_compass_label(hw['wind_dir_deg'])})"
         )
 
-        ax_map.set_title(
-            f"McHanaq Fase 2 · Propagación 48h — {result.territory_name} ({result.date})",
-            color="#f8fafc",
-            fontsize=10.5,
-            fontweight="bold",
-            pad=8,
-            loc="left",
-        )
-        ax_map.set_xlabel("Longitud (°)", color="#94a3b8", fontsize=8)
-        ax_map.set_ylabel("Latitud (°)", color="#94a3b8", fontsize=8)
-        ax_map.tick_params(colors="#94a3b8", labelsize=7.5)
-        for sp in ax_map.spines.values():
-            sp.set_edgecolor("#1e293b")
+        xs = hours_x[:idx + 1]
+        ys = areas_y[:idx + 1]
+        fill_patch.set_xy([(xs[0], 0.0), *zip(xs, ys), (xs[-1], 0.0)])
+        line_prog.set_data(xs, ys)
+        pt_prog.set_offsets([[h, prog["cumulative_area_ha"]]])
 
-        ax_map.text(
-            0.02,
-            0.03,
-            f"HORA {h:02d}/{result.horizon_h:02d}  |  Viento: {hw['wind_speed_kmh']:.1f} km/h desde {round(hw['wind_dir_deg'])}° ({_compass_label(hw['wind_dir_deg'])})",
-            transform=ax_map.transAxes,
-            color="#f8fafc",
-            fontsize=8.5,
-            fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.35", facecolor="#0f172a", edgecolor="#334155", alpha=0.92),
-        )
-
-        # Panel derecho superior: Curva de hectáreas acumuladas
-        ax_curve.set_facecolor("#0f172a")
-        ax_curve.plot(hours_x, areas_y, color="#334155", lw=1.2, ls="--")
-        ax_curve.fill_between(hours_x[:idx + 1], areas_y[:idx + 1], color="#f97316", alpha=0.28)
-        ax_curve.plot(hours_x[:idx + 1], areas_y[:idx + 1], color="#fb923c", lw=2.2)
-        ax_curve.scatter([h], [prog["cumulative_area_ha"]], color="#fde047", s=38, zorder=5)
-        ax_curve.set_xlim(1, result.horizon_h)
-        ax_curve.set_ylim(0, max_area * 1.12)
-        ax_curve.set_title("Superficie acumulada (ha)", color="#e2e8f0", fontsize=9.5, fontweight="bold", loc="left")
-        ax_curve.set_xlabel("Hora de pronóstico", color="#94a3b8", fontsize=8)
-        ax_curve.tick_params(colors="#94a3b8", labelsize=7.5)
-        ax_curve.grid(color="#1e293b", lw=0.6)
-        for sp in ax_curve.spines.values():
-            sp.set_edgecolor("#1e293b")
-
-        # Panel derecho inferior: Tarjeta de métricas horarias
-        ax_info.set_facecolor("#0f172a")
-        ax_info.axis("off")
-        info_txt = (
+        info_box.set_text(
             f"HORA {h:02d}  ·  {hw['timestamp']}\n"
             f"Área alcanzada:  {prog['cumulative_area_ha']:,.1f} ha  (+{prog['hourly_increment_ha']:,.1f} ha/h)\n"
             f"Avance cabeza:   {prog['head_ros_m_min']:.2f} m/min  |  L/B {prog['length_to_breadth']:.2f}:1\n"
             f"SAVI medio: {result.savi_mean:.2f}  ·  Pendiente: {result.slope_mean_deg:.1f}°  ·  Humedad: {result.fuel_moisture_pct:.0f}%"
         )
-        ax_info.text(
-            0.04,
-            0.88,
-            info_txt,
-            va="top",
-            ha="left",
-            color="#e2e8f0",
-            fontsize=8.2,
-            family="monospace",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="#111827", edgecolor="#334155"),
-        )
-        ax_info.text(
-            0.04,
-            0.04,
-            "Modelo exploratorio (SNMF/CONAE-Gulich AC + Rothermel/Anderson). No operativo.",
-            color="#94a3b8",
-            fontsize=6.8,
-        )
 
-        fig.subplots_adjust(left=0.08, right=0.97, top=0.92, bottom=0.10)
-        fig.canvas.draw()
+        ax_map.draw_artist(im_heat)
+        ax_map.draw_artist(ig_marker)
+        ax_map.draw_artist(wind_quiver)
+        ax_map.draw_artist(badge_txt)
+        ax_curve.draw_artist(fill_patch)
+        ax_curve.draw_artist(line_prog)
+        ax_curve.draw_artist(pt_prog)
+        ax_info.draw_artist(info_box)
+        fig.canvas.blit(fig.bbox)
         buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
         frames.append(buf)
 
     plt.close(fig)
 
-    # Exportar GIF
-    pil_frames = [Image.fromarray(f) for f in frames]
+    # Exportar GIF (cuantización rápida sin dither para reducir tiempo y peso)
+    pil_frames = [
+        Image.fromarray(f).quantize(colors=128, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+        for f in frames
+    ]
     # Pausa extra en el último frame (48h)
     durations = [int(1000 / fps)] * (len(pil_frames) - 1) + [1800]
     pil_frames[0].save(
@@ -1089,7 +1205,7 @@ def export_animation_gif_mp4(
         fps=fps,
         codec="libx264",
         macro_block_size=16,
-        ffmpeg_params=["-pix_fmt", "yuv420p"],
+        pixelformat="yuv420p",
     ) as writer:
         for frame in frames:
             writer.append_data(frame)
@@ -1411,14 +1527,48 @@ def export_impact_infographics(
     return {"panel": panel_path, "infografia": info_path}
 
 
+def export_all_phase2_products(
+    result: SpreadGridResult,
+    out_dir: Path = DEFAULT_OUTPUTS_DIR,
+    fps: int = 6,
+) -> dict[str, Any]:
+    """Ejecuta todos los exportadores (Shapefiles+ZIP, Infografías PNG y GIF+MP4) midiendo tiempos."""
+    t_s = time.perf_counter()
+    shp_files = export_qgis_shapefiles(result, out_dir)
+    t_shp = time.perf_counter() - t_s
+
+    t_i = time.perf_counter()
+    info_files = export_impact_infographics(result, out_dir)
+    t_info = time.perf_counter() - t_i
+
+    t_a = time.perf_counter()
+    anim_files = export_animation_gif_mp4(result, out_dir, fps=fps)
+    t_anim = time.perf_counter() - t_a
+
+    files: dict[str, Path] = {}
+    files.update(shp_files)
+    files.update(info_files)
+    files.update(anim_files)
+    return {
+        "files": files,
+        "timings_s": {
+            "shapefiles_s": round(t_shp, 3),
+            "infographics_s": round(t_info, 3),
+            "animation_s": round(t_anim, 3),
+            "total_export_s": round(t_shp + t_info + t_anim, 3),
+        },
+    }
+
+
 def build_spread_forecast_payload(
     result: SpreadGridResult,
     outputs_prefix: str = "/api/v1/spread-outputs",
+    timings_s: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Construye la respuesta JSON/GeoJSON conforme al contrato §12.2 de McHanaq."""
     ws_mean = round(float(np.mean([w["wind_speed_ms"] for w in result.hourly_wind])), 2)
     wd_dom = result.hourly_wind[0]["wind_dir_deg"]
-    return {
+    payload: dict[str, Any] = {
         "schema_version": "1.0",
         "phase": "phase_2_optional",
         "territory": {
@@ -1454,6 +1604,7 @@ def build_spread_forecast_payload(
         "hourly_progression": result.hourly_progression,
         "isochrones": result.isochrones,
         "assumptions": result.assumptions,
+        "data_sources": result.data_sources,
         "outputs": {
             "gif": f"{outputs_prefix}/simulacion_48h.gif",
             "mp4": f"{outputs_prefix}/pronostico_48h.mp4",
@@ -1470,6 +1621,9 @@ def build_spread_forecast_payload(
             ],
         },
     }
+    if timings_s is not None:
+        payload["timings_s"] = timings_s
+    return payload
 
 
 def _load_territory_feature(
@@ -1531,6 +1685,7 @@ def run_phase2_pipeline(
         if sum(areas) > 0:
             veg_pct = round((sum(eff_vegs) / sum(areas)) * 100.0, 2)
 
+    t_sim0 = time.perf_counter()
     result = simulate_spread_48h(
         territory_type=territory_type,
         territory_id=territory_id,
@@ -1545,8 +1700,19 @@ def run_phase2_pipeline(
         savi_tif=savi_tif,
         dem_tif=dem_tif,
     )
+    sim_s = round(time.perf_counter() - t_sim0, 3)
 
-    payload = build_spread_forecast_payload(result)
+    artifacts: dict[str, Any] = {}
+    timings_s: dict[str, float] = {"simulation_s": sim_s}
+    if generate_media:
+        exported = export_all_phase2_products(result, outputs_dir)
+        artifacts.update(exported["files"])
+        timings_s.update(exported["timings_s"])
+        timings_s["total_s"] = round(sim_s + exported["timings_s"]["total_export_s"], 3)
+    else:
+        timings_s["total_s"] = sim_s
+
+    payload = build_spread_forecast_payload(result, timings_s=timings_s)
     forecasts_doc = {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -1556,14 +1722,9 @@ def run_phase2_pipeline(
     processed_dir.mkdir(parents=True, exist_ok=True)
     forecasts_path = processed_dir / "spread_forecasts.json"
     forecasts_path.write_text(json.dumps(forecasts_doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    artifacts["forecasts_json"] = forecasts_path
 
-    artifacts: dict[str, Any] = {"forecasts_json": forecasts_path}
-    if generate_media:
-        artifacts.update(export_qgis_shapefiles(result, outputs_dir))
-        artifacts.update(export_animation_gif_mp4(result, outputs_dir))
-        artifacts.update(export_impact_infographics(result, outputs_dir))
-
-    return {"result": result, "payload": payload, "artifacts": artifacts}
+    return {"result": result, "payload": payload, "artifacts": artifacts, "timings_s": timings_s}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -1597,6 +1758,7 @@ def main(argv: list[str] | None = None) -> None:
     res: SpreadGridResult = out["result"]
     print(f"Simulación 48h completada para {res.territory_name} ({res.territory_type}/{res.territory_id})")
     print(f"SAVI medio: {res.savi_mean} | Pendiente media: {res.slope_mean_deg}° | Área total {res.horizon_h}h: {res.total_area_ha} ha")
+    print(f"Tiempos (s): {out['timings_s']}")
     for k, p in out["artifacts"].items():
         print(f"  - {k}: {p}")
 

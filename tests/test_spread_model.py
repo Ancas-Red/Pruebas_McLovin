@@ -16,6 +16,7 @@ os.environ.setdefault("MCHANAQ_NO_CACHE", "1")
 from src.analytics.spread_model import (
     SPREAD_MODEL_NAME,
     compute_savi,
+    export_all_phase2_products,
     export_animation_gif_mp4,
     export_impact_infographics,
     export_qgis_shapefiles,
@@ -78,8 +79,13 @@ def test_simulate_48h_and_exports(tmp_path: Path):
     assert info_out["panel"].exists() and info_out["panel"].stat().st_size > 20_000
     assert info_out["infografia"].exists() and info_out["infografia"].stat().st_size > 20_000
 
+    all_out = export_all_phase2_products(res, tmp_path / "all")
+    assert all_out["timings_s"]["total_export_s"] > 0
+    for key in ("gif", "mp4", "qgis_zip", "infografia", "panel"):
+        assert all_out["files"][key].exists()
 
-def test_phase2_api_endpoints():
+
+def test_phase2_api_endpoints(tmp_path: Path, monkeypatch):
     client = TestClient(main.app)
 
     r_fc = client.get("/api/v1/territories/province/1501/spread-forecast?date=2026-09-15&horizon_h=48")
@@ -107,6 +113,9 @@ def test_phase2_api_endpoints():
     sim_body = r_sim.json()
     assert sim_body["horizon_h"] == 48
     assert sim_body["savi_summary"]["mean"] > 0
+    assert "simulation_s" in sim_body["timings_s"]
+    assert "data_sources" in sim_body
+    assert "outputs" in sim_body
 
     # Archivos precomputados en data/processed/spread_outputs/
     for fname in (
@@ -116,6 +125,35 @@ def test_phase2_api_endpoints():
         "infografia_impacto_48h.png",
         "panel_modelo_48h.png",
     ):
+        r_file = client.get(f"/api/v1/spread-outputs/{fname}")
+        assert r_file.status_code == 200
+        assert len(r_file.content) > 1000
+
+    # Paso 2 bajo demanda en directorio temporal sin sobreescribir data/processed/spread_outputs/
+    monkeypatch.setattr(main, "SPREAD_OUTPUTS_DIR", tmp_path)
+    r_exp = client.post(
+        "/api/v1/spread-export",
+        json={
+            "lat": -8.19833,
+            "lon": -75.26669,
+            "date": "2024-09-25",
+            "horizon_h": 12,
+            "wind_speed_10m_ms": 4.8,
+            "wind_dir_deg": 115.0,
+        },
+    )
+    assert r_exp.status_code == 200
+    exp_body = r_exp.json()
+    assert exp_body["horizon_h"] == 12
+    assert exp_body["timings_s"]["total_export_s"] > 0
+    for fname in (
+        "simulacion_48h.gif",
+        "pronostico_48h.mp4",
+        "mchanaq_propagacion_48h_qgis.zip",
+        "infografia_impacto_48h.png",
+        "panel_modelo_48h.png",
+    ):
+        assert (tmp_path / fname).exists()
         r_file = client.get(f"/api/v1/spread-outputs/{fname}")
         assert r_file.status_code == 200
         assert len(r_file.content) > 1000

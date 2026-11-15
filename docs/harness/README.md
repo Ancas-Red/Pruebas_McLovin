@@ -114,11 +114,16 @@ Están en `src/frontend/src/api/types.ts` (`DailyEnv`) y en
 
 ## 5. Fase 2 — propagación
 
-Es **opcional y desacoplada**. No toca ningún endpoint de Fase 1. Vive en
-`src/frontend/src/lib/spread.ts`, se llama `heuristic_wind_slope_spread_v1`, produce
-isócronas a +6, +12 y +24 h y siempre muestra su aviso. Cuando el backend publique
-`/spread-forecast` o `/spread-simulate`, se sustituye la implementación local sin
-cambiar la interfaz.
+Es **opcional y desacoplada**. No toca ningún endpoint de Fase 1. En el frontend vive en
+`src/frontend/src/lib/spread.ts` (`SpreadRail.tsx`), y en Python en
+`src/analytics/spread_model.py` (`heuristic_wind_slope_spread_v1`, documentada en
+`docs/Fase2_Simulacion_Espacial_Propagacion_48h.md`). Integra **SAVI (Huete, 1988)**,
+**topografía/pendiente DEM** y **viento horario hasta 48 h** (`+6`, `+12`, `+24`, `+36`, `+48 h`),
+genera `data/processed/spread_forecasts.json` y salidas en `data/processed/spread_outputs/`
+(`simulacion_48h.gif`, `pronostico_48h.mp4`, Shapefiles `.zip` QGIS e infografías PNG) y
+expone una arquitectura API en 2 pasos (`/spread-forecast`, `/spread-simulate` rápido y
+`/spread-export` + `/spread-outputs/{filename}` bajo demanda, con soporte global vía
+Open-Meteo en `use_open_meteo=true` y `/realtime/area`), manteniendo siempre su aviso no operativo.
 
 ## 6. Qué queda fuera del alcance
 

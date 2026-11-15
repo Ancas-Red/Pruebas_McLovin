@@ -262,3 +262,14 @@ Con fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend
 - [ ] Nombre final del bloque diario en la ficha (`daily`) — confirmar con Jhan/Tom.
 - [ ] **`activity_rate` diario en `activity_daily.json`** (`fire_pixels_nominal_high / valid_land_pixels`, `null` si no hubo observación). La coropleta diaria lo necesita y la API no puede calcularlo; los fixtures ya lo incluyen — Tom confirma que lo genera.
 - [ ] Umbrales reales: cobertura mínima, `robust_z` para «elevated», `umbral_veg`, `umbral_pend`, años mínimos de línea base (Tom/Angelo).
+
+## 10. Endpoints opcionales y desacoplados (Fase 2 · 48 h y tiempo real global)
+
+Los siguientes endpoints no modifican ni bloquean ningún contrato de las secciones 1–9 (Fase 1):
+
+- `GET /api/v1/territories/{type}/{id}/spread-forecast?date=YYYY-MM-DD&horizon_h=48`: devuelve isócronas (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`), `savi_summary`, `slope_summary`, `hourly_wind`, `outputs` y `timings_s`.
+- `POST|GET /api/v1/spread-simulate` *(Paso 1 rápido)*: ejecuta simulación 48 h para `{ lat, lon, date, horizon_h, use_open_meteo, ... }` y devuelve JSON/GeoJSON inmediato.
+- `POST|GET /api/v1/spread-export` *(Paso 2 bajo demanda)*: ejecuta la simulación y genera en `data/processed/spread_outputs/` `simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip`, `infografia_impacto_48h.png` y `panel_modelo_48h.png`, devolviendo URLs (`/api/v1/spread-outputs/{filename}`) y tiempos medidos (`timings_s`).
+- `GET /api/v1/realtime/area?south=…&west=…&north=…&east=…&days=3`: consulta global en vivo de clima Open-Meteo y focos activos NASA FIRMS (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, separados por sensor).
+
+Referencia metodológica completa: `docs/Fase2_Simulacion_Espacial_Propagacion_48h.md`.

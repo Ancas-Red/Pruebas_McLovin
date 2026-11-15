@@ -5,6 +5,7 @@ import io
 import json
 import math
 import os
+import time
 from datetime import date as dt_date
 from pathlib import Path
 
@@ -745,8 +746,14 @@ def _run_phase2_simulation(
     vegetation_pct: float | None = None,
     slope_mean_deg: float | None = None,
     fuel_moisture_pct: float | None = None,
+    use_open_meteo: bool = False,
+    export_products: bool = False,
 ) -> dict:
-    from src.analytics.spread_model import build_spread_forecast_payload, simulate_spread_48h
+    from src.analytics.spread_model import (
+        build_spread_forecast_payload,
+        export_all_phase2_products,
+        simulate_spread_48h,
+    )
 
     daily_match = next(
         (
@@ -795,6 +802,7 @@ def _run_phase2_simulation(
         max(4.0, min(28.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
     )
 
+    t0 = time.perf_counter()
     res = simulate_spread_48h(
         territory_type=t_type,
         territory_id=t_id,
@@ -809,8 +817,64 @@ def _run_phase2_simulation(
         fuel_moisture_pct=fm,
         base_wind_ms=ws,
         base_wind_dir_deg=wd,
+        use_open_meteo=use_open_meteo,
     )
-    return build_spread_forecast_payload(res)
+    sim_s = round(time.perf_counter() - t0, 3)
+    timings: dict[str, float] = {"simulation_s": sim_s, "total_s": sim_s}
+    if export_products:
+        exported = export_all_phase2_products(res, SPREAD_OUTPUTS_DIR)
+        timings.update(exported["timings_s"])
+        timings["total_s"] = round(sim_s + exported["timings_s"]["total_export_s"], 3)
+    return build_spread_forecast_payload(res, timings_s=timings)
+
+
+def _dispatch_spread_request(
+    *,
+    lat: float | None,
+    lon: float | None,
+    date: str,
+    horizon_h: int,
+    wind_speed_10m_ms: float | None,
+    wind_dir_deg: float | None,
+    vegetation_pct: float | None,
+    slope_mean_deg: float | None,
+    fuel_moisture_pct: float | None,
+    use_open_meteo: bool,
+    payload: dict | None,
+    export_products: bool,
+) -> dict:
+    body = payload or {}
+    r_lat = float(body["lat"]) if "lat" in body else lat
+    r_lon = float(body["lon"]) if "lon" in body else lon
+    if r_lat is None or r_lon is None:
+        raise ApiError(400, "INVALID_PARAMETER", "Debe indicar lat y lon para simular propagación")
+    if not (-90.0 <= r_lat <= 90.0 and -180.0 <= r_lon <= 180.0):
+        raise ApiError(400, "INVALID_PARAMETER", "Coordenadas fuera de rango global")
+
+    r_date = str(body.get("date") or date)
+    check_date_syntax(r_date)
+    r_horizon = int(body.get("horizon_h") or horizon_h)
+    if not (6 <= r_horizon <= 48):
+        raise ApiError(400, "INVALID_PARAMETER", "horizon_h debe estar entre 6 y 48 horas")
+
+    r_open_meteo = bool(body["use_open_meteo"]) if "use_open_meteo" in body else use_open_meteo
+    return _run_phase2_simulation(
+        t_type=str(body.get("territory_type") or "custom"),
+        t_id=str(body.get("territory_id") or "custom"),
+        t_name=str(body.get("territory_name") or f"Punto ({r_lat:.3f}, {r_lon:.3f})"),
+        geom=None,
+        lat=r_lat,
+        lon=r_lon,
+        date_str=r_date,
+        horizon_h=r_horizon,
+        wind_speed_ms=float(body["wind_speed_10m_ms"]) if "wind_speed_10m_ms" in body else wind_speed_10m_ms,
+        wind_dir_deg=float(body["wind_dir_deg"]) if "wind_dir_deg" in body else wind_dir_deg,
+        vegetation_pct=float(body["vegetation_pct"]) if "vegetation_pct" in body else vegetation_pct,
+        slope_mean_deg=float(body["slope_mean_deg"]) if "slope_mean_deg" in body else slope_mean_deg,
+        fuel_moisture_pct=float(body["fuel_moisture_pct"]) if "fuel_moisture_pct" in body else fuel_moisture_pct,
+        use_open_meteo=r_open_meteo,
+        export_products=export_products,
+    )
 
 
 @app.get("/api/v1/territories/{type}/{id}/spread-forecast")
@@ -866,36 +930,53 @@ def spread_simulate(
     vegetation_pct: float | None = Query(default=None, ge=0.0, le=100.0),
     slope_mean_deg: float | None = Query(default=None, ge=0.0, le=60.0),
     fuel_moisture_pct: float | None = Query(default=None, ge=1.0, le=35.0),
+    use_open_meteo: bool = Query(default=False),
     payload: dict | None = Body(default=None),
 ):
-    body = payload or {}
-    r_lat = float(body["lat"]) if "lat" in body else lat
-    r_lon = float(body["lon"]) if "lon" in body else lon
-    if r_lat is None or r_lon is None:
-        raise ApiError(400, "INVALID_PARAMETER", "Debe indicar lat y lon para simular propagación")
-    if not (-90.0 <= r_lat <= 90.0 and -180.0 <= r_lon <= 180.0):
-        raise ApiError(400, "INVALID_PARAMETER", "Coordenadas fuera de rango global")
+    return _dispatch_spread_request(
+        lat=lat,
+        lon=lon,
+        date=date,
+        horizon_h=horizon_h,
+        wind_speed_10m_ms=wind_speed_10m_ms,
+        wind_dir_deg=wind_dir_deg,
+        vegetation_pct=vegetation_pct,
+        slope_mean_deg=slope_mean_deg,
+        fuel_moisture_pct=fuel_moisture_pct,
+        use_open_meteo=use_open_meteo,
+        payload=payload,
+        export_products=False,
+    )
 
-    r_date = str(body.get("date") or date)
-    check_date_syntax(r_date)
-    r_horizon = int(body.get("horizon_h") or horizon_h)
-    if not (6 <= r_horizon <= 48):
-        raise ApiError(400, "INVALID_PARAMETER", "horizon_h debe estar entre 6 y 48 horas")
 
-    return _run_phase2_simulation(
-        t_type=str(body.get("territory_type") or "custom"),
-        t_id=str(body.get("territory_id") or "custom"),
-        t_name=str(body.get("territory_name") or f"Punto ({r_lat:.3f}, {r_lon:.3f})"),
-        geom=None,
-        lat=r_lat,
-        lon=r_lon,
-        date_str=r_date,
-        horizon_h=r_horizon,
-        wind_speed_ms=float(body["wind_speed_10m_ms"]) if "wind_speed_10m_ms" in body else wind_speed_10m_ms,
-        wind_dir_deg=float(body["wind_dir_deg"]) if "wind_dir_deg" in body else wind_dir_deg,
-        vegetation_pct=float(body["vegetation_pct"]) if "vegetation_pct" in body else vegetation_pct,
-        slope_mean_deg=float(body["slope_mean_deg"]) if "slope_mean_deg" in body else slope_mean_deg,
-        fuel_moisture_pct=float(body["fuel_moisture_pct"]) if "fuel_moisture_pct" in body else fuel_moisture_pct,
+@app.post("/api/v1/spread-export")
+@app.get("/api/v1/spread-export")
+def spread_export(
+    lat: float | None = Query(default=None, ge=-90.0, le=90.0),
+    lon: float | None = Query(default=None, ge=-180.0, le=180.0),
+    date: str = Query(default="2024-09-25"),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+    wind_speed_10m_ms: float | None = Query(default=None, ge=0.0, le=40.0),
+    wind_dir_deg: float | None = Query(default=None, ge=0.0, le=360.0),
+    vegetation_pct: float | None = Query(default=None, ge=0.0, le=100.0),
+    slope_mean_deg: float | None = Query(default=None, ge=0.0, le=60.0),
+    fuel_moisture_pct: float | None = Query(default=None, ge=1.0, le=35.0),
+    use_open_meteo: bool = Query(default=False),
+    payload: dict | None = Body(default=None),
+):
+    return _dispatch_spread_request(
+        lat=lat,
+        lon=lon,
+        date=date,
+        horizon_h=horizon_h,
+        wind_speed_10m_ms=wind_speed_10m_ms,
+        wind_dir_deg=wind_dir_deg,
+        vegetation_pct=vegetation_pct,
+        slope_mean_deg=slope_mean_deg,
+        fuel_moisture_pct=fuel_moisture_pct,
+        use_open_meteo=use_open_meteo,
+        payload=payload,
+        export_products=True,
     )
 
 

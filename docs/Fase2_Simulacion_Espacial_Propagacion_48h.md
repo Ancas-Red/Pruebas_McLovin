@@ -68,7 +68,7 @@ Al ejecutar `python -m src.analytics.spread_model`, el pipeline exporta en `data
 |---|---|---|
 | `simulacion_48h.gif` | GIF animado (48 frames) | Avance celular hora por hora (`Hora 01` a `Hora 48`) con vector de viento horario, fondo SAVI/pendiente y área acumulada en hectáreas. |
 | `pronostico_48h.mp4` | Video MP4 (H.264) | Misma animación de 48 h lista para presentaciones, reportes y visor web. |
-| `shapefiles/*.shp` + `mchanaq_propagacion_48h_qgis.zip` | Shapefiles ESRI (`.shp/.shx/.dbf/.prj/.cpg`, WGS84) | `isocronas_48h.shp` (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`), `celdas_horarias_48h.shp` (hora de llegada `1..48`, SAVI y pendiente) e `ignicion_y_viento_48h.shp` (punto de inicio y trayectoria horaria). |
+| `shapefiles/*.shp` + `mchanaq_propagacion_48h_qgis.zip` | Shapefiles ESRI (`.shp/.shx/.dbf/.prj/.cpg`, WGS84) | `isocronas_48h.shp` (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`), `celdas_horarias_48h.shp` (hora de llegada `1..48`, SAVI y pendiente), `ignicion_y_viento_48h.shp` (punto de inicio y trayectoria horaria) y `vectores_viento_48h.shp` (vectores horarios cada 3 h). |
 | `panel_modelo_48h.png` | Infografía PNG (300 DPI) | Panel triple comparativo: **SAVI** \| **Pendiente + Viento 48h** \| **Simulación 48hs del Modelo** con métricas horarias y resumen de salidas. |
 | `infografia_impacto_48h.png` | Infografía Ejecutiva PNG (300 DPI) | Lámina técnica oscura lista para reporte: mapa territorial con isócronas `+6h..+48h`, rampas **SAVI** y **PENDIENTE**, recuadros de **VIENTO** y **SIMULACIÓN**, resumen **OUTPUTS GIS** e impacto acumulado en hectáreas. |
 | `data/processed/spread_forecasts.json` | JSON / GeoJSON contrato §12.2 | Alimenta `GET /api/v1/territories/{type}/{id}/spread-forecast` y permite consulta directa desde el frontend. |
@@ -83,3 +83,32 @@ El módulo funciona de manera autónoma con los datos territoriales de McHanaq (
 2. **Ráster DEM (`--dem-tif ruta/dem.tif`):** `COPERNICUS/DEM/GLO30` a 30 m para calcular pendientes exactas píxel a píxel.
 3. **Viento horario real (`--open-meteo`):** consulta directa a Open-Meteo (`https://api.open-meteo.com/v1/forecast` o archivo histórico ERA5) en lugar del perfil horario sintetizado desde `environmental_daily`.
 4. **Coordenadas y fecha específicas (`--lat`, `--lon`, `--date`, `--territory-type`, `--territory-id`):** permite apuntar a cualquier foco FIRMS real o coordenada de interés (ej. Ucayali o cualquier provincia del Perú).
+
+---
+
+## 5. Evaluación Mundial vía APIs y Arquitectura Web en 2 Pasos
+
+Para evaluar propagación desde **cualquier coordenada del mundo** sin bloquear la interfaz web ni agotar el servidor (Plan Free F1), el flujo separa el cálculo interactivo de la exportación multimedia pesada:
+
+1. **Integración global por APIs (`use_open_meteo=true` y `/api/v1/realtime/area`):**
+   * **Meteorología horaria 48 h:** Open-Meteo Forecast/Archive API (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `relative_humidity_2m`).
+   * **Topografía global (DEM):** Open-Meteo Elevation API (`https://api.open-meteo.com/v1/elevation`, fuente `COPERNICUS_DEM_GLO90_OPEN_METEO`) muestreada en grilla `8×8` sobre el dominio de `11×11 km` e interpolada bilinealmente a `120×120` celdas.
+   * **Focos activos globales NRT:** `GET /api/v1/realtime/area` consulta NASA FIRMS Area API (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT` sin mezclar sensores) cuando se configura `FIRMS_MAP_KEY`.
+   * *Nota:* Si no hay conectividad externa, el motor degrada deterministamente a `COPERNICUS_DEM_GLO30_PARAMETRIC` y `era5_daily_diurnal_profile`.
+2. **Paso 1 — Simulación interactiva instantánea (`POST/GET /api/v1/spread-simulate`):**
+   * Ejecuta `simulate_spread_48h` y devuelve el JSON/GeoJSON con isócronas (`+6h..+48h`), métricas (`SAVI`, pendiente, `ROS`, `L/B`), `data_sources` y `timings_s` para pintar la evolución en el mapa al instante.
+3. **Paso 2 — Exportación completa bajo demanda (`POST/GET /api/v1/spread-export` → `GET /api/v1/spread-outputs/{filename}`):**
+   * Genera bajo demanda los 5 artefactos descargables (`simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip`, `infografia_impacto_48h.png`, `panel_modelo_48h.png`), devolviendo las URLs y los tiempos medidos (`timings_s`).
+   * **Optimización de renderizado:** `export_animation_gif_mp4` reutiliza la figura y el fondo estático mediante *blitting* en Matplotlib (`copy_from_bbox` / `restore_region` / `draw_artist`) y cuantización rápida (`FASTOCTREE` sin *dithering*) en Pillow.
+
+### Tiempos medidos reales (corriendo `python -m src.analytics.spread_model`, grilla `120×120`, 48 h)
+
+| Etapa | Artefacto / Salida | Tiempo medido (local) |
+|---|---|---|
+| Simulación celular 48 h (`simulate_spread_48h`) | JSON/GeoJSON con isócronas `+6h..+48h` | **0.126 s** |
+| Shapefiles QGIS + ZIP (`export_qgis_shapefiles`) | 4 capas `.shp` + `mchanaq_propagacion_48h_qgis.zip` | **0.070 s** |
+| Infografías 300 DPI (`export_impact_infographics`) | `panel_modelo_48h.png` + `infografia_impacto_48h.png` | **1.551 s** |
+| Video/GIF 48 cuadros (`export_animation_gif_mp4`) | `simulacion_48h.gif` + `pronostico_48h.mp4` | **2.487 s** |
+| **Total paquete completo local** | Simulación + JSON + SHP + GIF + MP4 + 2 PNGs | **4.234 s** |
+
+Al activar consultas en vivo a APIs externas para coordenadas globales arbitrarias, añadir ~**1–5 s** de latencia de red para viento horario Open-Meteo + elevación DEM + NASA FIRMS (y ~**2–8 s** adicionales si se incorpora lectura COG externa de Sentinel-2/SAVI en tiempo real).
