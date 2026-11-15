@@ -158,14 +158,6 @@
   .team__head {
     margin-bottom: 18px;
   }
-  .hero__title {
-    font-size: clamp(40px, 8.6vw, 60px);
-    line-height: 0.99;
-  }
-  .block__title {
-    font-size: clamp(30px, 6.2vw, 44px);
-    line-height: 1.05;
-  }
 }
 
 @media (max-width: 640px) {
@@ -313,6 +305,24 @@
   line-height: 0.98;
   letter-spacing: -0.042em;
   margin: 0 0 24px;
+}
+
+@media (max-width: 1080px) {
+  .block__title {
+    font-size: clamp(30px, 5.4vw, 44px);
+    line-height: 1.05;
+  }
+  .hero__title {
+    font-size: clamp(38px, 6.4vw, 56px);
+    line-height: 0.99;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero__title {
+    font-size: clamp(38px, 9.6vw, 48px);
+    line-height: 1;
+  }
 }
 .hero__accent {
   display: block;

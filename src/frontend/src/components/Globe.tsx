@@ -148,7 +148,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
       canvas!.height = Math.max(1, Math.round(H * dpr));
       canvas!.style.width = `${W}px`;
       canvas!.style.height = `${H}px`;
-      R = W < 820 ? Math.min(W * 0.31, H * 0.36) : Math.min(W * 0.27, H * 0.385);
+      R = Math.min(W * 0.27, H * 0.385);
 
       stars = createStars(W, H);
     }
