@@ -184,6 +184,7 @@ def test_activity_and_csv_range_validation_and_comparison_fallback(monkeypatch):
     assert r_bad_csv.status_code == 400
 
     monkeypatch.setattr(main, "COMPARE", [])
+    monkeypatch.setattr(main, "_COMPARE_INDEX", {})
     r_fb = client.get("/api/v1/territories/province/1501/sensor-comparison?date=2026-09-15")
     assert r_fb.status_code == 200
     fb = r_fb.json()

@@ -110,6 +110,20 @@ for _r in DAILY:
     _k = (_r.get("territory_type"), str(_r.get("territory_id")), _r.get("sensor"), (_r.get("date") or "")[:7])
     _DAILY_BY_TERRITORY_SENSOR_PERIOD.setdefault(_k, []).append(_r)
 
+# Mismo problema en SUMMARY/ASSESS/COMPARE (uno por territorio x sensor x mes, ~209 000
+# filas con la ventana 2012-2025): pick() con next()+generador escanea toda la lista
+# cuando no hay match. Se indexan igual, también construido una sola vez al arrancar.
+_SUMMARY_INDEX: dict[tuple, dict] = {
+    (r.get("territory_type"), str(r.get("territory_id")), r.get("sensor"), r.get("period_id")): r
+    for r in SUMMARY
+}
+_ASSESS_INDEX: dict[tuple, dict] = {
+    (r.get("territory_type"), str(r.get("territory_id")), r.get("period_id")): r for r in ASSESS
+}
+_COMPARE_INDEX: dict[tuple, dict] = {
+    (r.get("territory_type"), str(r.get("territory_id")), r.get("period_id")): r for r in COMPARE
+}
+
 
 def _is_useful_daily_record(record: dict) -> bool:
     """Replica el criterio de src/analytics/run_pipeline.py: >=70% cobertura o tasa valida."""
@@ -766,8 +780,8 @@ def territory_summary(
         # equivalente al dato validado offline (sin cobertura/ratio de observación), por
         # eso queda marcado con data_origin="firms_live_historical".
         daily_row = _fetch_firms_historical_day(type, id, sensor, date)
-    summary_row = pick(SUMMARY, territory_type=type, territory_id=id, sensor=sensor, period_id=resolved_period) or {}
-    assess_row = pick(ASSESS, territory_type=type, territory_id=id, period_id=resolved_period) or {}
+    summary_row = _SUMMARY_INDEX.get((type, id, sensor, resolved_period)) or {}
+    assess_row = _ASSESS_INDEX.get((type, id, resolved_period)) or {}
 
     return {
         "schema_version": "1.0",
@@ -856,7 +870,7 @@ def sensor_comparison(
     resolved_period = check_date(d=date, period=None if date else period, comparison=True)
     find_territory(type, id)
 
-    row = pick(COMPARE, territory_type=type, territory_id=id, period_id=resolved_period)
+    row = _COMPARE_INDEX.get((type, id, resolved_period))
     if not row:
         return {
             "schema_version": "1.0",
