@@ -21,8 +21,12 @@ src/frontend/dist/
 # Heavy intermediate GEE exports & raw local satellite folders
 data/intermediate/*
 !data/intermediate/.gitkeep
+data/reference/*
+!data/reference/.gitkeep
 MODIS/
+VIIRS/
 VIRS/
+.local_analytics_backup/
 *.tif
 *.tiff
 *.zip
