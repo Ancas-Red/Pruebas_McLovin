@@ -463,6 +463,21 @@ export function MapStage(props: Props) {
     }
   }, [territories, choropleth, metric, metricUnit, selectedId, onSelectTerritory, onHoverTerritory, scale]);
 
+  /* ------------------ encuadrar el territorio cuando cambia la selección -- */
+  const prevSelectedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedId || prevSelectedIdRef.current === selectedId) return;
+    const entries = polysById.current.get(selectedId);
+    if (!entries || entries.length === 0) return;
+    prevSelectedIdRef.current = selectedId;
+    const group = L.featureGroup(entries.map((e) => e.poly));
+    const bounds = group.getBounds();
+    if (bounds.isValid()) {
+      map.flyToBounds(bounds, { padding: [60, 60], duration: 0.65, maxZoom: 11 });
+    }
+  }, [selectedId, territories]);
+
   /**
    * Resalte del territorio apuntado.
    *

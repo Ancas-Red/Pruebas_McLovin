@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
 import type {
@@ -158,6 +158,28 @@ export function ControlRail(p: Props) {
   }, [p.daily, p.sensor]);
 
   const features = p.territories?.features ?? [];
+
+  useEffect(() => {
+    const feat = features.find((f) => f.properties.territory_id === p.territoryId);
+    if (!feat?.geometry) return;
+    const rings =
+      feat.geometry.type === "Polygon"
+        ? feat.geometry.coordinates
+        : feat.geometry.coordinates.flat();
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const r of rings) {
+      for (const [lo, la] of r) {
+        if (la < minLat) minLat = la;
+        if (la > maxLat) maxLat = la;
+        if (lo < minLon) minLon = lo;
+        if (lo > maxLon) maxLon = lo;
+      }
+    }
+    if (isFinite(minLat) && isFinite(minLon)) {
+      setLat(((minLat + maxLat) / 2).toFixed(2));
+      setLon(((minLon + maxLon) / 2).toFixed(2));
+    }
+  }, [p.territoryId, features]);
   const stamp = `${p.year}${String(p.month).padStart(2, "0")}`;
 
   function applyCoords() {
