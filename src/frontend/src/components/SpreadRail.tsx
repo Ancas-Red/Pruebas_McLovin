@@ -203,11 +203,11 @@ export function SpreadRail(p: Props) {
         <p className="mono-sm" style={{ marginTop: 6 }}>{exportInfo}</p>
       )}
       <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
-        <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif`} target="_blank" rel="noreferrer">GIF 48h</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} target="_blank" rel="noreferrer">MP4 48h</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png`} target="_blank" rel="noreferrer">Infografía</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png`} target="_blank" rel="noreferrer">Panel 48h</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">GIF 48h</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">MP4 48h</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Infografía</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Panel 48h</a>
       </div>
     </div>
   );
