@@ -40,6 +40,7 @@ export const TEAM: Member[] = [
     role: "Líder y coordinación general",
     blurb:
       "Lidera el proyecto y articula al equipo entre áreas, conectando datos satelitales, analítica, backend e interfaz de extremo a extremo.",
+    linkedin: "https://www.linkedin.com/in/tomjordanpl/",
     github: "https://github.com/TomJordan1",
     branch: "feature/analytics-engine",
   },
