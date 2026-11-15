@@ -368,7 +368,7 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           {onOpenConventions && (
             <div style={{ marginTop: 22 }} data-reveal>
               <button type="button" className="btn" onClick={onOpenConventions}>
-                Ver marco normativo y reglamentos completos →
+                Explorar marco normativo completo →
               </button>
             </div>
           )}

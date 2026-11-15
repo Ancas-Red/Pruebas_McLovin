@@ -13,7 +13,7 @@ function parse(hash: string): Route {
   const seg = hash.replace(/^#\/?/, "").split("?")[0];
   if (seg === "mapa") return "mapa";
   if (seg === "tecnologia") return "tecnologia";
-  if (seg === "convenciones") return "convenciones";
+  if (seg === "marco-normativo" || seg === "convenciones") return "convenciones";
   return "inicio";
 }
 
@@ -29,7 +29,7 @@ export function useRoute(): [Route, (r: Route) => void] {
   const go = (r: Route) => {
     if (r === "mapa") window.location.hash = "#/mapa";
     else if (r === "tecnologia") window.location.hash = "#/tecnologia";
-    else if (r === "convenciones") window.location.hash = "#/convenciones";
+    else if (r === "convenciones") window.location.hash = "#/marco-normativo";
     else window.location.hash = "#/";
   };
 

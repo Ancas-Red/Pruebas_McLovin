@@ -481,7 +481,7 @@ export function AnalysisRail(p: Props) {
               style={{ marginTop: 14 }}
               onClick={p.onOpenConventions}
             >
-              Ver reglamentos y convenciones →
+              Ver marco normativo y estándares →
             </button>
           )}
         </Drawer>

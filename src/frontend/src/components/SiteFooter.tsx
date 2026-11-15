@@ -32,7 +32,7 @@ export function SiteFooter({
           {route === "inicio" ? (
             <>
               <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
-                Convenciones →
+                Marco normativo →
               </button>
               <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
                 Tecnología y stack →
@@ -41,7 +41,7 @@ export function SiteFooter({
           ) : route === "tecnologia" ? (
             <>
               <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
-                Convenciones →
+                Marco normativo →
               </button>
               <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
                 Abrir el mapa →

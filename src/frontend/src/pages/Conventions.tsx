@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SiteFooter } from "../components/SiteFooter";
 import { Starfield } from "../components/Starfield";
+import { McTropicReader } from "../components/McTropicReader";
 import { revealSectionBatch } from "../lib/reveal";
 import {
   CONV_CATEGORIES,
@@ -25,67 +26,10 @@ const CONV_SECTIONS = [
   { id: "glosario", label: "Glosario UI" },
 ];
 
-type MatrixTabId = "taxonomia" | "arbol" | "trazabilidad";
-
-interface MatrixLine {
-  tone: "cmd" | "accent" | "kv" | "ok" | "code" | "muted" | "spacer";
-  text: string;
-}
-
-const MATRIX_TABS: { id: MatrixTabId; label: string; host: string; lines: MatrixLine[] }[] = [
-  {
-    id: "taxonomia",
-    label: "Taxonomía",
-    host: "mchanaq · taxonomy.audit",
-    lines: [
-      { tone: "cmd", text: "$ mchanaq audit taxonomy --scope phase1,phase2" },
-      { tone: "spacer", text: "" },
-      { tone: "accent", text: "[UNDRR] Amenaza vs Exposición vs Riesgo" },
-      { tone: "kv", text: "Fase 1 = Susceptibilidad contextual (SIN población/ANP)" },
-      { tone: "muted", text: "→ Prohibido denominar «Riesgo» al árbol N0–N3." },
-      { tone: "spacer", text: "" },
-      { tone: "accent", text: "[FAO · EFFIS] Ordinalidad e incertidumbre" },
-      { tone: "code", text: "high | moderate | low | partial | not_evaluable" },
-      { tone: "ok", text: "LOW != inmunidad · det_térmica != causa ni daño" },
-    ],
-  },
-  {
-    id: "arbol",
-    label: "Reglas N0–N3",
-    host: "mchanaq · decision_rules.py",
-    lines: [
-      { tone: "cmd", text: "$ inspect decision-tree --rules N0..N3" },
-      { tone: "spacer", text: "" },
-      { tone: "kv", text: "N0: valid_land > 0 && obs_coverage >= 0.70 (nubes < 30 %)" },
-      { tone: "muted", text: "  └─ Falla N0 → not_evaluable (null nunca = 0)" },
-      { tone: "kv", text: "N1: CobVeg MINAM >= 20 % (fuera de agua/urbano/glaciar)" },
-      { tone: "kv", text: "N2–N3: sequedad (p25) + viento > p75 / calor+seco" },
-      { tone: "code", text: "  └─ buffer_150m >= 5 % → atenúa high → moderate" },
-      { tone: "ok", text: "Si falta bloque ERA5/LST → partial (evaluación parcial)" },
-    ],
-  },
-  {
-    id: "trazabilidad",
-    label: "Docs vs Código",
-    host: "mchanaq · traceability.md",
-    lines: [
-      { tone: "cmd", text: "$ verify docs --sources v1.7,fase2,contracts" },
-      { tone: "spacer", text: "" },
-      { tone: "ok", text: "✓ CENEPRED / SERFOR (4 diferencias) → docs/v1.7.md:434" },
-      { tone: "ok", text: "✓ Ley 26.815 SNMF · CONAE-Gulich   → docs/Fase2...md §1" },
-      { tone: "ok", text: "✓ FireMask bits 0–3 & QA bits 0–1  → docs/v1.7.md:271" },
-      { tone: "ok", text: "✓ Rothermel / Anderson / Huete     → docs/v1.7.md:1403" },
-      { tone: "kv", text: "+ UNDRR · FAO · EFFIS · WMO-No.1203 → data-dictionary §6" },
-      { tone: "muted", text: "Trazabilidad verificada en código, API y visor web." },
-    ],
-  },
-];
-
 export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState(0);
   const [category, setCategory] = useState<ConvCategory>("todos");
-  const [matrixTab, setMatrixTab] = useState<MatrixTabId>("taxonomia");
 
   const visibleStandards = useMemo(
     () =>
@@ -107,11 +51,6 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
     }
     return counts;
   }, []);
-
-  const currentMatrix = useMemo(
-    () => MATRIX_TABS.find((t) => t.id === matrixTab) ?? MATRIX_TABS[0],
-    [matrixTab]
-  );
 
   useEffect(() => {
     const root = scrollerRef.current;
@@ -245,36 +184,7 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
             </div>
 
             <div className="tech-hero__terminal" data-reveal>
-              <div className="tech-term" aria-label="Auditoría interactiva de convenciones">
-                <div className="tech-term__bar">
-                  <span className="tech-term__host">{currentMatrix.host}</span>
-                  <div className="tech-term__tabs" role="tablist" aria-label="Vistas de auditoría">
-                    {MATRIX_TABS.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        role="tab"
-                        className="tech-term__tab"
-                        aria-selected={matrixTab === t.id}
-                        onClick={() => setMatrixTab(t.id)}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="tech-term__body">
-                  {currentMatrix.lines.map((line, i) =>
-                    line.tone === "spacer" ? (
-                      <div key={i} className="tech-term__spacer" />
-                    ) : (
-                      <div key={i} className={`tech-term__line tech-term__line--${line.tone}`}>
-                        {line.text}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
+              <McTropicReader />
             </div>
           </div>
 

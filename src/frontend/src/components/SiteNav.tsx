@@ -82,7 +82,7 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
           aria-selected={route === "convenciones"}
           onClick={() => onRoute("convenciones")}
         >
-          Convenciones
+          Marco normativo
         </button>
       </nav>
 
