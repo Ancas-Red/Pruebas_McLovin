@@ -35,6 +35,8 @@ interface Props {
   onHide: () => void;
   selectedDate: string;
   onPickDay: (day: number) => void;
+  /** Sin territorio elegido: se muestra una indicación en vez de la grilla. */
+  noTerritory?: boolean;
 }
 
 const MIN_PANEL_H = 175;
@@ -192,6 +194,18 @@ export function CalendarStrip(p: Props) {
         </button>
       </header>
 
+      {p.noTerritory ? (
+        <div
+          className="calstrip__body"
+          style={{ display: "grid", placeItems: "center", minHeight: 160 }}
+        >
+          <p className="mono-sm" style={{ textAlign: "center", maxWidth: 520, lineHeight: 1.6 }}>
+            Selecciona una provincia o cuenca en el mapa (o desde el panel
+            «Territorio» a la izquierda) para ver su calendario de actividad
+            térmica.
+          </p>
+        </div>
+      ) : (
       <div className="calstrip__body">
         {viewMode === "3d" ? (
           <CalendarTerrain3D
@@ -356,6 +370,7 @@ export function CalendarStrip(p: Props) {
           </dl>
         </div>
       </div>
+      )}
     </section>
   );
 }

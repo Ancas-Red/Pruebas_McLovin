@@ -291,7 +291,14 @@ export function MapTool({
    * tipo + id, y provincias y cuencas no se mezclan en un mismo ranking.
    */
   const [territoryType, setTerritoryType] = useState<TerritoryType>(DEFAULT_TERRITORY.type);
-  const [territoryId, setTerritoryId] = useState<string>(DEFAULT_TERRITORY.id);
+  // Arranca SIN territorio seleccionado (vista nacional, nada preseleccionado):
+  // antes abría siempre en Coronel Portillo (Ucayali). Las consultas de datos
+  // ya esperan a `territoryReady`, que es falso mientras el id esté vacío.
+  const [territoryId, setTerritoryId] = useState<string>("");
+  /** Punto interior del último territorio elegido: al cambiar de tipo
+   *  (provincia ↔ cuenca) se busca el del nuevo tipo que lo contenga o el más
+   *  cercano, en vez de saltar al primero de la lista. */
+  const lastSelectedPointRef = useRef<LatLon | null>(null);
   const [territories, setTerritories] = useState<TerritoryCollection | null>(null);
 
   const [year, setYear] = useState(FIXTURE_LAST_YEAR);
@@ -490,13 +497,46 @@ export function MapTool({
       .then((r) => {
         const col = r.data;
         setTerritories(col);
-        // Al cambiar de tipo, el id anterior pertenece a otra familia: se
-        // toma el primero del nuevo tipo en vez de dejar una selección que
-        // no existe.
-        const ids = col?.features.map((f) => f.properties.territory_id) ?? [];
-        if (ids.length > 0 && !ids.includes(territoryId)) {
-          setTerritoryId(ids[0]);
+        // Al cambiar de tipo, el id anterior pertenece a otra familia. Antes
+        // se tomaba el primero de la lista (`ids[0]`), que solía estar en la
+        // otra punta del país. Ahora: el territorio del nuevo tipo que
+        // contiene el punto del que estaba seleccionado; si ninguno lo
+        // contiene, el de centroide más cercano. Sin selección previa, se
+        // queda sin selección.
+        const feats = col?.features ?? [];
+        if (!territoryId || feats.some((f) => f.properties.territory_id === territoryId)) return;
+        const pt = lastSelectedPointRef.current;
+        if (!pt || feats.length === 0) {
+          setTerritoryId("");
+          return;
         }
+        const containing = feats.find((f) => {
+          try {
+            return pointInFeature(pt, f.geometry);
+          } catch {
+            return false;
+          }
+        });
+        if (containing) {
+          setTerritoryId(containing.properties.territory_id);
+          return;
+        }
+        let bestId = "";
+        let bestD = Infinity;
+        for (const f of feats) {
+          let c: LatLon;
+          try {
+            c = featureCentroid(f.geometry);
+          } catch {
+            continue;
+          }
+          const d = (c[0] - pt[0]) ** 2 + ((c[1] - pt[1]) * Math.cos((pt[0] * Math.PI) / 180)) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            bestId = f.properties.territory_id;
+          }
+        }
+        setTerritoryId(bestId);
       })
       .catch((e) => {
         if (!isAbort(e)) setTerritories(null);
@@ -659,6 +699,9 @@ export function MapTool({
   }, [territories, territoryType, territoryId]);
 
   const ready = Boolean(metadata) && territoryReady;
+  /** Base del mapa lista (metadata + polígonos), haya o no un territorio
+   *  elegido: sin selección por defecto, el cargador no debe esperar a `ready`. */
+  const baseLoaded = Boolean(metadata) && Boolean(territories?.features?.length);
   const activeMonthKey = `${territoryType}|${territoryId}|${sensor}|${period}`;
   const dailyLoading = dailyKey !== activeMonthKey;
 
@@ -1010,12 +1053,14 @@ export function MapTool({
 
   /** Calendario del sensor activo, con la anomalía del mes mirado. */
   const calendar: MonthCell[] = useMemo(() => {
-    if (apiCalendar !== null) {
-      return mergeAnomaly(apiCalendar, period, summary?.activity.historical_anomaly ?? null);
-    }
-    const cells = aggregateMonthly(series.length ? series : daily, sensor);
+    const raw =
+      apiCalendar !== null ? apiCalendar : aggregateMonthly(series.length ? series : daily, sensor);
+    // Solo meses que `metadata` publica para este sensor: el calendario no
+    // debe pintar fechas que la metadata no declara disponibles (antes salían
+    // p. ej. meses de 2026 sin respaldo en `available_periods_by_sensor`).
+    const cells = raw.filter((c) => availablePeriods.has(`${c.year}-${pad2(c.month)}`));
     return mergeAnomaly(cells, period, summary?.activity.historical_anomaly ?? null);
-  }, [apiCalendar, series, daily, sensor, period, summary]);
+  }, [apiCalendar, series, daily, sensor, period, summary, availablePeriods]);
 
   const cell = useMemo(() => findCell(calendar, year, month), [calendar, year, month]);
 
@@ -1205,6 +1250,17 @@ export function MapTool({
       ? (f.geometry.coordinates as number[][][])
       : (f.geometry.coordinates as number[][][][])[0];
     return polygonCentroid(rings[0] as [number, number][]);
+  }, [territories, territoryId]);
+
+  // Recuerda un punto interior del territorio elegido (para el cambio de tipo).
+  useEffect(() => {
+    const f = territories?.features.find((x) => x.properties.territory_id === territoryId);
+    if (!f) return;
+    try {
+      lastSelectedPointRef.current = featureCentroid(f.geometry);
+    } catch {
+      /* geometría inválida: se conserva el punto anterior */
+    }
   }, [territories, territoryId]);
 
   /* ---------------- focos NRT en vivo (NASA FIRMS via /realtime/area) --- */
@@ -1936,15 +1992,15 @@ export function MapTool({
           >
             <OrbitalLoader
               scope="stage"
-              active={!suspendLoader && (!ready || spreadRunning || Boolean(tabTransition))}
+              active={!suspendLoader && (!baseLoaded || spreadRunning || Boolean(tabTransition))}
               label={
-                !ready
+                !baseLoaded
                   ? "Cargando territorios y sensores…"
                   : spreadRunning
                   ? "Calculando frente de propagación…"
                   : tabTransition ?? undefined
               }
-              blocking={!ready || spreadRunning}
+              blocking={!baseLoaded || spreadRunning}
             />
 
             {showHighAlert && (
@@ -1992,6 +2048,7 @@ export function MapTool({
               metadata={metadata}
               areaLabel={territoryName}
               onHide={() => setShowCalendar(false)}
+              noTerritory={!territoryId}
               selectedDate={dateIso}
               onPickDay={(d) => {
                 if (usefulDays.length > 0 && !usefulDays.includes(d)) return;
