@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { renderSpreadReport } from "../lib/spreadReport";
 import { formatUtm, toUtm } from "../lib/utm";
 import { Drawer } from "./Drawer";
@@ -113,6 +113,16 @@ export function SpreadRail(p: Props) {
   const defaultPt = p.ignition ?? p.center ?? [-8.198, -75.267];
   const [quickLat, setQuickLat] = useState(() => defaultPt[0].toFixed(3));
   const [quickLon, setQuickLon] = useState(() => defaultPt[1].toFixed(3));
+  const ignLat = p.ignition?.[0];
+  const ignLon = p.ignition?.[1];
+
+  // Mantener sincronizadas las coordenadas rápidas con el punto de ignición
+  // marcado en el mapa para que "Simular extensión aquí" no salte a otra zona.
+  useEffect(() => {
+    if (ignLat == null || ignLon == null) return;
+    setQuickLat(ignLat.toFixed(3));
+    setQuickLon(ignLon.toFixed(3));
+  }, [ignLat, ignLon]);
 
   async function handleServerExport() {
     setExporting(true);
@@ -548,7 +558,7 @@ export function SpreadRail(p: Props) {
       return (
         <Drawer title="Resultado" note={`t = ${p.time.toFixed(1)} h`} onClose={p.onClose}>
           <div className="transport">
-            <button className="btn" onClick={p.onPlayPause} style={{ minWidth: 62 }}>
+            <button type="button" className="btn" onClick={p.onPlayPause} style={{ flexShrink: 0, minWidth: 88 }}>
               {p.playing ? "Pausa" : "Reproducir"}
             </button>
             <input type="range" min={0} max={v.horizonHours} step={0.25}

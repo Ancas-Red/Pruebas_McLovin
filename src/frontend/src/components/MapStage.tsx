@@ -785,22 +785,29 @@ export function MapStage(props: Props) {
     const map = mapRef.current;
     if (!map || !spread || framedRef.current === spread) return;
     framedRef.current = spread;
+    map.stop();
     const rb = spread.reachedBounds;
-    if (!rb) return;
-    map.flyToBounds(
-      L.latLngBounds(L.latLng(rb.south, rb.west), L.latLng(rb.north, rb.east)).pad(1.1),
-      { duration: 0.8, maxZoom: 14 }
-    );
-  }, [spread]);
+    if (rb) {
+      map.flyToBounds(
+        L.latLngBounds(L.latLng(rb.south, rb.west), L.latLng(rb.north, rb.east)).pad(0.45),
+        { padding: [48, 48], duration: 0.7, maxZoom: 14 }
+      );
+      return;
+    }
+    if (ignition) {
+      map.flyTo(ignition, Math.max(map.getZoom(), 13), { duration: 0.7 });
+    }
+  }, [spread, ignition]);
 
   /* --------------------------------------------- encuadrar el area nueva -- */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ring || ring.length < 3) return;
+    const areaKm2Now = ringAreaKm2(ring);
     map.flyToBounds(L.latLngBounds(ring.map((p) => L.latLng(p[0], p[1]))), {
       padding: [70, 70],
-      duration: 0.7,
-      maxZoom: 11,
+      duration: 0.6,
+      maxZoom: areaKm2Now <= 80 ? 13 : 11,
     });
   }, [ring]);
 

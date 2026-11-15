@@ -1524,7 +1524,14 @@ input[type="range"]:focus-visible {
   align-items: center;
   gap: 8px;
 }
+.transport button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .transport input[type="range"] {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: auto;
   margin: 0;
 }
 
