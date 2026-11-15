@@ -73,11 +73,11 @@ npm run dev          # http://localhost:5173 (proxy /api -> localhost:8000)
 
 Mientras el backend no responda, el frontend cae en sus fixtures locales y lo indica de forma visible en la interfaz.
 
-## Infraestructura oficial (Microsoft Azure Free Tier)
+## Infraestructura oficial (Azure App Service Free Tier + Cloudflare Pages / Azure SWA)
 
-* **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python)** en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`. Nunca consulta GEE ni descarga artefactos externos por petición HTTP de usuario.
-* **Frontend (`src/frontend/`):** **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en workflows de `infra/azure/`) apuntando a la URL del Azure App Service.
-* **Puente de datos y almacenamiento:** **Azure Blob Storage (Free Tier / Azure Storage)** resguarda los paquetes de `data/intermediate/` y `data/processed/` para Ucayali y se sincroniza offline o en tiempo de build/deploy hacia `data/processed/` (las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS y luego se descargan localmente y se espejan en Azure Blob Storage). `render.yaml` se mantiene únicamente como referencia *legacy*/opcional.
+* **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para habilitar vistas previas. Opera en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP.
+* **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (Plan Free, `infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL del Azure App Service.
+* **Puente de datos y estado de `data/processed/`:** **Azure Blob Storage (Free Tier)** resguarda `data/intermediate/` y `data/processed/` mediante `python -m src.analytics.azure_sync`. Actualmente `data/processed/` ya contiene `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson` y `ucayali_districts_static.csv`; los JSON de series diarias (`metadata.json`, `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json`) se compilarán con `python -m src.analytics.run_pipeline` al ingresar los CSVs desde GEE (`data/fixtures/` cubre el modo de desarrollo/pruebas entretanto). `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
 
 ## Ventana común verificada (Ucayali) y días útiles
 
@@ -90,11 +90,12 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 
 ## Qué hace la aplicación
 
-* **Inicio (`#/`):** portada por bloques sobre globo 3D (problema, solución, flujo de datos, equipo y alcance).
+* **Inicio (`#/`):** portada por bloques con cortina orbital (`OrbitalLoader`), globo 3D interactivo + campo estelar (`#inicio`, titular animado de la ventana `2012 — 2026`), propósito y límites (`#proyecto`), y sección de equipo **Los McLovin** (`#equipo`) con transición de opacidad suave entre bloques y enlace oficial en el emblema de lentes.
 * **Mapa (`#/mapa`):**
-  * **Calendario:** mapa del Perú con focos por sensor, selección de área, calendario longitudinal, serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
+  * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`GuidedTour`), selector territorial, calendario longitudinal (`2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
   * **Simulación (Fase 2 opcional):** recorrido exploratorio desde una ignición hipotética con viento, humedad, vegetación, pendiente y horizonte configurables.
-* **Fotos del equipo:** dejar foto en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `jhan.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`).
+* **Tecnología (`#/tecnologia`):** vista dedicada con tarjetas filtrables por capa técnica (`src/frontend/src/data/tech.ts`) y terminal interactiva (`TechTerminal` en pestañas Bash / Python / API).
+* **Fotos del equipo:** archivos activos en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`; `jhan.jpg` queda pendiente y la interfaz muestra su monograma `"J"` automáticamente).
 
 ## Límites que la interfaz declara siempre
 

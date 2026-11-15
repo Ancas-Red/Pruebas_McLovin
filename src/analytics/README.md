@@ -15,7 +15,7 @@ Convierte las exportaciones crudas de Google Earth Engine (`data/intermediate/`)
 python -m src.analytics.run_pipeline
 ```
 
-Si `activity_daily.json` supera el margen recomendado para Render (< 30–40 MB totales en `data/processed/`), puedes acotar la serie diaria manteniendo los 26 años completos en `activity_summary.json`:
+Si `activity_daily.json` supera el margen recomendado para **Azure App Service Free F1 / Azure Blob Storage** (< 30–40 MB totales en `data/processed/`), puedes acotar la serie diaria (por defecto `--daily-from common_window` y `--daily-to common_window`, es decir `2012-01-19` a `2026-11-02`) manteniendo la ventana común completa en `activity_summary.json`:
 
 ```powershell
 python -m src.analytics.run_pipeline --daily-from 2018-01-01

@@ -36,12 +36,12 @@ Backend apuntando a los fixtures (desde la raíz del repo):
 
 ```bash
 # Git Bash / Linux / macOS
-MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000
+MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn src.backend.app.main:app --port 8000
 ```
 
 ```powershell
 # Windows PowerShell
-$env:MCHANAQ_DATA_DIR="data/fixtures"; $env:MCHANAQ_NO_CACHE="1"; uvicorn backend.app.main:app --port 8000
+$env:MCHANAQ_DATA_DIR="data/fixtures"; $env:MCHANAQ_NO_CACHE="1"; uvicorn src.backend.app.main:app --port 8000
 ```
 
 Regenerarlos (por ejemplo, tras cambiar el contrato):

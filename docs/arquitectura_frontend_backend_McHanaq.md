@@ -2,7 +2,7 @@
 
 **Versión:** 1.2 (alineada con `McHanaq_documento_tecnico_operativo_v1.7.md` y `reto.txt`) — 14 de noviembre de 2026
 **Complementa:** [McHanaq_documento_tecnico_operativo_v1.7.md](McHanaq_documento_tecnico_operativo_v1.7.md) (secciones 5, 7, 8.4–8.6 y 11) y [reto.txt](reto.txt).
-**Destino sugerido en el repositorio:** `docs/frontend-backend-architecture.md`
+**Destino en el repositorio:** `docs/arquitectura_frontend_backend_McHanaq.md` (espejado en `docs/harness/arquitectura-frontend-backend.md`)
 
 ---
 
@@ -78,8 +78,8 @@ Se exportan en `data/intermediate/environmental_daily.csv` con clave `(date, ter
 La arquitectura oficial de producción y almacenamiento en la nube utiliza **Microsoft Azure Free Tier** (`infra/azure/`):
 
 * **Puente de datos y Azure Blob Storage (Free Tier / Azure Storage):** las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage** junto con los paquetes procesados de `data/processed/`. Los artefactos de Ucayali se sincronizan hacia `data/processed/` de forma offline o en tiempo de build/deploy.
-* **Backend (`src/backend/`) en Azure App Service (Plan Free F1, Linux Python):** FastAPI en modo **solo lectura** sobre `data/processed/` en disco local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`. Nunca consulta GEE ni descarga desde Azure Blob Storage o Google Drive por petición HTTP de usuario.
-* **Frontend (`src/frontend/`) en Azure Static Web Apps (Plan Free):** sirve la compilación estática `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en workflows de `infra/azure/`) apuntando a la URL pública de Azure App Service (y ese origen habilitado en `MCHANAQ_CORS_ORIGINS`).
+* **Backend (`src/backend/`) en Azure App Service (Plan Free F1, Linux Python 3.11):** FastAPI en modo **solo lectura** sobre `data/processed/` en disco local (o `data/fixtures/` en CI/demo), con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para vistas previas, conservando `ROOT = Path(__file__).resolve().parents[3]`. Nunca consulta GEE ni descarga desde Azure Blob Storage o Google Drive por petición HTTP de usuario.
+* **Frontend (`src/frontend/`) en Cloudflare Pages o Azure Static Web Apps (Plan Free):** sirve la compilación estática `src/frontend/dist/` (`src/frontend/public/_headers` en Cloudflare Pages o `infra/azure/staticwebapp.config.json` en Azure SWA) con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL pública de Azure App Service (y ese origen habilitado en `MCHANAQ_CORS_ORIGINS` / `MCHANAQ_CORS_ORIGIN_REGEX`).
 * **Nota *legacy*:** `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
 
 En desarrollo local:
@@ -99,7 +99,7 @@ El código de `backend/` tiene **un solo dueño: Tom**. Angelo participa en el b
 |---|---|---|
 | `data/intermediate/daily_activity.csv` | Angelo | Tom |
 | `data/intermediate/environmental_daily.csv` *(diario: `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`, `dem_source`)* | Angelo | Tom |
-| `data/intermediate/environmental_context.csv` *(mensual: MapBiomas, `MOD13A3`, ERA5-Land, pendiente SRTM)* | Angelo | Tom |
+| `data/intermediate/environmental_context.csv` *(mensual: CobVeg/MapBiomas, `MOD13A3`, ERA5-Land, pendiente `COPERNICUS_DEM_GLO30`)* | Angelo | Tom |
 | `data/intermediate/gee_manifest.json` *(colecciones, fechas disponibles, DEM por época, versiones)* | Angelo | Tom |
 | `data/processed/territories.geojson` | Angelo (validado con las capas de Jean) | Backend |
 | `data/processed/activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json` | Tom | Backend |
@@ -383,8 +383,8 @@ Puntos que cuidar:
 
 - **Solo lectura y sin cálculo.** Si falta un dato, se devuelve `null` o `422`, nunca un valor inventado.
 - **Dos modos con el mismo código:**
-  - Datos reales: `uvicorn backend.app.main:app --port 8000`
-  - Fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000`
+  - Datos reales: `uvicorn src.backend.app.main:app --port 8000`
+  - Fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn src.backend.app.main:app --port 8000`
 - Los fixtures de Jean deben llamarse igual que los archivos de `data/processed/` y respetar el envoltorio `{"items": [...]}`.
 - La ficha (`summary`) combina `activity_summary.json` con `conditions_assessment.json` (incluyendo `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y arma la respuesta de la sección 8.5 de v1.7.
 

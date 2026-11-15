@@ -53,10 +53,11 @@ más, así que ahí va `parents[3]` (arranque desde la raíz: `uvicorn src.backe
 
 * **Ownership actual (Fase A):** Tom lleva `src/analytics/` y `src/backend/` con apoyo de datos de Angelo (`src/gee/`); Sebastian lleva `src/frontend/`; Jean Pierrer lleva `contracts/`, `data/fixtures/`, `data/reference/`, `docs/`, `tests/acceptance/` y `presentation/`.
 * **Puente de datos y Azure Blob Storage (Free Tier):** Las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan localmente a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage (Free Tier / Azure Storage)** junto con los paquetes procesados de `data/processed/`. Tom genera `data/processed/` y sincroniza los paquetes con Azure Blob Storage offline o en tiempo de build/deploy. El backend nunca consulta GEE ni lee Azure Blob Storage o Google Drive por petición HTTP de usuario.
-* **Despliegue oficial en Microsoft Azure Free Tier (`infra/azure/`):**
-  * **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python)** en modo solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), manteniendo `ROOT = Path(__file__).resolve().parents[3]` y `< 1 MB` en `territories.geojson` (paquete de datos `< 30–40 MB`).
-  * **Frontend (`src/frontend/`):** **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en `infra/azure/`) apuntando a la URL del Azure App Service.
-  * **Nota *legacy*:** `render.yaml` se conserva únicamente como referencia *legacy*/opcional; Microsoft Azure Free Tier es el objetivo oficial de producción.
+* **Despliegue oficial (`infra/azure/` + Cloudflare Pages):**
+  * **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** usando el `requirements.txt` raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` (vistas previas `*.pages.dev`), en modo solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), manteniendo `ROOT = Path(__file__).resolve().parents[3]` y `< 1 MB` en `territories.geojson` (paquete de datos `< 30–40 MB`).
+  * **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (`infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en `infra/azure/`) apuntando a la URL del Azure App Service.
+  * **Estado actual en `data/processed/`:** `territories.geojson` (24 polígonos Ucayali), `ucayali_territories.geojson` y `ucayali_districts_static.csv` ya están generados; los JSON de series (`metadata.json`, `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json`) esperan los CSVs de GEE en `data/intermediate/`.
+  * **Nota *legacy*:** `render.yaml` se conserva únicamente como referencia *legacy*/opcional; Azure App Service Free F1 + Cloudflare Pages / Azure SWA es la configuración activa.
 * **Mapas base libres tipo QGIS (sin API keys):** OpenTopoMap (`https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png`, ideal para hidrología y relieve), OpenStreetMap (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`) y Esri World Imagery. No usar CARTO (exige clave).
 
 ### 2.2. Alineación del piloto Ucayali
@@ -125,21 +126,20 @@ de alerta, despacho o evacuación.
 
 ## 7. Estado del frontend
 
-Alineado con el contrato v1.2 y **verificado contra el backend real** de `src/backend/`
-sirviendo `data/fixtures/`. Mientras `/api/v1` no responda, la interfaz usa su juego de
-datos de muestra —con la **misma forma** del contrato— y lo indica en la barra de estado
-y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia solo.
+Alineado con el contrato v1.2, **verificado contra el backend real** (`src/backend/` con `data/fixtures/` y `data/processed/territories.geojson`) e incluye tres rutas SPA (`#/` portada inmersiva con crossfade y sección Los McLovin, `#/mapa` visor con `GuidedTour`, y `#/tecnologia` con `TechTerminal` y `Starfield`, bajo cortina de carga `OrbitalLoader`). Mientras `/api/v1` no responda o no tenga series publicadas en `data/processed/`, la interfaz usa su juego de datos de muestra —con la **misma forma** del contrato— y lo indica en la barra de estado y en la columna `data_origin` de cada CSV.
 
 ### 7.1. Cómo está organizado
 
 | Archivo | Responsabilidad |
 |---|---|
 | `src/api/types.ts` | Tipos y enumerados del contrato, etiquetas en castellano. Nadie cambia aquí un nombre, tipo o unidad sin tocar primero `contracts/`. |
-| `src/api/client.ts` | Los 9 endpoints, uno por función. Habla el contrato y nada más. |
+| `src/api/client.ts` | Los 10 endpoints de `/api/v1` (incluido `/calendar`), normalización de `VITE_API_BASE` / `VITE_API_BASE_URL` y manejo de `AbortController`. |
 | `src/api/source.ts` | Decide API o muestra, y etiqueta la procedencia. El día que el backend sea estable, se borra este archivo sin tocar pantallas. |
 | `src/lib/fixtures.ts` | Muestra determinista con la forma del contrato, endpoint por endpoint. |
 | `src/lib/calendar.ts` | Respaldo offline / agrupación local del calendario (ver 7.3). |
-| `src/pages/MapTool.tsx` | Estado de la herramienta. Consulta siempre por tipo + id de territorio. |
+| `src/pages/Landing.tsx` | Portada por bloques (`#inicio`, `#proyecto`, `#equipo`) con globo 3D, crossfade entre secciones y tarjetas del equipo (`public/equipo/`). |
+| `src/pages/MapTool.tsx` | Herramienta cartográfica con `GuidedTour`, selector territorial, calendario, contraste multisensor, árbol de susceptibilidad y simulación Fase 2. |
+| `src/pages/TechStack.tsx` | Vista `#/tecnologia` con tarjetas por capa técnica (`src/data/tech.ts`), terminal interactiva (`TechTerminal`) y campo estelar (`Starfield`). |
 
 ### 7.2. Reglas que el frontend cumple y conviene no romper
 
@@ -175,10 +175,11 @@ y en la columna `data_origin` de cada CSV. En cuanto el backend responda, cambia
 
 `VITE_API_BASE` (o `VITE_API_BASE_URL` si se mapea en los flujos de `infra/azure/`)
 fija la base de la API al compilar `src/frontend/dist/`; por omisión
-`http://localhost:8000/api/v1`. En **Azure Static Web Apps (Plan Free)** apunta a la URL
+`http://localhost:8000/api/v1`. En **Cloudflare Pages** (`src/frontend/public/_headers`)
+o **Azure Static Web Apps (`infra/azure/staticwebapp.config.json`)** apunta a la URL
 del **Azure App Service (Plan Free F1)** del backend (`render.yaml` queda únicamente
 como referencia *legacy*/opcional). El backend debe incluir el origen del frontend en
-`MCHANAQ_CORS_ORIGINS`.
+`MCHANAQ_CORS_ORIGINS` (o patrón de vistas previas en `MCHANAQ_CORS_ORIGIN_REGEX`).
 
 ### 7.5. Comprobado en navegador
 
