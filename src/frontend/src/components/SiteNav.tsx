@@ -52,8 +52,11 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
       <button className="brand" onClick={() => onRoute("inicio")} title="Ir al inicio">
         {/* Blanco: las pantallas comparten cabecera oscura, y la marca
             monocroma se lee mejor sobre negro que cualquier versión con
-            color. `tone="dark"` queda disponible para fondos claros. */}
-        <Logo size={36} tone="light" />
+            color. `tone="dark"` queda disponible para fondos claros.
+            `compact={false}`: en la cabecera va la marca completa (globo
+            con meridianos, doble órbita y satélite) propuesta por el
+            equipo, no la versión reducida de abajo de 44px. */}
+        <Logo size={36} tone="light" compact={false} />
         <span className="brand__text">
           <span className="brand__name">McHanaq</span>
           <span className="brand__tag">Actividad térmica</span>
