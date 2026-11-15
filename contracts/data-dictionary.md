@@ -173,3 +173,19 @@ Campo adicional precalculado por Tom (pendiente de confirmar):
 | Valor desconocido / no calculable | `null` | Sin datos / No estimable |
 | Historial corto | `historical_anomaly.status = "insufficient_baseline"` | Historial insuficiente |
 | Faltan bloques ambientales | `classification = "partial"` o `"not_evaluable"` | Evaluación parcial / No evaluable |
+
+---
+
+## 6. Convenciones terminológicas y referencia internacional
+
+Para evitar interpretaciones ambiguas entre susceptibilidad, peligro, riesgo e incertidumbre satelital, McHanaq adopta las siguientes convenciones explícitas:
+
+1. **Susceptibilidad contextual (`high`, `moderate`, `low`) vs. Peligro y Riesgo (UNDRR / FAO / Copernicus EFFIS):**
+   * En los marcos internacionales de **UNDRR**, **FAO** y **EFFIS**, **Riesgo** exige cruzar peligro con exposición (población, infraestructura, activos) y vulnerabilidad ($\text{Riesgo} = H \times E \times V$), mientras que **Peligro (*Hazard*)** describe comportamiento físico potencial (longitud de llama, intensidad lineal).
+   * **Susceptibilidad** es la predisposición intrínseca o contextual del territorio a sostener propagación si ocurriera una ignición, y los sistemas basados en EFFIS/FAO la categorizan en niveles ordinales (`low`, `moderate`, `high`). McHanaq antepone «contextual» para aclarar que evalúa reglas estacionales sobre vegetación, sequedad (`< p25`), viento (`> p75`) y pendiente (`>= 15 %`), nunca probabilidad de ignición.
+2. **Por qué se reporta `partial` («Evaluación parcial») y `not_evaluable` («No evaluable») (Compuerta N0 / NASA FIRMS QA / OMM):**
+   * Siguiendo buenas prácticas de integridad observacional, las variables faltantes o series sin línea base mínima (`< 5` años para cuantiles estacionales `p25/p75`) **no se imputan** para forzar una etiqueta `high`/`low`.
+   * Cuando `N0:fail` ocurre por falta de al menos un bloque ambiental pero queda evidencia parcial utilizable (`evidence` no vacío), el resultado oficial es `partial` («Evaluación parcial»); si no existe evidencia utilizable, es `not_evaluable` («No evaluable»).
+   * *(Nota sobre interfaz offline/muestra: en `src/frontend/src/lib/fixtures.ts`, el generador sintético «Datos de muestra» asigna también una fracción controlada de períodos como `partial` para ejercitar el flujo visual).*
+3. **Observación válida (`0`) vs. ausencia de señal (`null`) y no suma multisensor:**
+   * Los productos `MODIS MOD14A1/MYD14A1` y `VIIRS VNP14A1` distinguen en `FireMask` los píxeles de tierra libres de nubes sin fuego (`0` observado) de las celdas enmascaradas o nubladas (`null` → *Sin observación* / *Sin datos*). Nunca se suman detecciones entre `MODIS_TERRA`, `MODIS_AQUA` y `VIIRS_SNPP`.

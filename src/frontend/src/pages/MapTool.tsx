@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlRail, LEFT_ITEMS } from "../components/ControlRail";
-import { MapStage, type DrawMode, type HoverCard } from "../components/MapStage";
+import {
+  MapStage,
+  type DrawMode,
+  type HighSusceptibilityMarker,
+  type HoverCard,
+  type PrioritySubZone,
+} from "../components/MapStage";
 import { CalendarStrip } from "../components/CalendarStrip";
 import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
 import {
@@ -85,7 +91,17 @@ import {
   mergeAnomaly,
   type MonthCell,
 } from "../lib/calendar";
-import { formatLatLon, polygonCentroid, ringBounds, ringCentroid, type LatLon } from "../lib/geo";
+import {
+  clusterHotspotsIntoEnclosures,
+  featureCentroid,
+  featureOuterRings,
+  formatLatLon,
+  pointInFeature,
+  polygonCentroid,
+  ringBounds,
+  ringCentroid,
+  type LatLon,
+} from "../lib/geo";
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
 const MONTHS_ES = [
@@ -172,11 +188,19 @@ const MONTHLY_METRICS = new Set<MetricId>([
  * no está publicado» y el segundo «se calculó y vale cero». Confundirlos en
  * la interfaz es el error que el contrato prohíbe expresamente.
  */
+function compactTooltipUnit(unit: string | null): string | null {
+  if (!unit) return null;
+  if (/adimensional/i.test(unit)) return "(adim.)";
+  if (unit.length > 22) return unit.slice(0, 20).trimEnd() + "…";
+  return unit;
+}
+
 function formatMetricValue(v: number | string | null | undefined, unit: string | null): string {
   if (v === null || v === undefined) return "Sin dato";
   if (typeof v === "string") return CLASSIFICATION_LABELS[v as Classification] ?? v;
   const n = v.toLocaleString("es-PE", { maximumFractionDigits: 3 });
-  return unit ? `${n} ${unit}` : n;
+  const shortUnit = compactTooltipUnit(unit);
+  return shortUnit ? `${n} ${shortUnit}` : n;
 }
 
 function formatCoverage(v: number | null): string {
@@ -188,8 +212,9 @@ function formatCoverage(v: number | null): string {
 function formatAnomaly(a: ActivitySummary["historical_anomaly"]): string {
   if (a.status === "insufficient_baseline") return "Serie insuficiente";
   if (a.status === "not_estimable" || a.value === null) return "No estimable";
-  const s = a.value > 0 ? "+" : "";
-  return `${s}${a.value.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
+  const rounded = Math.abs(a.value) < 0.005 ? 0 : a.value;
+  const s = rounded > 0 ? "+" : "";
+  return `${s}${rounded.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
 }
 
 /** Arma la ficha con lo que respondió `/summary`, sin interpretar de más. */
@@ -200,6 +225,21 @@ function buildHoverCard(
   s: TerritorySummary,
   origin: Origin
 ): HoverCard {
+  const dailyInvalid =
+    s.daily != null &&
+    ((s.daily.valid_land_pixels ?? 0) === 0 || (s.daily.observation_coverage ?? 0) === 0);
+  const noValidSummary =
+    s.data_quality?.status === "insufficient" ||
+    (s.activity.activity_rate == null && s.activity.observation_coverage == null);
+
+  const notice = dailyInvalid
+    ? "Sin observación válida en esta fecha: la data no es válida en este momento."
+    : noValidSummary
+      ? "La data no es válida en este momento o no está disponible para este territorio."
+      : s.data_quality?.status === "partial"
+        ? "Cobertura parcial: algunos indicadores no están disponibles."
+        : undefined;
+
   return {
     id,
     title: name,
@@ -216,6 +256,7 @@ function buildHoverCard(
           s.environmental_conditions.classification,
       },
     ],
+    notice,
     /* No se dice por qué son de muestra: `fixture` tapa tres casos distintos
        —fecha no publicada, el backend no contestó, o contestó un error del
        contrato— y atribuirlo al backend sería afirmar algo que aquí no se
@@ -228,6 +269,7 @@ interface Props {
   tab: ToolTab;
   onBackend: (s: BackendState) => void;
   onContextChange?: (ctx: NavContext) => void;
+  onOpenConventions?: () => void;
   suspendLoader?: boolean;
   suspendTour?: boolean;
   tourTrigger?: number;
@@ -237,6 +279,7 @@ export function MapTool({
   tab,
   onBackend,
   onContextChange,
+  onOpenConventions,
   suspendLoader = false,
   suspendTour = false,
   tourTrigger = 0,
@@ -273,6 +316,7 @@ export function MapTool({
   const [liveFirms, setLiveFirms] = useState(false);
   const [firmsSummary, setFirmsSummary] = useState<string | null>(null);
   const [showChoropleth, setShowChoropleth] = useState(true);
+  const [showHighMarkers, setShowHighMarkers] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
   const [baseLayer, setBaseLayer] = useState<"dark" | "relief" | "satellite">("dark");
 
@@ -293,6 +337,9 @@ export function MapTool({
   const [summary, setSummary] = useState<TerritorySummary | null>(null);
   const [comparison, setComparison] = useState<SensorComparison | null>(null);
   const [choropleth, setChoropleth] = useState<MetricItem[]>([]);
+  const [susceptibilityItems, setSusceptibilityItems] = useState<MetricItem[]>([]);
+  const [hydroTerritories, setHydroTerritories] = useState<TerritoryCollection | null>(null);
+  const [hydroSusceptibility, setHydroSusceptibility] = useState<MetricItem[]>([]);
   const [metricUnit, setMetricUnit] = useState<string | null>(null);
   /**
    * Dos procedencias, porque son dos cosas distintas.
@@ -593,7 +640,7 @@ export function MapTool({
     setUnavailable(
       isDateAvailable(dateIso, sensor, metadata)
         ? null
-        : `${sensor} no publica datos del ${dateIso}`
+        : `${SENSOR_META[sensor].label}: la data del ${dateIso} no es válida o no está disponible`
     );
   }, [dateIso, sensor, metadata]);
 
@@ -710,6 +757,32 @@ export function MapTool({
     return usefulDaysFromRows(daily, year, month, sensor, metadata);
   }, [dailyKey, activeMonthKey, daily, year, month, sensor, metadata]);
 
+  /** Días útiles del mes que además registran detecciones reales / actividad > 0. */
+  const activeUsefulDays = useMemo(() => {
+    if (dailyKey !== activeMonthKey || usefulDays.length === 0) return [];
+    const usefulSet = new Set(usefulDays);
+    const prefix = `${year}-${pad2(month)}-`;
+    const withNominalHigh: number[] = [];
+    const withAnyActivity: number[] = [];
+    for (const r of daily) {
+      if (!r.date?.startsWith(prefix)) continue;
+      if (r.sensor && r.sensor !== sensor) continue;
+      const d = Number(r.date.slice(8, 10));
+      if (!usefulSet.has(d)) continue;
+      if ((r.fire_pixels_nominal_high ?? 0) > 0 || (r.activity_rate ?? 0) > 0) {
+        withNominalHigh.push(d);
+      } else if ((r.fire_pixels_low ?? 0) > 0) {
+        withAnyActivity.push(d);
+      }
+    }
+    const chosen = withNominalHigh.length > 0 ? withNominalHigh : withAnyActivity;
+    return [...new Set(chosen)].sort((a, b) => a - b);
+  }, [dailyKey, activeMonthKey, usefulDays, daily, year, month, sensor]);
+
+  useEffect(() => {
+    userPickedDayRef.current = false;
+  }, [territoryType, territoryId]);
+
   const calendarPeriodsWithData = useMemo(() => {
     const cells = apiCalendar ?? (series.length ? aggregateMonthly(series, sensor) : []);
     return new Set(
@@ -734,7 +807,8 @@ export function MapTool({
 
     if (usefulDays.length > 0) {
       if (!userPickedDayRef.current || !usefulDays.includes(day)) {
-        const lastUseful = usefulDays[usefulDays.length - 1];
+        const lastUseful =
+          activeUsefulDays[activeUsefulDays.length - 1] ?? usefulDays[usefulDays.length - 1];
         if (day !== lastUseful) setDay(lastUseful);
       }
       return;
@@ -760,6 +834,7 @@ export function MapTool({
     dailyKey,
     activeMonthKey,
     usefulDays,
+    activeUsefulDays,
     day,
     period,
     sortedPeriodsDesc,
@@ -888,6 +963,48 @@ export function MapTool({
       });
     return () => ctrl.abort();
   }, [ready, metricsOk, usePeriodMetrics, territoryType, metric, dateIso, period, sensor]);
+
+  /* ---------------- clasificación ambiental (todos los territorios + cuencas) */
+  useEffect(() => {
+    if (!ready) return;
+    if (metric === "conditions_classification") {
+      setSusceptibilityItems(choropleth);
+      return;
+    }
+    const ctrl = new AbortController();
+    getTerritoryMetrics(
+      { type: territoryType, metric: "conditions_classification", period },
+      ctrl.signal,
+      !metricsOk
+    )
+      .then((r) => setSusceptibilityItems(r.data?.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setSusceptibilityItems([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, metricsOk, territoryType, metric, period, choropleth]);
+
+  useEffect(() => {
+    if (!ready || territoryType !== "province") return;
+    const ctrl = new AbortController();
+    if (!hydroTerritories) {
+      getTerritories("hydro_unit", ctrl.signal)
+        .then((r) => setHydroTerritories(r.data))
+        .catch((e) => {
+          if (!isAbort(e)) setHydroTerritories(null);
+        });
+    }
+    getTerritoryMetrics(
+      { type: "hydro_unit", metric: "conditions_classification", period },
+      ctrl.signal,
+      !metricsOk
+    )
+      .then((r) => setHydroSusceptibility(r.data?.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setHydroSusceptibility([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, metricsOk, territoryType, period, hydroTerritories]);
 
   /* --------------------------------------------------------- derivados --- */
 
@@ -1049,7 +1166,8 @@ export function MapTool({
               title: name,
               state: "ready",
               rows: [localRow],
-              foot: "Sin ficha publicada para esta fecha",
+              notice: "La data no es válida en este momento o no está disponible para esta fecha.",
+              foot: r.origin === "unavailable" ? "Sin publicación en /api/v1" : "Sin ficha publicada",
             });
             return;
           }
@@ -1510,10 +1628,201 @@ export function MapTool({
   ]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
+  const dataValidityNotice = useMemo(() => {
+    if (!ready) return null;
+    if (unavailable) return unavailable;
+    if (origin === "unavailable") {
+      return `La data de ${dateIso} no es válida en este momento o no está disponible.`;
+    }
+    if (
+      dayRow &&
+      ((dayRow.valid_land_pixels ?? 0) === 0 || (dayRow.observation_coverage ?? 0) === 0)
+    ) {
+      return `Sin observación válida el ${dateIso}: la data no está disponible (0 píxeles de tierra válidos).`;
+    }
+    if (
+      dayRow &&
+      (dayRow.activity_rate == null ||
+        (dayRow.observation_coverage != null && dayRow.observation_coverage < 0.7))
+    ) {
+      return `Cobertura < 70 % el ${dateIso}: la data no es válida para estimar actividad térmica.`;
+    }
+    if (summary?.data_quality?.status === "insufficient") {
+      return "Calidad insuficiente: la data de este período no es válida o no está disponible.";
+    }
+    if (!dailyLoading && usefulDays.length === 0) {
+      return `Sin días válidos disponibles en este mes para ${SENSOR_META[sensor].label}.`;
+    }
+    return null;
+  }, [ready, unavailable, origin, dateIso, dayRow, summary, dailyLoading, usefulDays.length, sensor]);
   const isHighSusceptibility =
     summary?.environmental_conditions?.classification === "high";
   const highAlertKey = `${territoryType}|${territoryId}|${period}`;
-  const showHighAlert = isHighSusceptibility && dismissedHighKey !== highAlertKey;
+  const showHighAlert =
+    isHighSusceptibility && dismissedHighKey !== highAlertKey && rightOpen !== "arbol";
+
+  const openSusceptibilityTree = useCallback(
+    (targetId?: string, targetType?: TerritoryType) => {
+      if (tab !== "calendario") {
+        window.location.hash = "#/mapa";
+      }
+      if (targetType && targetType !== territoryType) {
+        setTerritoryType(targetType);
+      }
+      if (targetId && targetId !== territoryId) {
+        setTerritoryId(targetId);
+      }
+      setRightOpen("arbol");
+    },
+    [tab, territoryType, territoryId]
+  );
+
+  const { highMarkers, priorityZones } = useMemo(() => {
+    const markers: HighSusceptibilityMarker[] = [];
+    const zones: PrioritySubZone[] = [];
+    if (!territories) return { highMarkers: markers, priorityZones: zones };
+
+    const activeHighIds = new Set<string>(
+      susceptibilityItems
+        .filter((it) => it.value === "high")
+        .map((it) => it.territory_id)
+    );
+    if (isHighSusceptibility && territoryId) {
+      activeHighIds.add(territoryId);
+    }
+
+    for (const f of territories.features) {
+      const id = f.properties.territory_id;
+      if (!activeHighIds.has(id)) continue;
+      const tName = f.properties.territory_name ?? id;
+      markers.push({
+        id: `ter-${territoryType}-${id}`,
+        name: tName,
+        position: featureCentroid(f.geometry),
+        kind: "territory",
+        targetTerritoryType: territoryType,
+        targetTerritoryId: id,
+        detail: `Susceptibilidad contextual alta · ${periodLabel}`,
+      });
+    }
+
+    const selectedFeature = territories.features.find(
+      (f) => f.properties.territory_id === territoryId
+    );
+    if (!selectedFeature) return { highMarkers: markers, priorityZones: zones };
+    const selectedName = selectedFeature.properties.territory_name ?? territoryId;
+
+    // 1. Subcuencas (hydro_unit) clasificadas en susceptibilidad alta dentro de la provincia macro seleccionada.
+    if (territoryType === "province" && hydroTerritories) {
+      const hydroHighIds = new Set<string>(
+        hydroSusceptibility
+          .filter((it) => it.value === "high")
+          .map((it) => it.territory_id)
+      );
+      for (const hf of hydroTerritories.features) {
+        if (!hydroHighIds.has(hf.properties.territory_id)) continue;
+        const hc = featureCentroid(hf.geometry);
+        if (!pointInFeature(hc, selectedFeature.geometry)) continue;
+        const hName = hf.properties.territory_name ?? hf.properties.territory_id;
+        const rings = featureOuterRings(hf.geometry);
+        if (rings.length > 0) {
+          zones.push({
+            id: `sub-${hf.properties.territory_id}`,
+            label: hName,
+            rings,
+            kind: "subbasin",
+            targetTerritoryType: "hydro_unit",
+            targetTerritoryId: hf.properties.territory_id,
+            detail: `Subcuenca prioritaria dentro de ${selectedName}`,
+          });
+        }
+        markers.push({
+          id: `subm-${hf.properties.territory_id}`,
+          name: hName,
+          position: hc,
+          kind: "subbasin",
+          targetTerritoryType: "hydro_unit",
+          targetTerritoryId: hf.properties.territory_id,
+          detail: `Subcuenca en susceptibilidad alta · ${selectedName}`,
+        });
+      }
+    }
+
+    // 2. Polígonos envolventes alrededor de los focos más severos (8-9) dentro de la región macro.
+    if (hotspots.length > 0) {
+      const insidePts: { latLon: LatLon; conf: unknown; frp: number }[] = [];
+      for (const hs of hotspots) {
+        const [lon, lat] = hs.geometry.coordinates;
+        const p: LatLon = [lat, lon];
+        if (pointInFeature(p, selectedFeature.geometry)) {
+          insidePts.push({
+            latLon: p,
+            conf: hs.properties.confidence,
+            frp: hs.properties.frp_mw ?? 0,
+          });
+        }
+      }
+
+      const severeHigh = insidePts.filter((x) => {
+        const c = String(x.conf ?? "").toLowerCase();
+        return x.conf === 9 || c === "high" || c === "h";
+      });
+      const severeNominalHigh = insidePts.filter((x) => {
+        const c = String(x.conf ?? "").toLowerCase();
+        return x.conf === 9 || x.conf === 8 || c === "high" || c === "nominal" || c === "h" || c === "n";
+      });
+
+      const targetPts =
+        severeHigh.length >= 2
+          ? severeHigh.map((x) => x.latLon)
+          : severeNominalHigh.length > 0
+            ? severeNominalHigh.map((x) => x.latLon)
+            : insidePts.length > 0
+              ? insidePts.map((x) => x.latLon)
+              : [];
+
+      if (targetPts.length >= 1) {
+        const hasCritical = severeNominalHigh.length > 0 || isHighSusceptibility;
+        const clusters = clusterHotspotsIntoEnclosures(targetPts, 34, 4.5);
+        clusters.forEach((cl, idx) => {
+          zones.push({
+            id: `enc-${territoryId}-${idx}`,
+            label: `${selectedName} · Núcleo ${idx + 1}`,
+            rings: [cl.ring],
+            kind: "enclosure",
+            targetTerritoryType: territoryType,
+            targetTerritoryId: territoryId,
+            detail: hasCritical
+              ? `${cl.count} foco${cl.count === 1 ? "" : "s"} críticos en región de monitoreo prioritario`
+              : `${cl.count} foco${cl.count === 1 ? "" : "s"} agrupados (conf. baja · verificar área)`,
+          });
+          if (hasCritical && (isHighSusceptibility || idx === 0)) {
+            markers.push({
+              id: `clm-${territoryId}-${idx}`,
+              name: `${selectedName} (núcleo prioritario ${idx + 1})`,
+              position: cl.center,
+              kind: "cluster",
+              targetTerritoryType: territoryType,
+              targetTerritoryId: territoryId,
+              detail: `${cl.count} foco${cl.count === 1 ? "" : "s"} de alta severidad · clic → árbol`,
+            });
+          }
+        });
+      }
+    }
+
+    return { highMarkers: markers, priorityZones: zones };
+  }, [
+    territories,
+    susceptibilityItems,
+    isHighSusceptibility,
+    territoryId,
+    territoryType,
+    periodLabel,
+    hydroTerritories,
+    hydroSusceptibility,
+    hotspots,
+  ]);
 
   const rightItems =
     tab === "calendario"
@@ -1575,6 +1884,8 @@ export function MapTool({
               firmsSummary={firmsSummary}
               showChoropleth={showChoropleth}
               onShowChoropleth={setShowChoropleth}
+              showHighMarkers={showHighMarkers}
+              onShowHighMarkers={setShowHighMarkers}
               showCalendar={showCalendar}
               onShowCalendar={setShowCalendar}
               baseLayer={baseLayer}
@@ -1617,6 +1928,11 @@ export function MapTool({
             windSpeedMs={envApplied ? spreadParams.windSpeedMs : dayRow?.wind_speed_10m_ms ?? null}
             showWind={tab === "simulacion"}
             relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
+            dataNotice={tab === "calendario" ? dataValidityNotice : null}
+            highMarkers={highMarkers}
+            priorityZones={priorityZones}
+            showHighMarkers={showHighMarkers}
+            onOpenSusceptibilityTree={openSusceptibilityTree}
           >
             <OrbitalLoader
               scope="stage"
@@ -1703,6 +2019,7 @@ export function MapTool({
             <AnalysisRail
               section={rightOpen}
               onClose={() => setRightOpen(null)}
+              onOpenConventions={onOpenConventions}
               cell={cell}
               summary={summary}
               comparison={comparison}
@@ -1771,11 +2088,16 @@ export function MapTool({
           <b>Detecciones (conf. nominal/alta)</b> {nominalHigh.toLocaleString("es-PE")}
         </span>
         <span className="status__spacer" />
-        {unavailable && <span className="chip chip--warn">{unavailable}</span>}
+        {unavailable ? (
+          <span className="chip chip--warn">{unavailable}</span>
+        ) : (
+          origin !== "unavailable" &&
+          dataValidityNotice && <span className="chip chip--warn">{dataValidityNotice}</span>
+        )}
         {origin === "fixture" ? (
           <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
         ) : origin === "unavailable" ? (
-          <span className="chip chip--warn">Sin publicación para esta fecha en /api/v1</span>
+          <span className="chip chip--warn">Data no válida o no disponible para esta fecha en /api/v1</span>
         ) : (
           <span className="chip chip--term">Indicadores desde /api/v1</span>
         )}

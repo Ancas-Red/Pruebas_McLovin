@@ -10,7 +10,7 @@ interface Props {
 export function SiteFooter({
   route,
   onNavigate,
-  note = "Susceptibilidad contextual ≠ predicción de ignición · Fase 2 desacoplada",
+  note = "Datos: NASA LP DAAC · Copernicus ERA5-Land · COPERNICUS DEM · MapBiomas",
 }: Props) {
   return (
     <footer className="site-foot" data-reveal>
@@ -21,7 +21,7 @@ export function SiteFooter({
           onClick={() => onNavigate("inicio")}
           title="Volver al inicio"
         >
-          <Logo size={32} tone="light" />
+          <Logo size={36} tone="light" compact={false} />
           <span className="brand__text">
             <span className="brand__name">McHanaq</span>
             <span className="brand__tag">Actividad térmica territorial</span>
@@ -30,9 +30,32 @@ export function SiteFooter({
 
         <div className="site-foot__actions">
           {route === "inicio" ? (
-            <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
-              Tecnología y stack →
-            </button>
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
+                Marco normativo →
+              </button>
+              <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
+                Tecnología y stack →
+              </button>
+            </>
+          ) : route === "tecnologia" ? (
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
+                Marco normativo →
+              </button>
+              <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
+                Abrir el mapa →
+              </button>
+            </>
+          ) : route === "convenciones" ? (
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
+                Tecnología y stack →
+              </button>
+              <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
+                Abrir el mapa →
+              </button>
+            </>
           ) : (
             <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
               Abrir el mapa →

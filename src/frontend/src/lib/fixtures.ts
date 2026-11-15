@@ -118,7 +118,7 @@ const PROVINCES: Seed[] = [
   { id: "0801", name: "Cusco", lat: -13.5, lon: -71.9, size: 0.6, elevation: 3400, bias: 0.38 },
   { id: "0401", name: "Arequipa", lat: -16.4, lon: -71.5, size: 0.9, elevation: 2330, bias: 0.17 },
   { id: "1301", name: "Trujillo", lat: -8.1, lon: -79.0, size: 0.5, elevation: 90, bias: 0.12 },
-  { id: "0301", name: "Huamanga", lat: -13.2, lon: -74.2, size: 0.7, elevation: 2760, bias: 0.46 },
+  { id: "0301", name: "Abancay", lat: -13.64, lon: -72.88, size: 0.48, elevation: 2380, bias: 0.46 },
 ];
 
 /** Unidades hidrográficas (nivel Pfafstetter por confirmar). */

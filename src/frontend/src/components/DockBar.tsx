@@ -69,7 +69,8 @@ export type IconName =
   | "tree"
   | "flame"
   | "sliders"
-  | "play";
+  | "play"
+  | "book";
 
 function Icon({ name }: { name: IconName }) {
   const common = {
@@ -168,6 +169,13 @@ function Icon({ name }: { name: IconName }) {
       return (
         <svg {...common}>
           <path d="M6.5 4.5 15 10l-8.5 5.5z" />
+        </svg>
+      );
+    case "book":
+      return (
+        <svg {...common}>
+          <path d="M3.5 4.5h5a2 2 0 0 1 1.5.7 2 2 0 0 1 1.5-.7h5v11.5h-5a1.5 1.5 0 0 0-1.5.8 1.5 1.5 0 0 0-1.5-.8h-5z" />
+          <path d="M10 5.2v11.3" />
         </svg>
       );
   }

@@ -254,64 +254,82 @@ export function CalendarStrip(p: Props) {
                 día {p.selectedDate.slice(8)}
               </span>
             </div>
-            <ResponsiveContainer width="100%" height={92}>
-              <BarChart data={p.daily} margin={{ top: 6, right: 4, bottom: 0, left: -24 }}>
-                <CartesianGrid stroke="#1b1b1b" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(d: string) => String(Number(d.slice(8)))}
-                  interval={4}
-                  tickLine={false}
-                  axisLine={{ stroke: "#232323" }}
-                />
-                <YAxis tickLine={false} axisLine={false} width={44} />
-                <Tooltip
-                  cursor={{ fill: "rgba(216,255,51,0.08)" }}
-                  labelFormatter={(d: string) => {
-                    const row = p.daily.find((r) => r.date === d);
-                    if (!row) return `Día ${d}`;
-                    if (isUnobserved(row) || row.fire_pixels_nominal_high == null) {
-                      return `Día ${d} · ${NO_OBSERVATION}`;
-                    }
-                    if (!usefulDates.has(d)) {
-                      const pct =
-                        row.observation_coverage != null
-                          ? `${Math.round(row.observation_coverage * 100)}%`
-                          : "—";
-                      return `Día ${d} · Cobertura ${pct} (< 70 %, no útil)`;
-                    }
-                    return `Día ${d}`;
-                  }}
-                  formatter={(v) => [
-                    typeof v === "number" && Number.isFinite(v)
-                      ? v.toLocaleString("es-PE")
-                      : NO_OBSERVATION,
-                    "Detecciones",
-                  ]}
-                  labelStyle={{ color: "var(--fg-dim)" }}
-                />
-                <Bar
-                  dataKey="fire_pixels_nominal_high"
-                  isAnimationActive={false}
-                  cursor="pointer"
-                  onClick={(d: { date?: string }) =>
-                    d?.date && usefulDates.has(d.date) && p.onPickDay(Number(d.date.slice(8)))
-                  }
-                >
-                  {p.daily.map((d) => (
-                    <Cell
-                      key={d.date}
-                      fill={
-                        d.date === p.selectedDate ? "var(--acid)" : SENSOR_META[p.sensor].color
-                      }
-                      fillOpacity={usefulDates.has(d.date) ? 1 : 0.25}
+            {p.daily.length === 0 ? (
+              <div className="calstrip__chart-empty">
+                La data diaria no es válida en este momento o no está disponible para este período.
+              </div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={68}>
+                  <BarChart data={p.daily} margin={{ top: 6, right: 4, bottom: 0, left: -24 }}>
+                    <CartesianGrid stroke="#1b1b1b" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(d: string) => String(Number(d.slice(8)))}
+                      interval={4}
+                      tickLine={false}
+                      axisLine={{ stroke: "#232323" }}
                     />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                    <YAxis tickLine={false} axisLine={false} width={44} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(216,255,51,0.08)" }}
+                      labelFormatter={(d: string) => {
+                        const row = p.daily.find((r) => r.date === d);
+                        if (!row) return `Día ${d}`;
+                        if (isUnobserved(row) || row.fire_pixels_nominal_high == null) {
+                          return `Día ${d} · ${NO_OBSERVATION}`;
+                        }
+                        if (!usefulDates.has(d)) {
+                          const pct =
+                            row.observation_coverage != null
+                              ? `${Math.round(row.observation_coverage * 100)}%`
+                              : "—";
+                          return `Día ${d} · Cobertura ${pct} (< 70 %, no útil)`;
+                        }
+                        return `Día ${d}`;
+                      }}
+                      formatter={(v) => [
+                        typeof v === "number" && Number.isFinite(v)
+                          ? v.toLocaleString("es-PE")
+                          : NO_OBSERVATION,
+                        "Detecciones",
+                      ]}
+                      labelStyle={{ color: "var(--fg-dim)" }}
+                    />
+                    <Bar
+                      dataKey="fire_pixels_nominal_high"
+                      isAnimationActive={false}
+                      cursor="pointer"
+                      onClick={(d: { date?: string }) =>
+                        d?.date && usefulDates.has(d.date) && p.onPickDay(Number(d.date.slice(8)))
+                      }
+                    >
+                      {p.daily.map((d) => (
+                        <Cell
+                          key={d.date}
+                          fill={
+                            d.date === p.selectedDate ? "var(--acid)" : SENSOR_META[p.sensor].color
+                          }
+                          fillOpacity={usefulDates.has(d.date) ? 1 : 0.25}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                {usefulDates.size === 0 && (
+                  <p className="mono-sm" style={{ color: "#ffd480", marginTop: 4 }}>
+                    Sin días válidos (cobertura ≥ 70 %) para {SENSOR_META[p.sensor].label} en este mes.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
+          {!selected && (
+            <p className="mono-sm" style={{ color: "#ffd480", margin: "0 0 2px" }}>
+              Resumen mensual no válido o no disponible para este período.
+            </p>
+          )}
           <dl className="kv calstrip__kv">
             <dt>Detecciones del mes</dt>
             <dd>{selected ? selected.detections.toLocaleString("es-PE") : "—"}</dd>

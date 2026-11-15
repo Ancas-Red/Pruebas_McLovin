@@ -255,3 +255,118 @@ export const TECH_SPECS: TechSpec[] = [
     detail: "Anomalías evaluadas contra el mismo mes de años previos con datos válidos.",
   },
 ];
+
+export interface TechConvention {
+  code: string;
+  title: string;
+  standard: string;
+  description: string;
+}
+
+export const TECH_CONVENTIONS: TechConvention[] = [
+  {
+    code: "SUSC · 01",
+    title: "Susceptibilidad contextual (Alta / Moderada / Baja)",
+    standard: "UNDRR · FAO · Copernicus EFFIS",
+    description:
+      "Siguiendo la jerarquía internacional UNDRR/FAO y EFFIS, «Susceptibilidad» describe la predisposición del entorno (vegetación combustible, sequedad < p25, viento > p75 y pendiente) ante una ignición. No afirma peligro físico (intensidad de llama) ni riesgo (Peligro × Exposición × Vulnerabilidad).",
+  },
+  {
+    code: "N0 · 02",
+    title: "Evaluación parcial y No evaluable",
+    standard: "NASA FIRMS QA · OMM (Cobertura)",
+    description:
+      "Si la compuerta N0 detecta que falta algún bloque ambiental o menos de 5 años para percentiles estacionales, pero existen variables parciales válidas, se reporta «Evaluación parcial» (o «No evaluable» sin evidencia) en vez de imputar un nivel definitivo.",
+  },
+  {
+    code: "NULL · 03",
+    title: "Cero observado vs. Sin observación / No estimable",
+    standard: "MODIS / VIIRS FireMask (Clases 7–9)",
+    description:
+      "«0» significa día observado con cobertura válida (≥ 70 %) y cero detecciones nominal/alta (clases 8–9). «Sin dato» o «Sin observación» indica nulidad por nubes o cero píxeles de tierra válidos; «No estimable» señala línea base < 5 años.",
+  },
+  {
+    code: "SENS · 04",
+    title: "Cero suma cruzada entre sensores y procedencia",
+    standard: "NASA LP DAAC · Contrato McHanaq",
+    description:
+      "MODIS Terra (~10:30), MODIS Aqua (~13:30) y VIIRS S-NPP (~13:30) mantienen series separadas por resolución y hora de sobrevuelo. Toda vista separa explícitamente observaciones de «/api/v1» frente a respaldos de «Datos de muestra».",
+  },
+];
+
+export interface PhaseGate {
+  node: string;
+  label: string;
+  rule: string;
+  outcome: string;
+  tone: "acid" | "term" | "ember" | "muted";
+}
+
+export const PHASE1_TREE_GATES: PhaseGate[] = [
+  {
+    node: "N0",
+    label: "Calidad y línea base",
+    rule: "Bloques ambientales completos + ≥ 5 años para cuantiles (p25 / p75)",
+    outcome: "Si falla → Evaluable parcial o No evaluable (sin ceros falsos)",
+    tone: "muted",
+  },
+  {
+    node: "N1",
+    label: "Combustible vegetal",
+    rule: "Vegetación efectiva ≥ 20.0 % (descontando cuerpos de agua)",
+    outcome: "< 20 % → Susceptibilidad Baja (low)",
+    tone: "term",
+  },
+  {
+    node: "N2",
+    label: "Sequedad estacional",
+    rule: "precip_30d_mm < p25 o soil_moisture_surface < p25 del mismo mes",
+    outcome: "Activa rama seca (N3a) o rama húmeda con relieve (N3b)",
+    tone: "acid",
+  },
+  {
+    node: "N3",
+    label: "Viento, clima y agua",
+    rule: "Viento > p75, (T > p75 ∧ HR < p25) o pendiente ≥ 15 % + buffer 150 m",
+    outcome: "Alta / Moderada / Baja + atenuación hídrica (-1 nivel si buf ≥ 5 %)",
+    tone: "ember",
+  },
+];
+
+export interface PhasePhysicalStep {
+  code: string;
+  title: string;
+  source: string;
+  detail: string;
+}
+
+export const PHASE2_SPREAD_STEPS: PhasePhysicalStep[] = [
+  {
+    code: "SAVI",
+    title: "Combustible (Huete, 1988)",
+    source: "Sentinel-2 L2A · L = 0.5",
+    detail:
+      "((NIR − RED) / (NIR + RED + 0.5)) × 1.5 normalizado a carga combustible [0, 1] por celda.",
+  },
+  {
+    code: "ROS",
+    title: "Velocidad base y humedad (Rothermel)",
+    source: "Humedad de combustible (ext. 30 %)",
+    detail:
+      "Tasa head_ros_m_min amortiguada cuadráticamente por humedad (1 − M / 30 %)² y cobertura.",
+  },
+  {
+    code: "L/B",
+    title: "Elipse y relieve (Anderson · DEM)",
+    source: "Open-Meteo 10 m · Copernicus DEM",
+    detail:
+      "Relación largo/ancho L/B ∈ [1.0, 8.0] acoplada a exp(0.0693 · pendiente°): ×2 cada +10° cuesta arriba.",
+  },
+  {
+    code: "48h",
+    title: "Frente mínimo e isócronas",
+    source: "/api/v1/spread-simulate",
+    detail:
+      "Expansión por celdas hasta 6 · 12 · 24 · 36 · 48 h + GIF/MP4, infografías PNG y Shapefiles QGIS (.zip).",
+  },
+];

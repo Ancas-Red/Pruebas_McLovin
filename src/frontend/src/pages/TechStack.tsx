@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { McTropicCoder } from "../components/McTropicCoder";
+import { PhaseEngines } from "../components/PhaseEngines";
 import { SiteFooter } from "../components/SiteFooter";
 import { Starfield } from "../components/Starfield";
 import { TechTerminal } from "../components/TechTerminal";
@@ -6,6 +8,7 @@ import { revealSectionBatch } from "../lib/reveal";
 import {
   PIPELINE_STAGES,
   TECH_CATEGORIES,
+  TECH_CONVENTIONS,
   TECH_ITEMS,
   TECH_SPECS,
   type TechCategory,
@@ -16,16 +19,19 @@ import {
 interface Props {
   onOpenMap: () => void;
   onOpenLanding: () => void;
+  onOpenConventions?: () => void;
 }
 
 const TECH_SECTIONS = [
   { id: "arquitectura", label: "Arquitectura" },
+  { id: "fases", label: "Fase 1 y Fase 2" },
   { id: "stack", label: "Stack y APIs" },
   { id: "ruta-datos", label: "Ruta de datos" },
   { id: "parametros", label: "Parámetros" },
+  { id: "convenciones", label: "Convenciones" },
 ];
 
-export function TechStack({ onOpenMap, onOpenLanding }: Props) {
+export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState(0);
   const [category, setCategory] = useState<TechCategory>("todas");
@@ -188,7 +194,8 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
               </div>
             </div>
 
-            <div className="tech-hero__terminal" data-reveal>
+            <div className="tech-hero__terminal tech-hero__terminal--mascot" data-reveal>
+              <McTropicCoder />
               <TechTerminal />
             </div>
           </div>
@@ -210,13 +217,35 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
         </div>
       </section>
 
-      {/* ================================================= 01 STACK Y APIS === */}
+      {/* ============================================== 01 FASE 1 Y FASE 2 === */}
+      <section className="tech-section" id="fases">
+        <div className="wrap">
+          <div className="tech-head">
+            <div>
+              <p className="eyebrow" data-reveal>
+                01 · Dos fases analíticas desacopladas
+              </p>
+              <h2 className="block__title tech-head__title" data-reveal>
+                Árbol contextual (N0–N3) y propagación física a 48{"\u00A0"}h.
+              </h2>
+            </div>
+            <p className="block__lead" data-reveal>
+              La Fase 1 evalúa históricamente la susceptibilidad territorial mediante reglas
+              auditables; la Fase 2 añade un simulador elíptico opcional ante una ignición hipotética.
+            </p>
+          </div>
+
+          <PhaseEngines onOpenMap={onOpenMap} />
+        </div>
+      </section>
+
+      {/* ================================================= 02 STACK Y APIS === */}
       <section className="tech-section" id="stack">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                01 · Stack, sensores y servicios
+                02 · Stack, sensores y servicios
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Plataformas y motores que sostienen cada capa.
@@ -258,13 +287,13 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
         </div>
       </section>
 
-      {/* ================================================ 02 RUTA DE DATOS === */}
+      {/* ================================================ 03 RUTA DE DATOS === */}
       <section className="tech-section" id="ruta-datos">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                02 · Ruta de datos desacoplada
+                03 · Ruta de datos desacoplada
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Cuatro etapas del píxel crudo al navegador.
@@ -304,13 +333,13 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
         </div>
       </section>
 
-      {/* ================================================== 03 PARÁMETROS === */}
-      <section className="tech-section tech-section--last" id="parametros">
+      {/* ================================================== 04 PARÁMETROS === */}
+      <section className="tech-section" id="parametros">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                03 · Rigor metodológico y umbrales
+                04 · Rigor metodológico y umbrales
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Parámetros verificados a escala nacional (Perú).
@@ -332,6 +361,44 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* ================================================ 05 CONVENCIONES === */}
+      <section className="tech-section tech-section--last" id="convenciones">
+        <div className="wrap">
+          <div className="tech-head">
+            <div>
+              <p className="eyebrow" data-reveal>
+                05 · Convenciones internacionales y nomenclatura
+              </p>
+              <h2 className="block__title tech-head__title" data-reveal>
+                Por qué cada etiqueta significa exactamente eso.
+              </h2>
+            </div>
+            <p className="block__lead" data-reveal>
+              Terminología alineada con UNDRR, FAO, Copernicus EFFIS y NASA FIRMS para distinguir
+              susceptibilidad contextual, vacíos observacionales e incertidumbre.
+            </p>
+          </div>
+
+          <div className="specs specs--2">
+            {TECH_CONVENTIONS.map((conv) => (
+              <div key={conv.code} className="spec" data-reveal>
+                <span className="spec__label">{conv.code} · {conv.standard}</span>
+                <strong className="spec__val">{conv.title}</strong>
+                <p className="spec__detail">{conv.description}</p>
+              </div>
+            ))}
+          </div>
+
+          {onOpenConventions && (
+            <div style={{ marginTop: 22 }} data-reveal>
+              <button type="button" className="btn" onClick={onOpenConventions}>
+                Explorar marco normativo completo →
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="tech-foot-band">
           <div className="wrap">
@@ -339,6 +406,7 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
               route="tecnologia"
               onNavigate={(r) => {
                 if (r === "mapa") onOpenMap();
+                else if (r === "convenciones") onOpenConventions?.();
                 else if (r === "inicio") onOpenLanding();
                 else goTo("arquitectura");
               }}

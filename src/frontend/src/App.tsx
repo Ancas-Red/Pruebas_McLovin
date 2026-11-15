@@ -4,6 +4,7 @@ import { OrbitalLoader } from "./components/OrbitalLoader";
 import { Landing } from "./pages/Landing";
 import { MapTool } from "./pages/MapTool";
 import { TechStack } from "./pages/TechStack";
+import { Conventions } from "./pages/Conventions";
 import { useRoute, type Route } from "./lib/router";
 import type { BackendState } from "./api/client";
 
@@ -50,7 +51,9 @@ export default function App() {
           ? "Abriendo visor territorial…"
           : next === "tecnologia"
             ? "Cargando arquitectura…"
-            : "Volviendo a portada…";
+            : next === "convenciones"
+              ? "Cargando marco normativo…"
+              : "Volviendo a portada…";
       setRouteCurtain({ active: true, label, suspendTour: true });
 
       const tSwap = window.setTimeout(() => go(next), 150);
@@ -89,18 +92,27 @@ export default function App() {
         <Landing
           onOpenMap={() => navigateRoute("mapa")}
           onOpenTech={() => navigateRoute("tecnologia")}
+          onOpenConventions={() => navigateRoute("convenciones")}
           suspendTypewriter={routeCurtain.suspendTour}
         />
       ) : route === "tecnologia" ? (
         <TechStack
           onOpenMap={() => navigateRoute("mapa")}
           onOpenLanding={() => navigateRoute("inicio")}
+          onOpenConventions={() => navigateRoute("convenciones")}
+        />
+      ) : route === "convenciones" ? (
+        <Conventions
+          onOpenMap={() => navigateRoute("mapa")}
+          onOpenLanding={() => navigateRoute("inicio")}
+          onOpenTech={() => navigateRoute("tecnologia")}
         />
       ) : (
         <MapTool
           tab={tab}
           onBackend={onBackend}
           onContextChange={setNavContext}
+          onOpenConventions={() => navigateRoute("convenciones")}
           suspendLoader={routeCurtain.active}
           suspendTour={routeCurtain.suspendTour}
           tourTrigger={tourTrigger}

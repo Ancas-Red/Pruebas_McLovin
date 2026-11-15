@@ -7,6 +7,7 @@ import { revealFooterFirstIfJumping, revealSectionBatch } from "../lib/reveal";
 interface Props {
   onOpenMap: () => void;
   onOpenTech?: () => void;
+  onOpenConventions?: () => void;
   /** Retiene el inicio del efecto máquina mientras la cortina de carga está activa. */
   suspendTypewriter?: boolean;
 }
@@ -24,7 +25,12 @@ const HERO_LINE_1 = "El fuego deja huella.";
 const HERO_TEMP_LINE = "Tranquilo.";
 const HERO_LINE_2 = "Nosotros lo ordenamos.";
 
-export function Landing({ onOpenMap, onOpenTech, suspendTypewriter = false }: Props) {
+export function Landing({
+  onOpenMap,
+  onOpenTech,
+  onOpenConventions,
+  suspendTypewriter = false,
+}: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(0);
 
@@ -334,6 +340,7 @@ export function Landing({ onOpenMap, onOpenTech, suspendTypewriter = false }: Pr
             onNavigate={(r) => {
               if (r === "mapa") onOpenMap();
               else if (r === "tecnologia") onOpenTech?.();
+              else if (r === "convenciones") onOpenConventions?.();
               else goTo("inicio");
             }}
             note="Datos: NASA LP DAAC · Copernicus ERA5-Land · COPERNICUS DEM · MapBiomas"

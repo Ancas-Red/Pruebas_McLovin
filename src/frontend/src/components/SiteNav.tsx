@@ -77,6 +77,13 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
         >
           Tecnología
         </button>
+        <button
+          className="tab"
+          aria-selected={route === "convenciones"}
+          onClick={() => onRoute("convenciones")}
+        >
+          Marco normativo
+        </button>
       </nav>
 
       {route === "mapa" && tab && onTab && (

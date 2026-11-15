@@ -6,6 +6,7 @@ import type {
   MetricId,
   MetricItem,
   TerritoryCollection,
+  TerritoryType,
 } from "../api/types";
 import { CLASSIFICATION_LABELS, METRIC_LABELS, SENSOR_META } from "../api/types";
 import {
@@ -38,7 +39,28 @@ export interface HoverCard {
   title: string;
   state: "loading" | "ready" | "error";
   rows: { k: string; v: string }[];
+  notice?: string;
   foot?: string;
+}
+
+export interface HighSusceptibilityMarker {
+  id: string;
+  name: string;
+  position: LatLon;
+  kind: "territory" | "subbasin" | "cluster";
+  targetTerritoryType?: TerritoryType;
+  targetTerritoryId?: string;
+  detail?: string;
+}
+
+export interface PrioritySubZone {
+  id: string;
+  label: string;
+  rings: LatLon[][];
+  kind: "subbasin" | "enclosure";
+  targetTerritoryType?: TerritoryType;
+  targetTerritoryId?: string;
+  detail?: string;
 }
 
 interface Props {
@@ -80,6 +102,16 @@ interface Props {
   showWind: boolean;
   /** Cambia cuando el ancho disponible cambia; obliga a Leaflet a reencuadrar. */
   relayoutKey: string;
+  /** Aviso breve cuando la fecha, territorio o sensor activo no tiene datos válidos. */
+  dataNotice?: string | null;
+  /** Marcadores ▲! de susceptibilidad alta en el período activo. */
+  highMarkers?: HighSusceptibilityMarker[];
+  /** Subcuencas altas o polígonos envolventes de monitoreo prioritario dentro de la región macro. */
+  priorityZones?: PrioritySubZone[];
+  /** Muestra u oculta marcadores ▲! y subzonas prioritarias. */
+  showHighMarkers?: boolean;
+  /** Al seleccionar un triángulo ▲! o subzona, selecciona territorio (si aplica) y abre el árbol. */
+  onOpenSusceptibilityTree?: (targetId?: string, targetType?: TerritoryType) => void;
   children?: ReactNode;
 }
 
@@ -188,6 +220,11 @@ export function MapStage(props: Props) {
     windSpeedMs,
     showWind,
     relayoutKey,
+    dataNotice,
+    highMarkers = [],
+    priorityZones = [],
+    showHighMarkers = true,
+    onOpenSusceptibilityTree,
     children,
   } = props;
 
@@ -195,7 +232,9 @@ export function MapStage(props: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const baseRef = useRef<L.TileLayer | null>(null);
   const territoryLayer = useRef<L.LayerGroup | null>(null);
+  const priorityZoneLayer = useRef<L.LayerGroup | null>(null);
   const hotspotLayer = useRef<L.LayerGroup | null>(null);
+  const highMarkerLayer = useRef<L.LayerGroup | null>(null);
   const drawLayer = useRef<L.LayerGroup | null>(null);
   const spreadOverlay = useRef<L.ImageOverlay | null>(null);
   const rendererRef = useRef<L.Canvas | null>(null);
@@ -244,9 +283,11 @@ export function MapStage(props: Props) {
 
     rendererRef.current = L.canvas({ padding: 0.4 });
     // El orden de alta fija el orden de pintado: los límites van debajo de
-    // los focos, para que un punto nunca quede tapado por su territorio.
+    // subzonas prioritarias y focos, y los ▲! encima para clic directo.
     territoryLayer.current = L.layerGroup().addTo(map);
+    priorityZoneLayer.current = L.layerGroup().addTo(map);
     hotspotLayer.current = L.layerGroup().addTo(map);
+    highMarkerLayer.current = L.layerGroup().addTo(map);
     drawLayer.current = L.layerGroup().addTo(map);
 
     map.on("click", (e: L.LeafletMouseEvent) => {
@@ -538,6 +579,88 @@ export function MapStage(props: Props) {
     }
   }, [hotspots, showHotspots, zoom]);
 
+  /* ---------------- subzonas prioritarias y marcadores ▲! de alerta alta --- */
+  useEffect(() => {
+    const zLayer = priorityZoneLayer.current;
+    const mLayer = highMarkerLayer.current;
+    if (!zLayer || !mLayer) return;
+    zLayer.clearLayers();
+    mLayer.clearLayers();
+    if (!showHighMarkers) return;
+
+    for (const z of priorityZones) {
+      const isEnclosure = z.kind === "enclosure";
+      for (const polyRing of z.rings) {
+        if (polyRing.length < 3) continue;
+        const poly = L.polygon(polyRing, {
+          renderer: rendererRef.current ?? undefined,
+          color: isEnclosure ? "#ff5a2f" : "#ff8547",
+          weight: isEnclosure ? 2.2 : 1.8,
+          dashArray: isEnclosure ? "6 4" : "4 3",
+          fillColor: isEnclosure ? "#ff4a24" : "#ff6b35",
+          fillOpacity: isEnclosure ? 0.14 : 0.16,
+          interactive: true,
+        });
+        poly.bindTooltip(
+          `<b>${isEnclosure ? "Polígono envolvente prioritario" : "Subcuenca en susceptibilidad alta"}</b>` +
+            `<br/>${z.label}` +
+            `${z.detail ? `<br/>${z.detail}` : ""}` +
+            `<br/><span style="color:#ff9b7a">Clic → abrir árbol de susceptibilidad</span>`,
+          { direction: "top", sticky: true, opacity: 0.96 }
+        );
+        poly.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          onOpenSusceptibilityTree?.(z.targetTerritoryId, z.targetTerritoryType);
+        });
+        poly.addTo(zLayer);
+      }
+    }
+
+    for (const m of highMarkers) {
+      const size = m.kind === "territory" ? 28 : 24;
+      const anchorY = m.kind === "territory" ? 22 : 19;
+      const tipPrefix =
+        m.kind === "subbasin"
+          ? "Subcuenca en susceptibilidad alta"
+          : m.kind === "cluster"
+            ? "Foco prioritario dentro de región alta"
+            : "Susceptibilidad alta";
+
+      const safeName = m.name.replace(/"/g, "&quot;");
+      const icon = L.divIcon({
+        className: `high-susc-pin high-susc-pin--${m.kind}`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, anchorY],
+        html:
+          `<button type="button" class="high-susc-pin__btn" aria-label="${tipPrefix}: ${safeName}. Abrir árbol de susceptibilidad">` +
+          `<span class="high-susc-pin__pulse" aria-hidden="true"></span>` +
+          `<svg class="high-susc-pin__svg" viewBox="0 0 28 26" width="${size}" height="${Math.round(size * 0.93)}" aria-hidden="true">` +
+          `<path d="M14 2.2 L26.2 23.6 Q26.7 24.5 25.6 24.5 L2.4 24.5 Q1.3 24.5 1.8 23.6 Z" fill="#ff3b1f" stroke="#090e0b" stroke-width="2.1" stroke-linejoin="round" />` +
+          `<path d="M14 5.2 L23.5 22 L4.5 22 Z" fill="none" stroke="#ffd8cc" stroke-opacity="0.48" stroke-width="0.9" stroke-linejoin="round" />` +
+          `<rect x="12.75" y="9.2" width="2.5" height="7.4" rx="1.1" fill="#fffaf4" />` +
+          `<circle cx="14" cy="19.6" r="1.45" fill="#fffaf4" />` +
+          `</svg>` +
+          `</button>`,
+      });
+
+      const marker = L.marker(m.position, {
+        icon,
+        zIndexOffset: m.kind === "cluster" ? 720 : m.kind === "subbasin" ? 660 : 610,
+      });
+      marker.bindTooltip(
+        `<b>${tipPrefix} · ${m.name}</b>` +
+          `${m.detail ? `<br/>${m.detail}` : ""}` +
+          `<br/><span style="color:#ff9b7a">Clic → abrir árbol de susceptibilidad</span>`,
+        { direction: "top", offset: [0, -14], opacity: 0.96 }
+      );
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        onOpenSusceptibilityTree?.(m.targetTerritoryId, m.targetTerritoryType);
+      });
+      marker.addTo(mLayer);
+    }
+  }, [highMarkers, priorityZones, showHighMarkers, onOpenSusceptibilityTree]);
+
   /* ------------------------------------------- poligono, borrador, ignicion */
   useEffect(() => {
     const layer = drawLayer.current;
@@ -822,6 +945,11 @@ export function MapStage(props: Props) {
             </div>
           )}
           {hint && <div className="hud__hint">{hint} · Esc cancela</div>}
+          {dataNotice && (
+            <div className="hud__notice" role="status">
+              {dataNotice}
+            </div>
+          )}
         </div>
       </div>
 
@@ -841,16 +969,21 @@ export function MapStage(props: Props) {
               Consultando al backend…
             </div>
           ) : hoverCard.state === "error" ? (
-            <div className="hovercard__wait hovercard__wait--err">Sin respuesta del backend</div>
+            <div className="hovercard__wait hovercard__wait--err">
+              La data no está disponible o no es válida en este momento (sin respuesta del backend).
+            </div>
           ) : (
-            <dl className="hovercard__rows">
-              {hoverCard.rows.map((r) => (
-                <div key={r.k}>
-                  <dt>{r.k}</dt>
-                  <dd>{r.v}</dd>
-                </div>
-              ))}
-            </dl>
+            <>
+              <dl className="hovercard__rows">
+                {hoverCard.rows.map((r) => (
+                  <div key={r.k}>
+                    <dt>{r.k}</dt>
+                    <dd>{r.v}</dd>
+                  </div>
+                ))}
+              </dl>
+              {hoverCard.notice && <div className="hovercard__notice">{hoverCard.notice}</div>}
+            </>
           )}
           {hoverCard.foot && <div className="hovercard__foot">{hoverCard.foot}</div>}
         </div>
@@ -940,6 +1073,35 @@ export function MapStage(props: Props) {
                   style={{ background: "linear-gradient(90deg,#f3e55c,#e65c2f,#480f62)" }}
                 />
                 <span>Frente simulado · Fase 2 · +6/12/24 h</span>
+              </div>
+            )}
+            {showHighMarkers && highMarkers.length > 0 && (
+              <button
+                type="button"
+                className="legend__jump"
+                onClick={() => {
+                  const targets = highMarkers.filter((m) => m.targetTerritoryId);
+                  if (targets.length === 0) {
+                    onOpenSusceptibilityTree?.();
+                    return;
+                  }
+                  const curIdx = targets.findIndex((m) => m.targetTerritoryId === selectedId);
+                  const next = targets[(curIdx + 1) % targets.length];
+                  onOpenSusceptibilityTree?.(next.targetTerritoryId, next.targetTerritoryType);
+                }}
+                title="Saltar al siguiente territorio o foco en susceptibilidad alta"
+              >
+                <span className="legend__tri" aria-hidden="true">▲!</span>
+                <span>
+                  {highMarkers.length} alerta{highMarkers.length === 1 ? "" : "s"} alta
+                  {highMarkers.length === 1 ? "" : "s"} · Ir →
+                </span>
+              </button>
+            )}
+            {showHighMarkers && priorityZones.length > 0 && (
+              <div className="legend__item">
+                <i className="legend__swatch legend__swatch--poly" />
+                <span>Subzona / envolvente prioritaria</span>
               </div>
             )}
           </div>

@@ -36,10 +36,11 @@ export function Logo({
   tone = "light",
   plate = false,
   animate = false,
-  compact,
+  compact = false,
 }: Props) {
-  // La versión reducida no dibuja el satélite, así que `animate` no le aplica.
-  if (compact ?? size < 44) return <Compact size={size} tone={tone} plate={plate} animate={false} />;
+  // Por coherencia de marca se prioriza la insignia completa (globo + órbita + satélite).
+  // `compact={true}` queda solo como opción explícita.
+  if (compact) return <Compact size={size} tone={tone} plate={plate} animate={false} />;
   return <Full size={size} tone={tone} plate={plate} animate={animate} />;
 }
 

@@ -122,7 +122,8 @@ body {
    está visible y nunca se mueve ni tapa el texto. Lo que se desplaza es la
    fila de abajo. */
 .app--inicio,
-.app--tecnologia {
+.app--tecnologia,
+.app--convenciones {
   grid-template-rows: var(--h-header) 1fr;
 }
 .app--mapa {
@@ -1019,13 +1020,13 @@ input[type="range"]:focus-visible {
   right: 12px;
 }
 .ov--bl {
-  bottom: 24px;
+  bottom: 10px;
   left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   /* Si se juntan muchas claves o el panel inferior crece, hace scroll interno sin solapar controles superiores. */
-  max-height: calc(100% - 76px);
+  max-height: calc(100% - 58px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1064,6 +1065,7 @@ input[type="range"]:focus-visible {
   padding: 9px 11px;
   font-size: 10.5px;
   min-width: 190px;
+  max-width: 210px;
 }
 .hud__row {
   display: flex;
@@ -1082,6 +1084,14 @@ input[type="range"]:focus-visible {
   margin-top: 6px;
   padding-top: 6px;
   line-height: 1.5;
+}
+.hud__notice {
+  color: #ffd480;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+  line-height: 1.35;
+  font-size: 9.5px;
 }
 
 .legend {
@@ -1173,7 +1183,9 @@ input[type="range"]:focus-visible {
 .hovercard {
   position: absolute;
   z-index: 500;
-  width: 256px;
+  width: clamp(256px, 24vw, 310px);
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
   pointer-events: none;
   background: rgba(7, 16, 11, 0.96);
   border: 1px solid var(--line-strong);
@@ -1204,24 +1216,25 @@ input[type="range"]:focus-visible {
   letter-spacing: -0.01em;
   color: var(--fg);
   margin-bottom: 7px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .hovercard__rows {
   margin: 0;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 .hovercard__rows > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(86px, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
 }
 .hovercard__rows dt {
   color: var(--fg-dim);
   font-size: 10.5px;
+  line-height: 1.3;
 }
 .hovercard__rows dd {
   margin: 0;
@@ -1229,7 +1242,9 @@ input[type="range"]:focus-visible {
   font-size: 10.5px;
   font-weight: 500;
   text-align: right;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 .hovercard__wait {
@@ -1242,6 +1257,15 @@ input[type="range"]:focus-visible {
 }
 .hovercard__wait--err {
   color: var(--ember);
+}
+.hovercard__notice {
+  margin-top: 7px;
+  padding: 5px 7px;
+  border-left: 2px solid var(--ember);
+  background: rgba(255, 169, 64, 0.08);
+  color: #ffd480;
+  font-size: 10px;
+  line-height: 1.35;
 }
 .hovercard__spark {
   width: 6px;
@@ -1360,6 +1384,22 @@ input[type="range"]:focus-visible {
   color: var(--fg-faint);
   font-style: italic;
   font-weight: 400;
+}
+.kv--conv {
+  grid-template-columns: 1fr;
+  gap: 2px 0;
+}
+.kv--conv dt {
+  margin-top: 6px;
+  color: var(--fg);
+  font-weight: 600;
+  white-space: normal;
+}
+.kv--conv dd {
+  text-align: left;
+  color: var(--fg-dim);
+  font-weight: 400;
+  line-height: 1.45;
 }
 
 .metric {
@@ -1692,9 +1732,9 @@ input[type="range"]:focus-visible {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(250px, 330px);
+  grid-template-columns: minmax(300px, 1fr) minmax(320px, 385px);
   gap: 16px;
-  padding: 11px 16px 13px;
+  padding: 10px 16px 11px;
   align-items: stretch;
   overflow: hidden;
 }
@@ -1716,13 +1756,18 @@ input[type="range"]:focus-visible {
 .calstrip__side {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 6px;
   min-width: 0;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
+}
+
+.calstrip__legend .legend__title,
+.calstrip__chart .legend__title {
+  margin-bottom: 4px;
 }
 
 .calstrip__legend .legend__ramp {
@@ -1732,10 +1777,24 @@ input[type="range"]:focus-visible {
 .calstrip__chart {
   min-width: 0;
 }
+.calstrip__chart-empty {
+  min-height: 68px;
+  display: grid;
+  place-items: center;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  color: #ffd480;
+  font-size: 10.5px;
+  text-align: center;
+  line-height: 1.35;
+}
 
 .calstrip__kv {
   border-top: 1px solid var(--line);
-  padding-top: 9px;
+  padding-top: 6px;
+  grid-template-columns: auto minmax(34px, 1fr) auto minmax(34px, 1fr);
+  gap: 3px 10px;
+  font-size: 10.5px;
 }
 
 .calstrip__controls {
@@ -2136,6 +2195,111 @@ input[type="range"]:focus-visible {
   padding: 7px 13px;
 }
 
+/* Marcadores ▲! de susceptibilidad alta y leyenda de subzonas ---------------- */
+.high-susc-pin {
+  background: transparent;
+  border: none;
+}
+.high-susc-pin__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 140ms ease, filter 140ms ease;
+}
+.high-susc-pin__btn:hover,
+.high-susc-pin__btn:focus-visible {
+  transform: scale(1.16);
+  filter: drop-shadow(0 0 8px rgba(255, 74, 36, 0.85));
+  outline: none;
+}
+.high-susc-pin__svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.72));
+}
+.high-susc-pin__pulse {
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 74, 36, 0.42) 0%, transparent 72%);
+  animation: mchanaq-pulse 1.9s ease-in-out infinite;
+  pointer-events: none;
+}
+.legend__tri {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ff4a24;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+}
+.legend__jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 74, 36, 0.45);
+  background: rgba(255, 74, 36, 0.12);
+  color: #ffd8cc;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.legend__jump:hover,
+.legend__jump:focus-visible {
+  background: rgba(255, 74, 36, 0.24);
+  border-color: #ff5a2f;
+  outline: none;
+}
+@media (max-height: 780px) and (min-width: 721px) {
+  .ov--bl {
+    bottom: 10px;
+    flex-direction: row;
+    align-items: flex-end;
+    max-height: calc(100% - 96px);
+    overflow-y: visible;
+  }
+  .legend {
+    padding: 5px 8px;
+  }
+  .legend__title {
+    margin-bottom: 4px;
+  }
+  .legend__items {
+    gap: 2.5px;
+    margin-top: 5px;
+    padding-top: 4px;
+  }
+  .legend__item--nodata {
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  .legend__jump {
+    padding: 3px 5px;
+    font-size: 10.5px;
+  }
+}
+.legend__swatch--poly {
+  width: 14px;
+  height: 10px;
+  background: rgba(255, 74, 36, 0.22);
+  border: 1.5px dashed #ff5a2f;
+}
+
 /* Guia visual interactiva (Onboarding + Spotlight Tour) ------------------ */
 .tour-overlay {
   position: fixed;
@@ -2356,7 +2520,7 @@ input[type="range"]:focus-visible {
   text-transform: uppercase;
   white-space: nowrap;
   min-width: 0;
-  max-width: min(640px, 46vw);
+  max-width: min(680px, 48vw);
 }
 .hdr__ctx-loc,
 .hdr__ctx-date {
@@ -2382,7 +2546,7 @@ input[type="range"]:focus-visible {
   color: var(--fg-dim);
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 30ch;
+  max-width: none;
 }
 .hdr__ctx-sep {
   width: 1px;
@@ -2594,6 +2758,62 @@ input[type="range"]:focus-visible {
 }
 
 /* --- Responsive: tablet y móvil ------------------------------------------- */
+
+@media (max-width: 1520px) {
+  .hdr {
+    gap: 11px;
+    padding: 0 14px;
+  }
+  .brand {
+    gap: 10px;
+    padding-right: 4px;
+  }
+  .hdr__nav {
+    margin-left: 2px;
+  }
+  .hdr .tab {
+    padding: 6px 10px;
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+  }
+}
+
+@media (max-width: 1360px) {
+  .hdr {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .brand__name {
+    font-size: 18px;
+  }
+  .brand__tag {
+    font-size: 7.5px;
+    letter-spacing: 0.16em;
+  }
+  .hdr__nav {
+    margin-left: 0;
+  }
+  .hdr .tab {
+    padding: 5px 8px;
+    font-size: 10px;
+    letter-spacing: 0.07em;
+  }
+  .hdr__ctx {
+    padding: 4px 8px;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    gap: 6px;
+  }
+  .hdr__right {
+    gap: 6px;
+  }
+  .hdr__conn,
+  .hdr__tour-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+}
 
 @media (max-width: 1060px) {
   .hdr {

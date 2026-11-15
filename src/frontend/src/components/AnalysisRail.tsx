@@ -26,6 +26,7 @@ export const ANALYSIS_ITEMS: DockItem[] = [
   { id: "indicadores", label: "Indicadores del período", icon: "gauge" },
   { id: "multisensor", label: "Comparación multisensor", icon: "compare" },
   { id: "arbol", label: "Árbol de susceptibilidad", icon: "tree" },
+  { id: "convenciones", label: "Convenciones y lectura", icon: "book" },
 ];
 
 const STATUS_CHIP: Record<ComparisonStatus, string> = {
@@ -79,6 +80,7 @@ const VAR_TEXT: Record<string, string> = {
 interface Props {
   section: string;
   onClose: () => void;
+  onOpenConventions?: () => void;
   cell: MonthCell | undefined;
   /** Ficha del territorio tal como la devuelve la API. */
   summary: TerritorySummary | null;
@@ -116,7 +118,21 @@ export function AnalysisRail(p: Props) {
             </span>
           )}
 
-          <div className="metric-grid" style={{ marginTop: quality ? 11 : 0 }}>
+          {!p.summary && !p.dayRow && (
+            <div className="note note--warn" style={{ marginTop: quality ? 10 : 0 }}>
+              <b>Datos no disponibles.</b> La data de este territorio o fecha no es válida o no está
+              disponible en este momento.
+            </div>
+          )}
+
+          {quality?.status === "insufficient" && (
+            <div className="note note--warn" style={{ marginTop: 10 }}>
+              <b>Calidad insuficiente.</b> La data actual no alcanza los requisitos mínimos de
+              cobertura o línea base para validar estos indicadores.
+            </div>
+          )}
+
+          <div className="metric-grid" style={{ marginTop: quality || (!p.summary && !p.dayRow) ? 11 : 0 }}>
             <div className="metric">
               <div className="metric__label">Tasa de actividad</div>
               <div className="metric__value">
@@ -255,7 +271,10 @@ export function AnalysisRail(p: Props) {
       if (!p.comparison) {
         return (
           <Drawer title="Comparación multisensor" note={p.periodLabel} onClose={p.onClose}>
-            <div className="note">Sin comparación publicada para esta fecha.</div>
+            <div className="note note--warn">
+              La data de comparación multisensor no es válida en este momento o no está disponible
+              para esta fecha.
+            </div>
           </Drawer>
         );
       }
@@ -330,7 +349,10 @@ export function AnalysisRail(p: Props) {
       if (!cond) {
         return (
           <Drawer title="Árbol de susceptibilidad" note={p.areaLabel} onClose={p.onClose}>
-            <div className="note">Sin evaluación publicada para esta fecha.</div>
+            <div className="note note--warn">
+              La evaluación contextual no es válida en este momento o no está disponible para esta
+              fecha.
+            </div>
           </Drawer>
         );
       }
@@ -404,6 +426,64 @@ export function AnalysisRail(p: Props) {
             no predice dónde ni cuándo empezará un incendio, y no está validada contra incendios
             reales.
           </div>
+        </Drawer>
+      );
+    }
+
+    case "convenciones": {
+      return (
+        <Drawer title="Convenciones" note="UNDRR · FIRMS" onClose={p.onClose}>
+          <div className="legend__title">Susceptibilidad contextual (UNDRR / FAO / EFFIS)</div>
+          <div className="note">
+            Se usan <b>Susceptibilidad alta</b>, <b>moderada</b> y <b>baja</b> siguiendo la
+            jerarquía de UNDRR/FAO y EFFIS: <i>Susceptibilidad</i> mide predisposición del entorno
+            (vegetación combustible, sequedad &lt; p25, viento &gt; p75 y pendiente), a diferencia
+            de <i>Peligro</i> (intensidad del frente) o <i>Riesgo</i> (Peligro × Exposición ×
+            Vulnerabilidad). No predice ignición.
+          </div>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>
+            Evaluación parcial vs. No evaluable (Compuerta N0)
+          </div>
+          <dl className="kv kv--conv">
+            <dt>
+              <span className="chip">Evaluación parcial</span>
+            </dt>
+            <dd>Falta ≥ 1 bloque o &lt; 5 años de línea base, pero hay evidencia parcial</dd>
+            <dt>
+              <span className="chip">No evaluable</span>
+            </dt>
+            <dd>Compuerta N0 cerrada sin evidencia utilizable</dd>
+          </dl>
+          <p className="mono-sm">
+            McHanaq no rellena variables faltantes para forzar un nivel alto/bajo. En modo «Datos de
+            muestra», también se simula una fracción menor de períodos con cobertura parcial.
+          </p>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>
+            Valores térmicos y calidad (NASA FIRMS / OMM)
+          </div>
+          <dl className="kv kv--conv">
+            <dt>0</dt>
+            <dd>Observado (cobertura ≥ 70 %) y 0 detecciones clase 8–9</dd>
+            <dt>Sin observación</dt>
+            <dd>0 píxeles de tierra válidos o nubosidad ≥ 30 % (null ≠ 0)</dd>
+            <dt>No estimable</dt>
+            <dd>Menos de {minBaseline} años válidos para calcular anomalía z σ</dd>
+            <dt>Cero suma cruzada</dt>
+            <dd>Terra, Aqua y VIIRS no se suman entre sí (distinta órbita)</dd>
+          </dl>
+
+          {p.onOpenConventions && (
+            <button
+              type="button"
+              className="btn btn--full"
+              style={{ marginTop: 14 }}
+              onClick={p.onOpenConventions}
+            >
+              Ver marco normativo y estándares →
+            </button>
+          )}
         </Drawer>
       );
     }
