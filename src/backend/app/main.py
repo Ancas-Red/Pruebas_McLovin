@@ -732,6 +732,100 @@ def _territory_centroid_and_geom(terr: dict):
     return -8.19833, -75.26669, None
 
 
+def _fetch_open_meteo_dem_slope_py(lat: float, lon: float) -> tuple[float | None, float | None, str]:
+    """Calcula pendiente media/máxima con Open-Meteo Elevation (Copernicus GLO-90) usando solo httpx."""
+    half = 0.032
+    pts = [
+        (round(lat - half + (2 * half * r / 3.0), 5), round(lon - half + (2 * half * c / 3.0), 5))
+        for r in range(4)
+        for c in range(4)
+    ]
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            resp = client.get(
+                "https://api.open-meteo.com/v1/elevation",
+                params={
+                    "latitude": ",".join(str(p[0]) for p in pts),
+                    "longitude": ",".join(str(p[1]) for p in pts),
+                },
+            )
+            resp.raise_for_status()
+            elev = resp.json().get("elevation") or []
+        if len(elev) < 16:
+            return None, None, "COPERNICUS_DEM_GLO30_PARAMETRIC"
+        grid = [[float(elev[r * 4 + c]) for c in range(4)] for r in range(4)]
+        dx = (2 * half / 3.0) * 111_320.0 * max(0.2, math.cos(math.radians(lat)))
+        dy = (2 * half / 3.0) * 110_540.0
+        slopes: list[float] = []
+        for r in range(3):
+            for c in range(3):
+                dz_x = (grid[r][c + 1] - grid[r][c]) / max(dx, 1.0)
+                dz_y = (grid[r + 1][c] - grid[r][c]) / max(dy, 1.0)
+                slopes.append(math.degrees(math.atan(math.hypot(dz_x, dz_y))))
+        mean_deg = round(sum(slopes) / len(slopes), 2)
+        max_deg = round(max(slopes), 2)
+        return mean_deg, max_deg, "COPERNICUS_DEM_GLO90_OPEN_METEO"
+    except Exception:
+        return None, None, "COPERNICUS_DEM_GLO30_PARAMETRIC"
+
+
+def _run_lightweight_global_spread(
+    *,
+    t_type: str,
+    t_id: str,
+    t_name: str,
+    lat: float,
+    lon: float,
+    date_str: str,
+    horizon_h: int,
+    ws: float,
+    wd: float,
+    veg: float,
+    slp: float,
+    fm: float,
+    use_open_meteo: bool,
+) -> dict:
+    """Fallback sin geopandas/numpy: obtiene Copernicus GLO-90 DEM + viento Open-Meteo reales vía httpx."""
+    slope_mean, slope_max, dem_source = _fetch_open_meteo_dem_slope_py(lat, lon)
+    eff_slope = slope_mean if slope_mean is not None else round(float(slp), 2)
+    eff_max_slope = slope_max if slope_max is not None else round(eff_slope * 1.8, 2)
+
+    wind_source = "era5_daily_diurnal_profile"
+    eff_ws, eff_wd = float(ws), float(wd)
+    if use_open_meteo:
+        live = _fetch_open_meteo_current(lat, lon)
+        if live.get("status") == "ok":
+            wind_source = "Open-Meteo"
+            if isinstance(live.get("wind_speed_10m_ms"), (int, float)):
+                eff_ws = float(live["wind_speed_10m_ms"])
+            if isinstance(live.get("wind_dir_deg"), (int, float)):
+                eff_wd = float(live["wind_dir_deg"])
+
+    moisture_factor = max(0.0, 1.0 - min(1.0, fm / 30.0)) ** 2
+    slope_factor = min(8.0, math.exp(0.0693 * max(0.0, eff_slope)))
+    head_ros = round(1.8 * (1.0 + 0.72 * (max(0.0, eff_ws) ** 1.22)) * moisture_factor * (0.4 + 0.6 * (veg / 100.0)) * slope_factor, 2)
+    lb = round(min(8.0, max(1.0, 0.936 * math.exp(0.2566 * eff_ws) + 0.461 * math.exp(-0.1548 * eff_ws) - 0.397)), 2)
+
+    return {
+        "schema_version": "1.0",
+        "phase": "phase_2_optional",
+        "territory": {"type": t_type, "id": t_id, "name": t_name},
+        "date": date_str,
+        "horizon_h": horizon_h,
+        "ignition": {"lat": lat, "lon": lon},
+        "dominant_wind": {"wind_dir_deg": round(eff_wd, 1), "wind_speed_10m_ms": round(eff_ws, 2)},
+        "savi_summary": {"mean": round(0.12 + 0.66 * (veg / 100.0), 3), "source": "vegetation_area_pct"},
+        "slope_summary": {"mean_deg": eff_slope, "max_deg": eff_max_slope, "dem_source": dem_source},
+        "spread_summary": {"head_ros_m_min": head_ros, "length_to_breadth": lb},
+        "data_sources": {
+            "wind_source": wind_source,
+            "dem_source": dem_source,
+            "vegetation_index": "vegetation_area_pct",
+        },
+        "timings_s": {"simulation_s": 0.05, "total_s": 0.05},
+    }
+
+
 def _run_phase2_simulation(
     t_type: str,
     t_id: str,
@@ -749,12 +843,6 @@ def _run_phase2_simulation(
     use_open_meteo: bool = False,
     export_products: bool = False,
 ) -> dict:
-    from src.analytics.spread_model import (
-        build_spread_forecast_payload,
-        export_all_phase2_products,
-        simulate_spread_48h,
-    )
-
     daily_match = next(
         (
             r for r in DAILY
@@ -803,6 +891,35 @@ def _run_phase2_simulation(
     )
 
     t0 = time.perf_counter()
+    try:
+        from src.analytics.spread_model import (
+            build_spread_forecast_payload,
+            export_all_phase2_products,
+            simulate_spread_48h,
+        )
+    except ImportError as exc:
+        if export_products:
+            raise ApiError(
+                503,
+                "EXPORT_LIBS_UNAVAILABLE",
+                f"Generación GIS/video requiere geopandas/matplotlib en este entorno ({exc}). Las descargas precalculadas siguen activas.",
+            )
+        return _run_lightweight_global_spread(
+            t_type=t_type,
+            t_id=t_id,
+            t_name=t_name,
+            lat=lat,
+            lon=lon,
+            date_str=date_str,
+            horizon_h=horizon_h,
+            ws=ws,
+            wd=wd,
+            veg=veg,
+            slp=slp,
+            fm=fm,
+            use_open_meteo=use_open_meteo,
+        )
+
     res = simulate_spread_48h(
         territory_type=t_type,
         territory_id=t_id,
@@ -1092,6 +1209,161 @@ def _fetch_firms_source(
         return [], str(exc)
 
 
+_REVERSE_GEOCODE_CACHE: dict[tuple[float, float], dict] = {}
+_COUNTRY_SHORT_ALIASES = {
+    "Estados Unidos de América": "Estados Unidos",
+    "United States of America": "Estados Unidos",
+    "United Kingdom": "Reino Unido",
+    "Reino Unido de Gran Bretaña e Irlanda del Norte": "Reino Unido",
+}
+
+
+def _dedupe_place_parts(parts: list[str | None]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in parts:
+        val = (raw or "").strip()
+        if not val:
+            continue
+        key = val.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(val)
+    return out
+
+
+def _reverse_geocode_coords(lat: float, lon: float) -> dict:
+    """Detecta país, región/estado, provincia/condado y ciudad/distrito vía OSM Nominatim."""
+    cache_key = (round(lat, 3), round(lon, 3))
+    cached = _REVERSE_GEOCODE_CACHE.get(cache_key)
+    if cached is not None:
+        return dict(cached)
+
+    url = "https://nominatim.openstreetmap.org/reverse"
+    params = {
+        "format": "jsonv2",
+        "lat": f"{lat:.5f}",
+        "lon": f"{lon:.5f}",
+        "zoom": "14",
+        "addressdetails": "1",
+        "accept-language": "es",
+    }
+    headers = {"User-Agent": "McHanaq/1.0 (+https://github.com/TomJordan1/McHanaq)"}
+    try:
+        with httpx.Client(timeout=4.5, headers=headers) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        addr = payload.get("address") or {}
+        if not isinstance(addr, dict) or not addr:
+            return {
+                "status": "unavailable",
+                "source": "OSM_NOMINATIM",
+                "country": None,
+                "country_code": None,
+                "region": None,
+                "province": None,
+                "city": None,
+                "district": None,
+                "hierarchy": [],
+                "header_primary": None,
+                "header_sub": None,
+                "display_name": payload.get("display_name"),
+            }
+
+        raw_country = (addr.get("country") or "").strip() or None
+        country = _COUNTRY_SHORT_ALIASES.get(raw_country or "", raw_country)
+        country_code = (addr.get("country_code") or "").upper() or None
+
+        region = (
+            addr.get("state")
+            or addr.get("region")
+            or addr.get("archipelago")
+            or addr.get("island")
+            or None
+        )
+        # En Perú y otros países Nominatim coloca la provincia en `region` cuando `state` existe.
+        province = addr.get("province") or addr.get("county") or addr.get("state_district")
+        if not province and addr.get("state") and addr.get("region") and addr.get("region") != addr.get("state"):
+            province = addr.get("region")
+        if province and region and province.strip().casefold() == region.strip().casefold():
+            province = None
+
+        city = (
+            addr.get("city")
+            or addr.get("town")
+            or addr.get("village")
+            or addr.get("municipality")
+            or None
+        )
+        district = (
+            addr.get("city_district")
+            or addr.get("suburb")
+            or addr.get("borough")
+            or addr.get("quarter")
+            or addr.get("neighbourhood")
+            or addr.get("hamlet")
+            or addr.get("locality")
+            or None
+        )
+        if district and city and district.strip().casefold() == city.strip().casefold():
+            district = None
+
+        hierarchy = _dedupe_place_parts([country, region, province, city, district])
+        sub_parts = _dedupe_place_parts([city, district, province, region])
+        # Limita la cabecera superior a máx. 2-3 niveles clave sin redundancia.
+        header_sub = " · ".join(sub_parts[:2]) if sub_parts else None
+        result = {
+            "status": "ok",
+            "source": "OSM_NOMINATIM",
+            "country": country,
+            "country_code": country_code,
+            "region": region.strip() if isinstance(region, str) and region.strip() else None,
+            "province": province.strip() if isinstance(province, str) and province.strip() else None,
+            "city": city.strip() if isinstance(city, str) and city.strip() else None,
+            "district": district.strip() if isinstance(district, str) and district.strip() else None,
+            "hierarchy": hierarchy,
+            "header_primary": country or (sub_parts[0] if sub_parts else None),
+            "header_sub": header_sub,
+            "display_name": " · ".join(hierarchy) if hierarchy else payload.get("display_name"),
+        }
+        if len(_REVERSE_GEOCODE_CACHE) >= 512:
+            _REVERSE_GEOCODE_CACHE.clear()
+        _REVERSE_GEOCODE_CACHE[cache_key] = result
+        return dict(result)
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "source": "OSM_NOMINATIM",
+            "country": None,
+            "country_code": None,
+            "region": None,
+            "province": None,
+            "city": None,
+            "district": None,
+            "hierarchy": [],
+            "header_primary": None,
+            "header_sub": None,
+            "display_name": None,
+            "detail": str(exc),
+        }
+
+
+@app.get("/api/v1/reverse-geocode")
+def reverse_geocode(
+    lat: float = Query(..., ge=-90.0, le=90.0),
+    lon: float = Query(..., ge=-180.0, le=180.0),
+):
+    """Resuelve país, región/estado, provincia/condado y ciudad/distrito para cualquier punto del planeta."""
+    return {
+        "schema_version": "1.0",
+        "lat": round(lat, 5),
+        "lon": round(lon, 5),
+        **_reverse_geocode_coords(lat, lon),
+    }
+
+
 @app.get("/api/v1/realtime/area")
 def realtime_area(
     south: float = Query(..., ge=-90.0, le=90.0),
@@ -1100,13 +1372,14 @@ def realtime_area(
     east: float = Query(..., ge=-180.0, le=180.0),
     days: int = Query(3, ge=1, le=10),
 ):
-    """Consulta en tiempo real clima global (Open-Meteo) y focos activos MODIS/VIIRS (NASA FIRMS) para cualquier bbox del mundo."""
+    """Consulta en tiempo real clima global (Open-Meteo), geocodificación administrativa y focos activos MODIS/VIIRS (NASA FIRMS) para cualquier bbox del mundo."""
     if south >= north or west >= east:
         raise ApiError(400, "INVALID_PARAMETER", "Bounding box inválido: requiere south < north y west < east")
 
     center_lat = (south + north) / 2.0
     center_lon = (west + east) / 2.0
     weather = _fetch_open_meteo_current(center_lat, center_lon)
+    location = _reverse_geocode_coords(center_lat, center_lon)
 
     firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
     if not firms_key:
@@ -1114,6 +1387,7 @@ def realtime_area(
             "schema_version": "1.0",
             "bbox": {"south": south, "west": west, "north": north, "east": east},
             "days": days,
+            "location": location,
             "weather": weather,
             "hotspots_status": "firms_map_key_required",
             "counts_by_sensor": {},
@@ -1151,6 +1425,7 @@ def realtime_area(
         "schema_version": "1.0",
         "bbox": {"south": south, "west": west, "north": north, "east": east},
         "days": days,
+        "location": location,
         "weather": weather,
         "hotspots_status": "ok" if not errors_by_sensor else "partial",
         "counts_by_sensor": counts_by_sensor,

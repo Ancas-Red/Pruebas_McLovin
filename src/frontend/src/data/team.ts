@@ -30,6 +30,7 @@ export const TEAM: Member[] = [
     name: "Angelo",
     role: "Procesamiento geoespacial",
     blurb: "Extrae los focos en Earth Engine y los agrega por territorio.",
+    linkedin: "https://www.linkedin.com/in/angelo-castillo-guanilo/",
     github: "https://github.com/Ancas-Red",
     branch: "feature/gee-data-pipeline",
   },
@@ -54,6 +55,8 @@ export const TEAM: Member[] = [
     name: "Sebastian",
     role: "Interfaz y experiencia",
     blurb: "Diseña y desarrolla la aplicación: mapa, calendario y simulación.",
+    linkedin: "https://www.linkedin.com/in/sebastian-esteban-quispe-rosas-b7a652378/",
+    github: "https://github.com/sebastiansb1232-boop",
     branch: "feature/frontend-dashboard",
   },
   {
@@ -61,6 +64,8 @@ export const TEAM: Member[] = [
     name: "Jean Pierrer",
     role: "Producto, calidad y relato",
     blurb: "Reúne las capas oficiales, verifica la evidencia y arma el relato.",
+    linkedin: "https://www.linkedin.com/in/jean-pierrer-anthony-cercado-flores-aa9731210/",
+    github: "https://github.com/jeancercado",
     branch: "feature/product-qa-demo",
   },
 ];

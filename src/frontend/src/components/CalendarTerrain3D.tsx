@@ -299,10 +299,10 @@ export function CalendarTerrain3D({
       ctx.closePath();
 
       if (!q.hasData) {
-        ctx.fillStyle = "rgba(22, 26, 33, 0.72)";
+        ctx.fillStyle = "rgba(16, 34, 23, 0.78)";
         ctx.fill();
         if (q.i % SUB === 0 || q.j % SUB === 0) {
-          ctx.strokeStyle = "rgba(255,255,255,0.06)";
+          ctx.strokeStyle = "rgba(162, 179, 166, 0.12)";
           ctx.lineWidth = 0.6;
           ctx.stroke();
         }
@@ -419,7 +419,7 @@ export function CalendarTerrain3D({
       ctx.arc(surfPt.sx, surfPt.sy, 4.2, 0, Math.PI * 2);
       ctx.fillStyle = "#d8ff33";
       ctx.fill();
-      ctx.strokeStyle = "#0b0d10";
+      ctx.strokeStyle = "#040806";
       ctx.lineWidth = 1.2;
       ctx.stroke();
 

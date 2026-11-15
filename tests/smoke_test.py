@@ -253,3 +253,47 @@ def test_root_probe_and_cors_normalization(monkeypatch):
     )
     assert pre.status_code == 200
     assert pre.headers.get("access-control-allow-origin") == "https://preview-123.mchanaq.pages.dev"
+
+
+def test_reverse_geocode_normalizes_country_region_province_city(monkeypatch):
+    main._REVERSE_GEOCODE_CACHE.clear()
+
+    class _FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "address": {
+                    "country": "Estados Unidos de América",
+                    "country_code": "us",
+                    "state": "California",
+                    "county": "Butte County",
+                    "town": "Paradise",
+                }
+            }
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, *args, **kwargs):
+            return _FakeResp()
+
+    monkeypatch.setattr(main.httpx, "Client", _FakeClient)
+    r = client.get("/api/v1/reverse-geocode", params={"lat": 39.759, "lon": -121.622})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["country"] == "Estados Unidos"
+    assert body["region"] == "California"
+    assert body["province"] == "Butte County"
+    assert body["city"] == "Paradise"
+    assert body["header_primary"] == "Estados Unidos"
+    assert body["header_sub"] == "Paradise · Butte County"
