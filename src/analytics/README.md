@@ -4,12 +4,20 @@ Convierte las exportaciones crudas de Google Earth Engine (`data/intermediate/`)
 
 ## Entradas esperadas en `data/intermediate/`
 
-* `daily_activity*.csv` (de `src/gee/hotspots_pipeline.js`)
+* `daily_activity*.csv` (de `src/gee/hotspots_pipeline.js` o generado localmente desde `src/gee/firms_peru/` con `src/analytics/firms_to_daily_activity.py`)
 * `environmental_daily*.csv` (de `src/gee/environmental_daily.js`)
 * `environmental_context*.csv` (de `src/gee/environmental_context.js`)
 * `gee_manifest.json` (opcional; metadatos reales exportados por Angelo)
 
 ## Ejecución
+
+Para generar `data/intermediate/daily_activity_firms.csv` localmente a partir de los CSV históricos de NASA FIRMS para Perú (`src/gee/firms_peru/`) sobre los `427` territorios nacionales (`data/processed/peru_territories.geojson`, filtrado por defecto a la ventana común `2012-01-19`..`2026-11-02`):
+
+```powershell
+python -m src.analytics.firms_to_daily_activity --firms-dir src/gee/firms_peru --territories data/processed/peru_territories.geojson --out data/intermediate/daily_activity_firms.csv
+```
+
+Luego, para compilar los JSON precomputados en `data/processed/`:
 
 ```powershell
 python -m src.analytics.run_pipeline

@@ -64,3 +64,5 @@ Tablas CSV puntuales de anomalías térmicas descargadas de **NASA LANCE FIRMS**
 * **`src/gee/firms_peru/viirs-jpss1/`**: `viirs-jpss1_2018_Peru.csv` .. `viirs-jpss1_2025_Peru.csv` (**8 archivos**, VIIRS NOAA-20, serie 2018–2025).
 
 *(Las carpetas globales crudas `MODIS/`, `VIRS/` y los archivos `*.zip` permanecen excluidos en `.gitignore`; únicamente se versionan los CSV de Perú bajo `src/gee/firms_peru/`).*
+
+* **Conversión local a actividad diaria nacional (`src/analytics/firms_to_daily_activity.py`):** para evitar límites de memoria (`Error code: 8`) en `reduceRegions` de GEE al agregar los `427` territorios del Perú (`data/processed/peru_territories.geojson`, generado con `src/gee/prepare_peru_layers.py`), el script `python -m src.analytics.firms_to_daily_activity --firms-dir src/gee/firms_peru --territories data/processed/peru_territories.geojson --out data/intermediate/daily_activity_firms.csv` realiza el join espacial localmente sobre `modis/` y `viirs-snpp/` dentro de la ventana operativa `2012-01-19`..`2026-11-02`.

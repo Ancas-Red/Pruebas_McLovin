@@ -36,10 +36,9 @@ McHanaq/
 └── presentation/        # Deck y guion de exposición (Jean Pierrer)
 ```
 
-## Ramas del equipo y repositorios
+## Repositorio oficial y ramas del equipo
 
-* **Repositorio de integración activa (Fase 2 global + UX):** [`sebastiansb1232-boop/McHanaq-labs`](https://github.com/sebastiansb1232-boop/McHanaq-labs) en la rama `feature/labs-phase2-integration`.
-* **Repositorio *upstream* del equipo:** [`TomJordan1/McHanaq`](https://github.com/TomJordan1/McHanaq).
+* **Repositorio oficial (`origin`):** [`sebastiansb1232-boop/McHanaq-labs`](https://github.com/sebastiansb1232-boop/McHanaq-labs) (rama principal: `main`).
 
 | Rama | Responsable | Carpeta principal / alcance |
 |---|---|---|
@@ -53,8 +52,6 @@ McHanaq/
 ```bash
 git clone https://github.com/sebastiansb1232-boop/McHanaq-labs.git
 cd McHanaq-labs
-git checkout feature/labs-phase2-integration
-# Upstream oficial: https://github.com/TomJordan1/McHanaq.git
 ```
 
 ### Arrancar el backend (en modo fixtures)
@@ -78,11 +75,11 @@ npm run dev          # http://localhost:5173 (proxy /api -> localhost:8000)
 
 Mientras el backend no responda, el frontend cae en sus fixtures locales y lo indica de forma visible en la interfaz.
 
-## Infraestructura oficial (Azure App Service Free Tier + Cloudflare Pages / Azure SWA)
+## Infraestructura oficial (Cloudflare R2 + Azure App Service Basic B1 + Cloudflare Pages / Azure SWA)
 
-* **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para habilitar vistas previas. Opera en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP.
+* **Backend (`src/backend/`):** **Azure App Service (Linux Python 3.11, plan Basic B1 o superior)** con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh` (que descarga el snapshot desde Cloudflare R2 vía `src/analytics/r2_sync.py download` si `R2_PUBLIC_BASE_URL` está configurado y faltan archivos locales), sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para habilitar vistas previas. Opera en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP.
 * **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (Plan Free, `infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL del Azure App Service.
-* **Puente de datos y estado actual (`data/processed/` vs. `data/intermediate/`):** **Azure Blob Storage (Free Tier)** resguarda `data/intermediate/` y `data/processed/` mediante `python -m src.analytics.azure_sync`. Actualmente `data/processed/` ya contiene `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson`, `peru_territories.geojson`, `ucayali_districts_static.csv`, `metadata.json` y los artefactos precalculados de Fase 2 (`spread_forecasts.json` y `spread_outputs/`). En cambio, `data/intermediate/` aún espera la descarga de los CSVs exportados desde GEE y aún no existen `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json` ni `conditions_assessment.json` en `data/processed/`. Por ello, la **Fase 1** opera en modo `"Datos de muestra"` (`data/fixtures/`) hasta que ingresen los CSVs en `data/intermediate/` y se ejecute `python -m src.analytics.run_pipeline`; mientras tanto, la **Fase 2 global** ya corre en vivo con **Open-Meteo** (clima/viento y elevación **Copernicus GLO-90 DEM**), **OSM Nominatim** (geocodificación administrativa) y **Microsoft Planetary Computer (Sentinel-2 L2A)** para SAVI. `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
+* **Puente de datos y estado actual (`data/processed/` vs. `data/intermediate/`):** **Cloudflare R2** resguarda los paquetes procesados de `data/processed/` mediante `python -m src.analytics.r2_sync` (`azure_sync.py` queda como alternativa *legacy*). Actualmente `data/processed/` ya contiene `peru_territories.geojson` (`427` territorios nacionales: `196` provincias INEI + `231` cuencas ANA nivel 4), `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson`, `ucayali_districts_static.csv`, `metadata.json` y los artefactos precalculados de Fase 2 (`spread_forecasts.json` y `spread_outputs/`). Para generar localmente `data/intermediate/daily_activity_firms.csv` a escala nacional a partir de los CSV históricos de `src/gee/firms_peru/` (`modis` 2000–2025 y `viirs-snpp` 2012–2025, evitando límites de memoria en GEE), se incluye `python -m src.analytics.firms_to_daily_activity --firms-dir src/gee/firms_peru --territories data/processed/peru_territories.geojson --out data/intermediate/daily_activity_firms.csv` (filtrado por defecto a la ventana común `2012-01-19`..`2026-11-02`). Mientras no se ejecute el pipeline completo (`python -m src.analytics.run_pipeline`) junto con los CSVs ambientales en `data/intermediate/` para producir `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json` y `conditions_assessment.json`, la **Fase 1** opera en modo `"Datos de muestra"` (`data/fixtures/`); en paralelo, la **Fase 2 global** ya corre en vivo con **Open-Meteo** (clima/viento y elevación **Copernicus GLO-90 DEM**), **OSM Nominatim** (geocodificación administrativa) y **Microsoft Planetary Computer (Sentinel-2 L2A)** para SAVI. `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
 
 ## Ventana común verificada (Ucayali) y días útiles
 
