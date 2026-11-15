@@ -171,7 +171,7 @@ export function calendarFromApi(items: CalendarItem[]): MonthCell[] {
       month,
       period,
       detections: it.detections ?? it.fire_pixel_days_8_9 ?? 0,
-      detections_low: it.detections_low ?? it.fire_pixel_days_7 ?? 0,
+      detections_low: it.detections_low ?? it.fire_pixel_days_7_9 ?? it.fire_pixel_days_7 ?? 0,
       activity_rate: it.activity_rate ?? null,
       observation_coverage: it.observation_coverage ?? null,
       active_days: it.active_days ?? 0,

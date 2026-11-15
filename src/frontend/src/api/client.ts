@@ -327,6 +327,7 @@ export interface CalendarItem {
   detections?: number | null;
   fire_pixel_days_8_9?: number | null;
   detections_low?: number | null;
+  fire_pixel_days_7_9?: number | null;
   fire_pixel_days_7?: number | null;
   activity_rate: number | null;
   observation_coverage: number | null;

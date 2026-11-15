@@ -234,21 +234,22 @@ def test_root_probe_and_cors_normalization(monkeypatch):
 
     monkeypatch.setenv("MCHANAQ_CORS_ORIGINS", "https://mchanaq.pages.dev/, http://localhost:5173/")
     monkeypatch.setenv("MCHANAQ_CORS_ORIGIN_REGEX", r"^https://([a-z0-9-]+\.)*pages\.dev$")
-    import importlib
-    reloaded = importlib.reload(main)
-    try:
-        assert reloaded.CORS_ORIGINS == ["https://mchanaq.pages.dev", "http://localhost:5173"]
-        local_client = TestClient(reloaded.app)
-        pre = local_client.options(
-            "/api/v1/health",
-            headers={
-                "Origin": "https://preview-123.mchanaq.pages.dev",
-                "Access-Control-Request-Method": "GET",
-            },
-        )
-        assert pre.status_code == 200
-        assert pre.headers.get("access-control-allow-origin") == "https://preview-123.mchanaq.pages.dev"
-    finally:
-        monkeypatch.delenv("MCHANAQ_CORS_ORIGINS", raising=False)
-        monkeypatch.delenv("MCHANAQ_CORS_ORIGIN_REGEX", raising=False)
-        importlib.reload(main)
+    import importlib.util
+    from pathlib import Path
+
+    # Cargar en un nombre aislado para no invalidar la identidad de ApiError en src.backend.app.main.
+    spec = importlib.util.spec_from_file_location("mchanaq_cors_probe", Path(main.__file__))
+    assert spec and spec.loader
+    probe_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(probe_mod)
+    assert probe_mod.CORS_ORIGINS == ["https://mchanaq.pages.dev", "http://localhost:5173"]
+    local_client = TestClient(probe_mod.app)
+    pre = local_client.options(
+        "/api/v1/health",
+        headers={
+            "Origin": "https://preview-123.mchanaq.pages.dev",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert pre.status_code == 200
+    assert pre.headers.get("access-control-allow-origin") == "https://preview-123.mchanaq.pages.dev"
