@@ -91,7 +91,21 @@ def _public_url(base_url: str, name: str, *, prefix: str) -> str:
 
 
 def _download_bytes(url: str, timeout_sec: int) -> bytes:
-    req = urllib_request.Request(url, method="GET")
+    # Cloudflare (delante del dominio publico *.r2.dev) suele devolver 403
+    # Forbidden a clientes con el User-Agent por defecto de urllib
+    # ("Python-urllib/3.x"), aunque el objeto sea publico y la misma URL
+    # funcione bien desde un navegador normal. Un User-Agent de navegador
+    # evita ese bloqueo sin cambiar nada en el lado de R2.
+    req = urllib_request.Request(
+        url,
+        method="GET",
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            )
+        },
+    )
     with urllib_request.urlopen(req, timeout=timeout_sec) as resp:
         return resp.read()
 
