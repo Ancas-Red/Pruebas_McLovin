@@ -162,10 +162,10 @@ export function ControlRail(p: Props) {
   useEffect(() => {
     const feat = features.find((f) => f.properties.territory_id === p.territoryId);
     if (!feat?.geometry) return;
-    const rings =
+    const rings: number[][][] =
       feat.geometry.type === "Polygon"
-        ? feat.geometry.coordinates
-        : feat.geometry.coordinates.flat();
+        ? (feat.geometry.coordinates as number[][][])
+        : (feat.geometry.coordinates as number[][][][]).flat(1);
     let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
     for (const r of rings) {
       for (const [lo, la] of r) {
