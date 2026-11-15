@@ -757,6 +757,32 @@ export function MapTool({
     return usefulDaysFromRows(daily, year, month, sensor, metadata);
   }, [dailyKey, activeMonthKey, daily, year, month, sensor, metadata]);
 
+  /** Días útiles del mes que además registran detecciones reales / actividad > 0. */
+  const activeUsefulDays = useMemo(() => {
+    if (dailyKey !== activeMonthKey || usefulDays.length === 0) return [];
+    const usefulSet = new Set(usefulDays);
+    const prefix = `${year}-${pad2(month)}-`;
+    const withNominalHigh: number[] = [];
+    const withAnyActivity: number[] = [];
+    for (const r of daily) {
+      if (!r.date?.startsWith(prefix)) continue;
+      if (r.sensor && r.sensor !== sensor) continue;
+      const d = Number(r.date.slice(8, 10));
+      if (!usefulSet.has(d)) continue;
+      if ((r.fire_pixels_nominal_high ?? 0) > 0 || (r.activity_rate ?? 0) > 0) {
+        withNominalHigh.push(d);
+      } else if ((r.fire_pixels_low ?? 0) > 0) {
+        withAnyActivity.push(d);
+      }
+    }
+    const chosen = withNominalHigh.length > 0 ? withNominalHigh : withAnyActivity;
+    return [...new Set(chosen)].sort((a, b) => a - b);
+  }, [dailyKey, activeMonthKey, usefulDays, daily, year, month, sensor]);
+
+  useEffect(() => {
+    userPickedDayRef.current = false;
+  }, [territoryType, territoryId]);
+
   const calendarPeriodsWithData = useMemo(() => {
     const cells = apiCalendar ?? (series.length ? aggregateMonthly(series, sensor) : []);
     return new Set(
@@ -781,7 +807,8 @@ export function MapTool({
 
     if (usefulDays.length > 0) {
       if (!userPickedDayRef.current || !usefulDays.includes(day)) {
-        const lastUseful = usefulDays[usefulDays.length - 1];
+        const lastUseful =
+          activeUsefulDays[activeUsefulDays.length - 1] ?? usefulDays[usefulDays.length - 1];
         if (day !== lastUseful) setDay(lastUseful);
       }
       return;
@@ -807,6 +834,7 @@ export function MapTool({
     dailyKey,
     activeMonthKey,
     usefulDays,
+    activeUsefulDays,
     day,
     period,
     sortedPeriodsDesc,

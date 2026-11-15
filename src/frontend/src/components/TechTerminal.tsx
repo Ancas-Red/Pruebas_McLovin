@@ -20,7 +20,7 @@ const SESSIONS: TermSession[] = [
   {
     id: "bash",
     label: "BASH",
-    hostPrompt: "mchanaq@peru ~/McHanaq %",
+    hostPrompt: "McTropic@peru ~/McHanaq %",
     lines: [
       { kind: "cmd", text: "$ python -m src.analytics.run_pipeline --processed data/processed" },
       { kind: "spacer", text: "" },
@@ -36,7 +36,7 @@ const SESSIONS: TermSession[] = [
   {
     id: "python",
     label: "PYTHON",
-    hostPrompt: "python 3.11 · src/analytics/decision_rules.py",
+    hostPrompt: "McTropic@peru · python 3.11 · src/analytics/decision_rules.py",
     lines: [
       { kind: "code", text: ">>> from src.analytics.decision_rules import assess_conditions" },
       { kind: "code", text: ">>> items = assess_conditions(" },
@@ -52,7 +52,7 @@ const SESSIONS: TermSession[] = [
   {
     id: "api",
     label: "API",
-    hostPrompt: "fastapi + uvicorn · /api/v1",
+    hostPrompt: "McTropic@peru · fastapi + uvicorn · /api/v1",
     lines: [
       {
         kind: "cmd",
