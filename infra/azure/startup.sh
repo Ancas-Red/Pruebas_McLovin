@@ -23,11 +23,15 @@ fi
 # Sincronización opcional única al arranque si se configuró Cloudflare R2 y faltan archivos locales.
 # (Storage: Cloudflare R2. Cómputo/hosting del backend: Azure App Service. Ver
 # src/analytics/r2_sync.py — solo hace un GET plano por stdlib, sin dependencias nuevas aquí.)
+#
+# metadata.json SIEMPRE se refresca desde R2 (--refresh): el repo trae una
+# copia base con available_periods_by_sensor vacío, y con --if-missing a secas
+# esa copia vieja nunca se reemplazaba por la del snapshot real, así que el
+# calendario no tenía contra qué filtrar fechas válidas. Los artefactos
+# grandes (activity_daily.json, etc.) siguen bajándose solo si faltan.
 if [[ -n "${R2_PUBLIC_BASE_URL:-}" ]]; then
-  if [[ ! -s "${MCHANAQ_DATA_DIR}/metadata.json" || ! -s "${MCHANAQ_DATA_DIR}/activity_daily.json" ]]; then
-    echo "[mchanaq-startup] Sincronizando snapshot inicial desde Cloudflare R2 hacia ${MCHANAQ_DATA_DIR}..."
-    python -m src.analytics.r2_sync download --target "${MCHANAQ_DATA_DIR}" --if-missing
-  fi
+  echo "[mchanaq-startup] Sincronizando snapshot desde Cloudflare R2 hacia ${MCHANAQ_DATA_DIR}..."
+  python -m src.analytics.r2_sync download --target "${MCHANAQ_DATA_DIR}" --if-missing --refresh metadata.json
 fi
 
 exec uvicorn src.backend.app.main:app --host 0.0.0.0 --port "${PORT}"

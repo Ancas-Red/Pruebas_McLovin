@@ -148,12 +148,21 @@ def download_processed_snapshot(
     artifacts: Iterable[str] = DEFAULT_ARTIFACTS,
     optional_artifacts: Iterable[str] = OPTIONAL_ARTIFACTS,
     timeout_sec: int = 30,
+    always_refresh: Iterable[str] = (),
 ) -> list[Path]:
-    """Descarga los artefactos procesados desde R2 (URL publica, sin firmar)."""
+    """Descarga los artefactos procesados desde R2 (URL publica, sin firmar).
+
+    `always_refresh`: nombres que se vuelven a bajar aunque ya existan
+    localmente con `only_if_missing` (tipicamente `metadata.json`: describe al
+    snapshot y debe venir junto con el, no quedarse la copia vieja del repo).
+    Si fallan y ya hay una copia local, se conserva la local con un aviso en
+    vez de abortar el arranque.
+    """
     required_list = list(artifacts)
     optional_list = list(optional_artifacts)
+    refresh_set = set(always_refresh)
 
-    if only_if_missing and all(
+    if only_if_missing and not refresh_set and all(
         (target_dir / name).is_file() and (target_dir / name).stat().st_size > 0 for name in required_list
     ):
         return []
@@ -168,23 +177,30 @@ def download_processed_snapshot(
 
     for name in required_list + optional_list:
         dest = target_dir / name
-        if only_if_missing and dest.is_file() and dest.stat().st_size > 0:
+        has_local = dest.is_file() and dest.stat().st_size > 0
+        if only_if_missing and has_local and name not in refresh_set:
             continue
         url = _public_url(resolved, name, prefix=eff_prefix)
         try:
             data = _download_bytes(url, timeout_sec)
-        except urllib_error.HTTPError as exc:
-            if exc.code == 404:
-                # El archivo completo no esta como objeto unico; puede estar
-                # dividido en partes (ver _download_parts_concat) porque no
-                # cupo en una subida directa por el dashboard web de R2.
-                parts_data = _download_parts_concat(resolved, eff_prefix, name, timeout_sec)
-                if parts_data is not None:
-                    data = parts_data
-                elif name in optional_list:
+        except (urllib_error.URLError, TimeoutError) as exc:
+            is_404 = isinstance(exc, urllib_error.HTTPError) and exc.code == 404
+            if not is_404:
+                if name in refresh_set and has_local:
+                    print(f"[r2_sync] AVISO: no se pudo refrescar {name} ({exc}); se usa la copia local")
                     continue
-                else:
-                    raise
+                raise
+            # El archivo completo no esta como objeto unico; puede estar
+            # dividido en partes (ver _download_parts_concat) porque no cupo en
+            # una subida directa por el dashboard web de R2.
+            parts_data = _download_parts_concat(resolved, eff_prefix, name, timeout_sec)
+            if parts_data is not None:
+                data = parts_data
+            elif name in optional_list:
+                continue
+            elif name in refresh_set and has_local:
+                print(f"[r2_sync] AVISO: {name} no esta en R2; se usa la copia local")
+                continue
             else:
                 raise
         tmp_path = dest.with_suffix(dest.suffix + ".tmp")
@@ -258,6 +274,12 @@ def main() -> None:
     p_down.add_argument("--target", type=Path, default=Path("data/processed"))
     p_down.add_argument("--prefix", type=str, default=None)
     p_down.add_argument("--if-missing", action="store_true")
+    p_down.add_argument(
+        "--refresh",
+        action="append",
+        default=[],
+        help="Archivo que se vuelve a bajar aunque exista (repetible), p. ej. --refresh metadata.json",
+    )
 
     p_up = sub.add_parser("upload", help="Subir artefactos locales a R2 (requiere boto3 + credenciales)")
     p_up.add_argument("--source", type=Path, default=Path("data/processed"))
@@ -269,7 +291,12 @@ def main() -> None:
         if args.if_missing and not (os.getenv("R2_PUBLIC_BASE_URL") or "").strip():
             print("R2 no configurado (falta R2_PUBLIC_BASE_URL); usando artefactos locales en", args.target)
             return
-        files = download_processed_snapshot(args.target, prefix=args.prefix, only_if_missing=args.if_missing)
+        files = download_processed_snapshot(
+            args.target,
+            prefix=args.prefix,
+            only_if_missing=args.if_missing,
+            always_refresh=args.refresh,
+        )
         print(f"OK r2_sync download: {len(files)} archivos -> {args.target}")
     elif args.command == "upload":
         names = upload_directory_blobs(args.source, prefix=args.prefix, pattern=args.pattern)
