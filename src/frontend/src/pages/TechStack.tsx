@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { McTropicCoder } from "../components/McTropicCoder";
 import { SiteFooter } from "../components/SiteFooter";
 import { Starfield } from "../components/Starfield";
 import { TechTerminal } from "../components/TechTerminal";
@@ -191,7 +192,8 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
               </div>
             </div>
 
-            <div className="tech-hero__terminal" data-reveal>
+            <div className="tech-hero__terminal tech-hero__terminal--mascot" data-reveal>
+              <McTropicCoder />
               <TechTerminal />
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
+import { drawMcTropicAdrift } from "../lib/drawMcTropicAdrift";
 import { createStars, drawStars, type Star } from "../lib/starfield";
 
 /**
@@ -271,6 +272,8 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
     let prevT = 0;
     let t = 0;
     let lights = lightsTargetRef.current ? 1 : 0;
+    let adriftT = lightsTargetRef.current ? 0 : 1.6;
+    let adriftAlpha = lightsTargetRef.current ? 0 : 1;
 
     function frame(now: number) {
       const dt = Math.min(0.05, (now - (prevT || now)) / 1000);
@@ -286,6 +289,13 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
         const rate = lt < lights ? 7.5 : 4.5;
         lights += (lt - lights) * Math.min(1, dt * rate);
         if (Math.abs(lt - lights) < 0.004) lights = lt;
+      }
+      if (!lightsTargetRef.current) {
+        adriftAlpha = reduced ? 1 : Math.min(1, adriftAlpha + dt * 2.2);
+        adriftT += dt;
+      } else {
+        adriftAlpha = reduced ? 0 : Math.max(0, adriftAlpha - dt * 3.5);
+        if (adriftAlpha <= 0.004) adriftT = 0;
       }
       const beaconAlpha = Math.pow(lights, 1.6);
       const orbitAlpha = Math.pow(lights, 1.3);
@@ -329,6 +339,7 @@ export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
 
       ORBITS.forEach((o) => drawOrbit(o, false, orbitAlpha));
       drawSat(false, lights);
+      drawMcTropicAdrift(ctx!, cx, cy, R, adriftT, adriftAlpha, reduced);
 
       /* --- disco base ---
          El relleno ya lleva la luz: claro del lado del sol y casi negro del
