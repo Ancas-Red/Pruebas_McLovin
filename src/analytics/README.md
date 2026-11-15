@@ -20,3 +20,14 @@ Si `activity_daily.json` supera el margen recomendado para **Azure App Service F
 ```powershell
 python -m src.analytics.run_pipeline --daily-from 2018-01-01
 ```
+
+## Alcance metodológico de susceptibilidad (`decision_rules.py` vs. protocolo CENEPRED/SERFOR)
+
+El árbol de decisión (`N0 -> N3` en `src/analytics/decision_rules.py`) calcula **susceptibilidad contextual a la expansión** por unidad territorial (`province` y `hydro_unit`) usando reglas transparentes y percentiles estacionales propios (`p25`/`p75` por territorio y mes calendario, con mínimo `5` años de línea base):
+
+* **Alineación con factores condicionantes del Perú:** incorpora cobertura vegetal oficial del MINAM (`CobVeg_180615.shp`, excluyendo agua/no combustibles, `umbral_veg = 20%` y atenuación `high -> moderate` cuando `water_buffer_150m_pct >= 5%` o `water_area_pct >= 5%`), pendiente (`COPERNICUS_DEM_GLO30`, `umbral_pend = 15%`) y variables hidrometeorológicas diarias/mensuales de ERA5-Land (`precip_30d_mm`, `soil_moisture_surface`, `wind_speed_10m_ms`, `temperature_2m_c`, `relative_humidity_2m_pct`).
+* **Diferencias frente a un Escenario de Riesgo oficial (CENEPRED/SERFOR):**
+  1. **Factor desencadenante antrópico:** `thermal_history_elevated` se registra como modificador informativo, pero no se modelan variables de presión humana (distancia a vías, centros poblados o frontera agrícola).
+  2. **Combustible binario:** las clases vegetales de `CobVeg_180615.shp` se agrupan como presencia/ausencia de combustible sin ponderación diferencial de inflamabilidad por tipo de cobertura.
+  3. **Escala territorial agregada:** evalúa polígonos completos (provincia / cuenca Pfafstetter nivel 4) en 3 clases (`high`, `moderate`, `low`) en lugar de mapas ráster continuos AHP en 4 niveles (*Muy Alto, Alto, Medio, Bajo*).
+  4. **Sin elementos expuestos:** no estima riesgo (susceptibilidad × población/infraestructura/ANP) ni probabilidad de ignición.

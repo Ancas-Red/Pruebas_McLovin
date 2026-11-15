@@ -54,3 +54,13 @@ El script `ucayali_common_window_export.js` configura `EXPORT_PRESET` con las 3 
 * **Scripts Ucayali:**
   * `prepare_ucayali_layers.py` → filtra INEI 2023 + ANA UH + `CobVeg_180615.shp` a Ucayali, genera `data/processed/territories.geojson` simplificado (`0.0008°`, preservando topología, `< 1 MB`), `data/processed/ucayali_territories.geojson` completo y `data/processed/ucayali_districts_static.csv`.
   * `ucayali_common_window_export.js` → exporta terreno estático (`COPERNICUS/DEM/GLO30`), focos diarios (`MOD14A1`, `MYD14A1`, `VNP14A1`), clima/LST/elevación diaria y contexto mensual completo (`N0..N3`) para provincias y cuencas dentro de `2012-01-19`..`2026-11-02`.
+
+## Respaldo FIRMS Country Yearly Summary — Perú (`src/gee/firms_peru/`)
+
+Tablas CSV puntuales de anomalías térmicas descargadas de **NASA LANCE FIRMS** (*Country Yearly Summary*, Standard Processing) filtradas para **Perú**. No son imágenes raster satelitales, sino registros tabulares de focos de calor (`latitude`, `longitude`, `acq_date`, `acq_time`, `frp`, `confidence`, `daynight`, etc.):
+
+* **`src/gee/firms_peru/modis/`**: `modis_2000_Peru.csv` .. `modis_2025_Peru.csv` (**26 archivos**, serie 2000–2025).
+* **`src/gee/firms_peru/viirs-snpp/`**: `viirs-snpp_2012_Peru.csv` .. `viirs-snpp_2025_Peru.csv` (**14 archivos**, serie completa 2012–2025).
+* **`src/gee/firms_peru/viirs-jpss1/`**: `viirs-jpss1_2018_Peru.csv` .. `viirs-jpss1_2025_Peru.csv` (**8 archivos**, VIIRS NOAA-20, serie 2018–2025).
+
+*(Las carpetas globales crudas `MODIS/`, `VIRS/` y los archivos `*.zip` permanecen excluidos en `.gitignore`; únicamente se versionan los CSV de Perú bajo `src/gee/firms_peru/`).*
