@@ -8,6 +8,7 @@ import os
 from datetime import date as dt_date
 from pathlib import Path
 
+import httpx
 from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -910,3 +911,168 @@ def spread_output_file(filename: str):
         media_type=_SPREAD_MIME_TYPES[filename],
         filename=filename,
     )
+
+
+# ---------------------------------------------------------------------------
+# Tiempo real global — Open-Meteo (clima/viento) + NASA FIRMS (MODIS & VIIRS)
+# ---------------------------------------------------------------------------
+
+_FIRMS_SOURCES = (
+    ("MODIS_NRT", "MODIS"),
+    ("VIIRS_SNPP_NRT", "VIIRS_SNPP"),
+    ("VIIRS_NOAA20_NRT", "VIIRS_NOAA20"),
+)
+
+
+def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
+    """Consulta clima y viento actual en Open-Meteo para el centro del área."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": f"{lat:.4f}",
+        "longitude": f"{lon:.4f}",
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m",
+        "wind_speed_unit": "ms",
+    }
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        cur = payload.get("current") or {}
+        return {
+            "status": "ok",
+            "source": "Open-Meteo",
+            "observed_at": cur.get("time"),
+            "center": {"lat": round(lat, 4), "lon": round(lon, 4)},
+            "t_amb_c": cur.get("temperature_2m"),
+            "relative_humidity_2m_pct": cur.get("relative_humidity_2m"),
+            "wind_speed_10m_ms": cur.get("wind_speed_10m"),
+            "wind_dir_deg": cur.get("wind_direction_10m"),
+        }
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "source": "Open-Meteo",
+            "detail": str(exc),
+        }
+
+
+def _fetch_firms_source(
+    client: httpx.Client,
+    map_key: str,
+    firms_source: str,
+    sensor_label: str,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    days: int,
+) -> tuple[list[dict], str | None]:
+    """Consulta focos activos NRT en NASA FIRMS Area API sin mezclar sensores."""
+    bbox = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{firms_source}/{bbox}/{days}"
+    try:
+        resp = client.get(url)
+        resp.raise_for_status()
+        text = resp.text.strip()
+        if not text or text.lower().startswith("invalid"):
+            return [], text or "empty_response"
+        reader = csv.DictReader(io.StringIO(text))
+        features: list[dict] = []
+        for row in reader:
+            try:
+                lat_v = float(row["latitude"])
+                lon_v = float(row["longitude"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            frp_raw = row.get("frp")
+            try:
+                frp_val = float(frp_raw) if frp_raw not in (None, "") else None
+            except ValueError:
+                frp_val = None
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
+                    "properties": {
+                        "sensor": sensor_label,
+                        "firms_source": firms_source,
+                        "acq_date": row.get("acq_date"),
+                        "acq_time": row.get("acq_time"),
+                        "confidence": row.get("confidence"),
+                        "frp_mw": frp_val,
+                        "satellite": row.get("satellite"),
+                        "daynight": row.get("daynight"),
+                    },
+                }
+            )
+        return features, None
+    except Exception as exc:
+        return [], str(exc)
+
+
+@app.get("/api/v1/realtime/area")
+def realtime_area(
+    south: float = Query(..., ge=-90.0, le=90.0),
+    west: float = Query(..., ge=-180.0, le=180.0),
+    north: float = Query(..., ge=-90.0, le=90.0),
+    east: float = Query(..., ge=-180.0, le=180.0),
+    days: int = Query(3, ge=1, le=10),
+):
+    """Consulta en tiempo real clima global (Open-Meteo) y focos activos MODIS/VIIRS (NASA FIRMS) para cualquier bbox del mundo."""
+    if south >= north or west >= east:
+        raise ApiError(400, "INVALID_PARAMETER", "Bounding box inválido: requiere south < north y west < east")
+
+    center_lat = (south + north) / 2.0
+    center_lon = (west + east) / 2.0
+    weather = _fetch_open_meteo_current(center_lat, center_lon)
+
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    if not firms_key:
+        return {
+            "schema_version": "1.0",
+            "bbox": {"south": south, "west": west, "north": north, "east": east},
+            "days": days,
+            "weather": weather,
+            "hotspots_status": "firms_map_key_required",
+            "counts_by_sensor": {},
+            "hotspots": {"type": "FeatureCollection", "features": []},
+            "firms_setup": {
+                "env_var": "FIRMS_MAP_KEY",
+                "register_url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+                "note": "Configura FIRMS_MAP_KEY en el servidor para habilitar MODIS_NRT, VIIRS_SNPP_NRT y VIIRS_NOAA20_NRT en tiempo real.",
+            },
+        }
+
+    all_features: list[dict] = []
+    counts_by_sensor: dict[str, int] = {}
+    errors_by_sensor: dict[str, str] = {}
+
+    with httpx.Client(timeout=15.0) as client:
+        for firms_source, sensor_label in _FIRMS_SOURCES:
+            feats, err = _fetch_firms_source(
+                client=client,
+                map_key=firms_key,
+                firms_source=firms_source,
+                sensor_label=sensor_label,
+                west=west,
+                south=south,
+                east=east,
+                north=north,
+                days=days,
+            )
+            counts_by_sensor[sensor_label] = len(feats)
+            if err:
+                errors_by_sensor[sensor_label] = err
+            all_features.extend(feats)
+
+    return {
+        "schema_version": "1.0",
+        "bbox": {"south": south, "west": west, "north": north, "east": east},
+        "days": days,
+        "weather": weather,
+        "hotspots_status": "ok" if not errors_by_sensor else "partial",
+        "counts_by_sensor": counts_by_sensor,
+        "errors_by_sensor": errors_by_sensor or None,
+        "hotspots": {"type": "FeatureCollection", "features": all_features},
+    }
