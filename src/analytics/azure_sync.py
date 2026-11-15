@@ -15,13 +15,16 @@ from urllib import request as urllib_request
 
 DEFAULT_ARTIFACTS: tuple[str, ...] = (
     "metadata.json",
-    "territories.geojson",
+    "peru_territories.geojson",
     "activity_daily.json",
     "activity_summary.json",
     "sensor_comparison.json",
     "conditions_assessment.json",
 )
-OPTIONAL_ARTIFACTS: tuple[str, ...] = ("hotspots.geojson",)
+# territories.geojson: nombre legacy (Ucayali, 24 poligonos). main.py prefiere
+# peru_territories.geojson y solo cae a este si el primero no existe, asi que
+# aqui es opcional (no todo despliegue lo tiene ni lo necesita).
+OPTIONAL_ARTIFACTS: tuple[str, ...] = ("hotspots.geojson", "territories.geojson")
 
 
 def resolve_blob_base_url(
