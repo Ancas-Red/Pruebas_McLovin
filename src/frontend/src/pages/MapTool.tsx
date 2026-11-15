@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlRail, LEFT_ITEMS } from "../components/ControlRail";
-import { MapStage, type DrawMode, type HoverCard } from "../components/MapStage";
+import {
+  MapStage,
+  type DrawMode,
+  type HighSusceptibilityMarker,
+  type HoverCard,
+  type PrioritySubZone,
+} from "../components/MapStage";
 import { CalendarStrip } from "../components/CalendarStrip";
 import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
 import {
@@ -85,7 +91,17 @@ import {
   mergeAnomaly,
   type MonthCell,
 } from "../lib/calendar";
-import { formatLatLon, polygonCentroid, ringBounds, ringCentroid, type LatLon } from "../lib/geo";
+import {
+  clusterHotspotsIntoEnclosures,
+  featureCentroid,
+  featureOuterRings,
+  formatLatLon,
+  pointInFeature,
+  polygonCentroid,
+  ringBounds,
+  ringCentroid,
+  type LatLon,
+} from "../lib/geo";
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
 const MONTHS_ES = [
@@ -300,6 +316,7 @@ export function MapTool({
   const [liveFirms, setLiveFirms] = useState(false);
   const [firmsSummary, setFirmsSummary] = useState<string | null>(null);
   const [showChoropleth, setShowChoropleth] = useState(true);
+  const [showHighMarkers, setShowHighMarkers] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
   const [baseLayer, setBaseLayer] = useState<"dark" | "relief" | "satellite">("dark");
 
@@ -320,6 +337,9 @@ export function MapTool({
   const [summary, setSummary] = useState<TerritorySummary | null>(null);
   const [comparison, setComparison] = useState<SensorComparison | null>(null);
   const [choropleth, setChoropleth] = useState<MetricItem[]>([]);
+  const [susceptibilityItems, setSusceptibilityItems] = useState<MetricItem[]>([]);
+  const [hydroTerritories, setHydroTerritories] = useState<TerritoryCollection | null>(null);
+  const [hydroSusceptibility, setHydroSusceptibility] = useState<MetricItem[]>([]);
   const [metricUnit, setMetricUnit] = useState<string | null>(null);
   /**
    * Dos procedencias, porque son dos cosas distintas.
@@ -915,6 +935,48 @@ export function MapTool({
       });
     return () => ctrl.abort();
   }, [ready, metricsOk, usePeriodMetrics, territoryType, metric, dateIso, period, sensor]);
+
+  /* ---------------- clasificación ambiental (todos los territorios + cuencas) */
+  useEffect(() => {
+    if (!ready) return;
+    if (metric === "conditions_classification") {
+      setSusceptibilityItems(choropleth);
+      return;
+    }
+    const ctrl = new AbortController();
+    getTerritoryMetrics(
+      { type: territoryType, metric: "conditions_classification", period },
+      ctrl.signal,
+      !metricsOk
+    )
+      .then((r) => setSusceptibilityItems(r.data?.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setSusceptibilityItems([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, metricsOk, territoryType, metric, period, choropleth]);
+
+  useEffect(() => {
+    if (!ready || territoryType !== "province") return;
+    const ctrl = new AbortController();
+    if (!hydroTerritories) {
+      getTerritories("hydro_unit", ctrl.signal)
+        .then((r) => setHydroTerritories(r.data))
+        .catch((e) => {
+          if (!isAbort(e)) setHydroTerritories(null);
+        });
+    }
+    getTerritoryMetrics(
+      { type: "hydro_unit", metric: "conditions_classification", period },
+      ctrl.signal,
+      !metricsOk
+    )
+      .then((r) => setHydroSusceptibility(r.data?.items ?? []))
+      .catch((e) => {
+        if (!isAbort(e)) setHydroSusceptibility([]);
+      });
+    return () => ctrl.abort();
+  }, [ready, metricsOk, territoryType, period, hydroTerritories]);
 
   /* --------------------------------------------------------- derivados --- */
 
@@ -1568,7 +1630,171 @@ export function MapTool({
   const isHighSusceptibility =
     summary?.environmental_conditions?.classification === "high";
   const highAlertKey = `${territoryType}|${territoryId}|${period}`;
-  const showHighAlert = isHighSusceptibility && dismissedHighKey !== highAlertKey;
+  const showHighAlert =
+    isHighSusceptibility && dismissedHighKey !== highAlertKey && rightOpen !== "arbol";
+
+  const openSusceptibilityTree = useCallback(
+    (targetId?: string, targetType?: TerritoryType) => {
+      if (tab !== "calendario") {
+        window.location.hash = "#/mapa";
+      }
+      if (targetType && targetType !== territoryType) {
+        setTerritoryType(targetType);
+      }
+      if (targetId && targetId !== territoryId) {
+        setTerritoryId(targetId);
+      }
+      setRightOpen("arbol");
+    },
+    [tab, territoryType, territoryId]
+  );
+
+  const { highMarkers, priorityZones } = useMemo(() => {
+    const markers: HighSusceptibilityMarker[] = [];
+    const zones: PrioritySubZone[] = [];
+    if (!territories) return { highMarkers: markers, priorityZones: zones };
+
+    const activeHighIds = new Set<string>(
+      susceptibilityItems
+        .filter((it) => it.value === "high")
+        .map((it) => it.territory_id)
+    );
+    if (isHighSusceptibility && territoryId) {
+      activeHighIds.add(territoryId);
+    }
+
+    for (const f of territories.features) {
+      const id = f.properties.territory_id;
+      if (!activeHighIds.has(id)) continue;
+      const tName = f.properties.territory_name ?? id;
+      markers.push({
+        id: `ter-${territoryType}-${id}`,
+        name: tName,
+        position: featureCentroid(f.geometry),
+        kind: "territory",
+        targetTerritoryType: territoryType,
+        targetTerritoryId: id,
+        detail: `Susceptibilidad contextual alta · ${periodLabel}`,
+      });
+    }
+
+    const selectedFeature = territories.features.find(
+      (f) => f.properties.territory_id === territoryId
+    );
+    if (!selectedFeature) return { highMarkers: markers, priorityZones: zones };
+    const selectedName = selectedFeature.properties.territory_name ?? territoryId;
+
+    // 1. Subcuencas (hydro_unit) clasificadas en susceptibilidad alta dentro de la provincia macro seleccionada.
+    if (territoryType === "province" && hydroTerritories) {
+      const hydroHighIds = new Set<string>(
+        hydroSusceptibility
+          .filter((it) => it.value === "high")
+          .map((it) => it.territory_id)
+      );
+      for (const hf of hydroTerritories.features) {
+        if (!hydroHighIds.has(hf.properties.territory_id)) continue;
+        const hc = featureCentroid(hf.geometry);
+        if (!pointInFeature(hc, selectedFeature.geometry)) continue;
+        const hName = hf.properties.territory_name ?? hf.properties.territory_id;
+        const rings = featureOuterRings(hf.geometry);
+        if (rings.length > 0) {
+          zones.push({
+            id: `sub-${hf.properties.territory_id}`,
+            label: hName,
+            rings,
+            kind: "subbasin",
+            targetTerritoryType: "hydro_unit",
+            targetTerritoryId: hf.properties.territory_id,
+            detail: `Subcuenca prioritaria dentro de ${selectedName}`,
+          });
+        }
+        markers.push({
+          id: `subm-${hf.properties.territory_id}`,
+          name: hName,
+          position: hc,
+          kind: "subbasin",
+          targetTerritoryType: "hydro_unit",
+          targetTerritoryId: hf.properties.territory_id,
+          detail: `Subcuenca en susceptibilidad alta · ${selectedName}`,
+        });
+      }
+    }
+
+    // 2. Polígonos envolventes alrededor de los focos más severos (8-9) dentro de la región macro.
+    if (hotspots.length > 0) {
+      const insidePts: { latLon: LatLon; conf: unknown; frp: number }[] = [];
+      for (const hs of hotspots) {
+        const [lon, lat] = hs.geometry.coordinates;
+        const p: LatLon = [lat, lon];
+        if (pointInFeature(p, selectedFeature.geometry)) {
+          insidePts.push({
+            latLon: p,
+            conf: hs.properties.confidence,
+            frp: hs.properties.frp_mw ?? 0,
+          });
+        }
+      }
+
+      const severeHigh = insidePts.filter((x) => {
+        const c = String(x.conf ?? "").toLowerCase();
+        return x.conf === 9 || c === "high" || c === "h";
+      });
+      const severeNominalHigh = insidePts.filter((x) => {
+        const c = String(x.conf ?? "").toLowerCase();
+        return x.conf === 9 || x.conf === 8 || c === "high" || c === "nominal" || c === "h" || c === "n";
+      });
+
+      const targetPts =
+        severeHigh.length >= 2
+          ? severeHigh.map((x) => x.latLon)
+          : severeNominalHigh.length > 0
+            ? severeNominalHigh.map((x) => x.latLon)
+            : insidePts.length > 0
+              ? insidePts.map((x) => x.latLon)
+              : [];
+
+      if (targetPts.length >= 1) {
+        const hasCritical = severeNominalHigh.length > 0 || isHighSusceptibility;
+        const clusters = clusterHotspotsIntoEnclosures(targetPts, 34, 4.5);
+        clusters.forEach((cl, idx) => {
+          zones.push({
+            id: `enc-${territoryId}-${idx}`,
+            label: `${selectedName} · Núcleo ${idx + 1}`,
+            rings: [cl.ring],
+            kind: "enclosure",
+            targetTerritoryType: territoryType,
+            targetTerritoryId: territoryId,
+            detail: hasCritical
+              ? `${cl.count} foco${cl.count === 1 ? "" : "s"} críticos en región de monitoreo prioritario`
+              : `${cl.count} foco${cl.count === 1 ? "" : "s"} agrupados (conf. baja · verificar área)`,
+          });
+          if (hasCritical && (isHighSusceptibility || idx === 0)) {
+            markers.push({
+              id: `clm-${territoryId}-${idx}`,
+              name: `${selectedName} (núcleo prioritario ${idx + 1})`,
+              position: cl.center,
+              kind: "cluster",
+              targetTerritoryType: territoryType,
+              targetTerritoryId: territoryId,
+              detail: `${cl.count} foco${cl.count === 1 ? "" : "s"} de alta severidad · clic → árbol`,
+            });
+          }
+        });
+      }
+    }
+
+    return { highMarkers: markers, priorityZones: zones };
+  }, [
+    territories,
+    susceptibilityItems,
+    isHighSusceptibility,
+    territoryId,
+    territoryType,
+    periodLabel,
+    hydroTerritories,
+    hydroSusceptibility,
+    hotspots,
+  ]);
 
   const rightItems =
     tab === "calendario"
@@ -1630,6 +1856,8 @@ export function MapTool({
               firmsSummary={firmsSummary}
               showChoropleth={showChoropleth}
               onShowChoropleth={setShowChoropleth}
+              showHighMarkers={showHighMarkers}
+              onShowHighMarkers={setShowHighMarkers}
               showCalendar={showCalendar}
               onShowCalendar={setShowCalendar}
               baseLayer={baseLayer}
@@ -1673,6 +1901,10 @@ export function MapTool({
             showWind={tab === "simulacion"}
             relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
             dataNotice={tab === "calendario" ? dataValidityNotice : null}
+            highMarkers={highMarkers}
+            priorityZones={priorityZones}
+            showHighMarkers={showHighMarkers}
+            onOpenSusceptibilityTree={openSusceptibilityTree}
           >
             <OrbitalLoader
               scope="stage"

@@ -1020,13 +1020,13 @@ input[type="range"]:focus-visible {
   right: 12px;
 }
 .ov--bl {
-  bottom: 24px;
+  bottom: 10px;
   left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   /* Si se juntan muchas claves o el panel inferior crece, hace scroll interno sin solapar controles superiores. */
-  max-height: calc(100% - 76px);
+  max-height: calc(100% - 58px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2161,6 +2161,111 @@ input[type="range"]:focus-visible {
   text-transform: none;
   letter-spacing: 0.01em;
   padding: 7px 13px;
+}
+
+/* Marcadores ▲! de susceptibilidad alta y leyenda de subzonas ---------------- */
+.high-susc-pin {
+  background: transparent;
+  border: none;
+}
+.high-susc-pin__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 140ms ease, filter 140ms ease;
+}
+.high-susc-pin__btn:hover,
+.high-susc-pin__btn:focus-visible {
+  transform: scale(1.16);
+  filter: drop-shadow(0 0 8px rgba(255, 74, 36, 0.85));
+  outline: none;
+}
+.high-susc-pin__svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.72));
+}
+.high-susc-pin__pulse {
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 74, 36, 0.42) 0%, transparent 72%);
+  animation: mchanaq-pulse 1.9s ease-in-out infinite;
+  pointer-events: none;
+}
+.legend__tri {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ff4a24;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+}
+.legend__jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 74, 36, 0.45);
+  background: rgba(255, 74, 36, 0.12);
+  color: #ffd8cc;
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.legend__jump:hover,
+.legend__jump:focus-visible {
+  background: rgba(255, 74, 36, 0.24);
+  border-color: #ff5a2f;
+  outline: none;
+}
+@media (max-height: 780px) and (min-width: 721px) {
+  .ov--bl {
+    bottom: 10px;
+    flex-direction: row;
+    align-items: flex-end;
+    max-height: calc(100% - 96px);
+    overflow-y: visible;
+  }
+  .legend {
+    padding: 5px 8px;
+  }
+  .legend__title {
+    margin-bottom: 4px;
+  }
+  .legend__items {
+    gap: 2.5px;
+    margin-top: 5px;
+    padding-top: 4px;
+  }
+  .legend__item--nodata {
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  .legend__jump {
+    padding: 3px 5px;
+    font-size: 10.5px;
+  }
+}
+.legend__swatch--poly {
+  width: 14px;
+  height: 10px;
+  background: rgba(255, 74, 36, 0.22);
+  border: 1.5px dashed #ff5a2f;
 }
 
 /* Guia visual interactiva (Onboarding + Spotlight Tour) ------------------ */

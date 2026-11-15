@@ -83,6 +83,8 @@ interface Props {
   firmsSummary?: string | null;
   showChoropleth: boolean;
   onShowChoropleth: (v: boolean) => void;
+  showHighMarkers: boolean;
+  onShowHighMarkers: (v: boolean) => void;
   showCalendar: boolean;
   onShowCalendar: (v: boolean) => void;
   baseLayer: "dark" | "relief" | "satellite";
@@ -537,6 +539,10 @@ export function ControlRail(p: Props) {
           <button className="toggle" aria-pressed={p.showChoropleth} onClick={() => p.onShowChoropleth(!p.showChoropleth)}>
             <i className="toggle__box" style={{ background: p.showChoropleth ? "var(--acid)" : "transparent" }} />
             <span>Coropleta por territorio</span>
+          </button>
+          <button className="toggle" aria-pressed={p.showHighMarkers} onClick={() => p.onShowHighMarkers(!p.showHighMarkers)}>
+            <i className="toggle__box" style={{ background: p.showHighMarkers ? "var(--ember)" : "transparent" }} />
+            <span>Alertas ▲! y subzonas de susceptibilidad alta</span>
           </button>
           <button className="toggle" aria-pressed={p.showHotspots} onClick={() => p.onShowHotspots(!p.showHotspots)}>
             <i className="toggle__box" style={{ background: p.showHotspots ? "var(--acid)" : "transparent" }} />
