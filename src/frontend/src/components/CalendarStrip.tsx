@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -14,6 +14,7 @@ import { NO_OBSERVATION, SENSORS, SENSOR_META, isUnobserved } from "../api/types
 import { isUsefulDailyRow } from "../api/client";
 import type { MonthCell } from "../lib/calendar";
 import { cividisCss } from "../lib/palette";
+import { CalendarTerrain3D } from "./CalendarTerrain3D";
 
 const M_SHORT = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 const M_FULL = [
@@ -38,6 +39,7 @@ interface Props {
 
 export function CalendarStrip(p: Props) {
   const { calendar, year, month } = p;
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
 
   const { byKey, years, max } = useMemo(() => {
     const byKey = new Map<string, MonthCell>();
@@ -68,26 +70,50 @@ export function CalendarStrip(p: Props) {
   }, [p.daily, p.sensor, p.metadata]);
 
   // Escala con raiz cuadrada: evita que un unico mes extremo aplane el resto.
-  const tone = (v: number) => Math.sqrt(v / max);
+  const tone = useCallback((v: number) => Math.sqrt(v / max), [max]);
 
   return (
     <section className="calstrip" data-tour="calendar-strip">
       <header className="panel__head">
         <span className="panel__idx">06</span>
         <h2 className="panel__title">Calendario de actividad térmica</h2>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-          {SENSORS.map((s) => (
+        <div className="calstrip__controls">
+          <div className="calstrip__mode" role="group" aria-label="Modo de visualización del calendario">
             <button
-              key={s}
+              type="button"
               className="tab"
-              aria-selected={p.sensor === s}
-              onClick={() => p.onSensor(s)}
-              title={`${SENSOR_META[s].product} · desde ${SENSOR_META[s].since}`}
+              aria-selected={viewMode === "2d"}
+              onClick={() => setViewMode("2d")}
+              title="Mapa de calor plano por mes y año"
               style={{ padding: "4px 9px", fontSize: 10 }}
             >
-              {SENSOR_META[s].short}
+              2D Calor
             </button>
-          ))}
+            <button
+              type="button"
+              className="tab"
+              aria-selected={viewMode === "3d"}
+              onClick={() => setViewMode("3d")}
+              title="Superficie 3D interactiva de valles y crestas"
+              style={{ padding: "4px 9px", fontSize: 10 }}
+            >
+              3D Relieve
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 2 }}>
+            {SENSORS.map((s) => (
+              <button
+                key={s}
+                className="tab"
+                aria-selected={p.sensor === s}
+                onClick={() => p.onSensor(s)}
+                title={`${SENSOR_META[s].product} · desde ${SENSOR_META[s].since}`}
+                style={{ padding: "4px 9px", fontSize: 10 }}
+              >
+                {SENSOR_META[s].short}
+              </button>
+            ))}
+          </div>
         </div>
         <button
           type="button"
@@ -101,33 +127,44 @@ export function CalendarStrip(p: Props) {
       </header>
 
       <div className="calstrip__body">
-        <div className="cal">
-          <div
-            className="cal__grid"
-            style={{ gridTemplateColumns: `34px repeat(${years.length}, minmax(13px, 1fr))` }}
-          >
-            <div className="cal__corner" />
-            {years.map((y) => (
-              <div className="cal__colhead" key={y} title={String(y)}>
-                {String(y).slice(2)}
-              </div>
-            ))}
+        {viewMode === "3d" ? (
+          <CalendarTerrain3D
+            years={years}
+            byKey={byKey}
+            tone={tone}
+            selectedYear={year}
+            selectedMonth={month}
+            onPick={p.onPick}
+          />
+        ) : (
+          <div className="cal">
+            <div
+              className="cal__grid"
+              style={{ gridTemplateColumns: `34px repeat(${years.length}, minmax(13px, 1fr))` }}
+            >
+              <div className="cal__corner" />
+              {years.map((y) => (
+                <div className="cal__colhead" key={y} title={String(y)}>
+                  {String(y).slice(2)}
+                </div>
+              ))}
 
-            {M_SHORT.map((label, i) => (
-              <MonthRow
-                key={label}
-                monthIndex={i}
-                label={label}
-                years={years}
-                byKey={byKey}
-                tone={tone}
-                selectedYear={year}
-                selectedMonth={month}
-                onPick={p.onPick}
-              />
-            ))}
+              {M_SHORT.map((label, i) => (
+                <MonthRow
+                  key={label}
+                  monthIndex={i}
+                  label={label}
+                  years={years}
+                  byKey={byKey}
+                  tone={tone}
+                  selectedYear={year}
+                  selectedMonth={month}
+                  onPick={p.onPick}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="calstrip__side">
           <div className="calstrip__legend">
