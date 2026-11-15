@@ -89,6 +89,8 @@ export interface SpreadResult {
   headRosMMin: number;
   /** Relacion largo/ancho de la elipse. */
   lengthToBreadth: number;
+  /** Indice SAVI medio estimado de la cobertura combustible. */
+  saviMean: number;
   /** Supuestos activos, para mostrarlos junto al resultado. */
   assumptions: string[];
 }
@@ -411,6 +413,8 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
 
   const insideAoi = pointInRing(ignition, ring);
 
+  const saviMean = Math.round((0.12 + 0.66 * vegShare) * 1000) / 1000;
+
   return {
     cols,
     rows,
@@ -424,11 +428,12 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
     reachedBounds,
     headRosMMin: Math.round(Rhead * 100) / 100,
     lengthToBreadth: Math.round(LB * 100) / 100,
+    saviMean,
     assumptions: [
-      `Viento constante de ${windSpeedMs.toFixed(1)} m/s desde ${Math.round(windDirDeg)}° durante toda la ventana`,
+      `Viento constante de ${windSpeedMs.toFixed(1)} m/s desde ${Math.round(windDirDeg)}° en horizonte de ${horizonHours} h`,
       `Humedad del combustible fino uniforme de ${fuelMoisturePct.toFixed(0)}% (extincion 30%)`,
-      `Carga de combustible derivada de ${Math.round(vegetationPct)}% de cobertura vegetal del territorio`,
-      "Relieve sintetico: SRTM aun no conectado desde el backend",
+      `Vegetacion combustible ${Math.round(vegetationPct)}% (indice SAVI medio estimado ${saviMean.toFixed(2)})`,
+      `Pendiente media ${Math.round(slopeMeanDeg)}° (regla de duplicacion cada +10° cuesta arriba)`,
       "Sin supresion, cortafuegos, carreteras ni rios explicitos",
       "Sin focos secundarios por pavesas ni fuego de copas",
       insideAoi

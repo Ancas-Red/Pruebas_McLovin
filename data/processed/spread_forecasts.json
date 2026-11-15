@@ -1,0 +1,2024 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-11-15T12:20:31.953624Z",
+  "default_key": "province:2501",
+  "items": [
+    {
+      "schema_version": "1.0",
+      "phase": "phase_2_optional",
+      "territory": {
+        "type": "province",
+        "id": "2501",
+        "name": "CORONEL PORTILLO"
+      },
+      "date": "2024-09-25",
+      "horizon_h": 48,
+      "ignition": {
+        "lat": -8.19833,
+        "lon": -75.26669
+      },
+      "dominant_wind": {
+        "wind_dir_deg": 116.3,
+        "wind_speed_10m_ms": 4.02
+      },
+      "hourly_wind": [
+        {
+          "hour": 1,
+          "timestamp": "2024-09-25T06:00",
+          "wind_speed_ms": 3.37,
+          "wind_speed_kmh": 12.1,
+          "wind_dir_deg": 116.3,
+          "temp_c": 29.1,
+          "rh_pct": 55.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 2,
+          "timestamp": "2024-09-25T07:00",
+          "wind_speed_ms": 3.19,
+          "wind_speed_kmh": 11.5,
+          "wind_dir_deg": 112.9,
+          "temp_c": 30.1,
+          "rh_pct": 51.6,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 3,
+          "timestamp": "2024-09-25T08:00",
+          "wind_speed_ms": 3.45,
+          "wind_speed_kmh": 12.4,
+          "wind_dir_deg": 110.3,
+          "temp_c": 31.2,
+          "rh_pct": 48.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 4,
+          "timestamp": "2024-09-25T09:00",
+          "wind_speed_ms": 3.72,
+          "wind_speed_kmh": 13.4,
+          "wind_dir_deg": 108.7,
+          "temp_c": 32.3,
+          "rh_pct": 44.4,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 5,
+          "timestamp": "2024-09-25T10:00",
+          "wind_speed_ms": 4.03,
+          "wind_speed_kmh": 14.5,
+          "wind_dir_deg": 108.2,
+          "temp_c": 33.3,
+          "rh_pct": 41.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 6,
+          "timestamp": "2024-09-25T11:00",
+          "wind_speed_ms": 4.39,
+          "wind_speed_kmh": 15.8,
+          "wind_dir_deg": 108.9,
+          "temp_c": 34.2,
+          "rh_pct": 38.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 7,
+          "timestamp": "2024-09-25T12:00",
+          "wind_speed_ms": 4.8,
+          "wind_speed_kmh": 17.3,
+          "wind_dir_deg": 110.6,
+          "temp_c": 34.8,
+          "rh_pct": 35.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 8,
+          "timestamp": "2024-09-25T13:00",
+          "wind_speed_ms": 5.2,
+          "wind_speed_kmh": 18.7,
+          "wind_dir_deg": 113.2,
+          "temp_c": 35.3,
+          "rh_pct": 34.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 9,
+          "timestamp": "2024-09-25T14:00",
+          "wind_speed_ms": 5.54,
+          "wind_speed_kmh": 19.9,
+          "wind_dir_deg": 116.4,
+          "temp_c": 35.4,
+          "rh_pct": 34.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 10,
+          "timestamp": "2024-09-25T15:00",
+          "wind_speed_ms": 5.73,
+          "wind_speed_kmh": 20.6,
+          "wind_dir_deg": 120.0,
+          "temp_c": 35.3,
+          "rh_pct": 34.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 11,
+          "timestamp": "2024-09-25T16:00",
+          "wind_speed_ms": 5.71,
+          "wind_speed_kmh": 20.6,
+          "wind_dir_deg": 123.6,
+          "temp_c": 34.8,
+          "rh_pct": 35.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 12,
+          "timestamp": "2024-09-25T17:00",
+          "wind_speed_ms": 5.48,
+          "wind_speed_kmh": 19.7,
+          "wind_dir_deg": 126.8,
+          "temp_c": 34.2,
+          "rh_pct": 38.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 13,
+          "timestamp": "2024-09-25T18:00",
+          "wind_speed_ms": 5.04,
+          "wind_speed_kmh": 18.2,
+          "wind_dir_deg": 129.5,
+          "temp_c": 33.3,
+          "rh_pct": 41.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 14,
+          "timestamp": "2024-09-25T19:00",
+          "wind_speed_ms": 4.46,
+          "wind_speed_kmh": 16.1,
+          "wind_dir_deg": 131.2,
+          "temp_c": 32.3,
+          "rh_pct": 44.4,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 15,
+          "timestamp": "2024-09-25T20:00",
+          "wind_speed_ms": 3.82,
+          "wind_speed_kmh": 13.7,
+          "wind_dir_deg": 131.9,
+          "temp_c": 31.2,
+          "rh_pct": 48.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 16,
+          "timestamp": "2024-09-25T21:00",
+          "wind_speed_ms": 3.19,
+          "wind_speed_kmh": 11.5,
+          "wind_dir_deg": 131.4,
+          "temp_c": 30.1,
+          "rh_pct": 51.6,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 17,
+          "timestamp": "2024-09-25T22:00",
+          "wind_speed_ms": 3.03,
+          "wind_speed_kmh": 10.9,
+          "wind_dir_deg": 129.7,
+          "temp_c": 29.1,
+          "rh_pct": 55.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 18,
+          "timestamp": "2024-09-25T23:00",
+          "wind_speed_ms": 2.94,
+          "wind_speed_kmh": 10.6,
+          "wind_dir_deg": 126.8,
+          "temp_c": 28.2,
+          "rh_pct": 57.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 19,
+          "timestamp": "2024-09-26T00:00",
+          "wind_speed_ms": 2.92,
+          "wind_speed_kmh": 10.5,
+          "wind_dir_deg": 123.0,
+          "temp_c": 27.6,
+          "rh_pct": 60.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 20,
+          "timestamp": "2024-09-26T01:00",
+          "wind_speed_ms": 2.97,
+          "wind_speed_kmh": 10.7,
+          "wind_dir_deg": 118.6,
+          "temp_c": 27.1,
+          "rh_pct": 61.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 21,
+          "timestamp": "2024-09-26T02:00",
+          "wind_speed_ms": 3.1,
+          "wind_speed_kmh": 11.2,
+          "wind_dir_deg": 113.7,
+          "temp_c": 27.0,
+          "rh_pct": 62.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 22,
+          "timestamp": "2024-09-26T03:00",
+          "wind_speed_ms": 3.27,
+          "wind_speed_kmh": 11.8,
+          "wind_dir_deg": 108.8,
+          "temp_c": 27.1,
+          "rh_pct": 61.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 23,
+          "timestamp": "2024-09-26T04:00",
+          "wind_speed_ms": 3.44,
+          "wind_speed_kmh": 12.4,
+          "wind_dir_deg": 104.3,
+          "temp_c": 27.6,
+          "rh_pct": 60.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 24,
+          "timestamp": "2024-09-26T05:00",
+          "wind_speed_ms": 3.59,
+          "wind_speed_kmh": 12.9,
+          "wind_dir_deg": 100.4,
+          "temp_c": 28.2,
+          "rh_pct": 57.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 25,
+          "timestamp": "2024-09-26T06:00",
+          "wind_speed_ms": 3.69,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 97.4,
+          "temp_c": 29.1,
+          "rh_pct": 55.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 26,
+          "timestamp": "2024-09-26T07:00",
+          "wind_speed_ms": 3.71,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 95.7,
+          "temp_c": 30.1,
+          "rh_pct": 51.6,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 27,
+          "timestamp": "2024-09-26T08:00",
+          "wind_speed_ms": 4.14,
+          "wind_speed_kmh": 14.9,
+          "wind_dir_deg": 95.2,
+          "temp_c": 31.2,
+          "rh_pct": 48.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 28,
+          "timestamp": "2024-09-26T09:00",
+          "wind_speed_ms": 4.46,
+          "wind_speed_kmh": 16.0,
+          "wind_dir_deg": 96.1,
+          "temp_c": 32.3,
+          "rh_pct": 44.4,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 29,
+          "timestamp": "2024-09-26T10:00",
+          "wind_speed_ms": 4.63,
+          "wind_speed_kmh": 16.7,
+          "wind_dir_deg": 98.3,
+          "temp_c": 33.3,
+          "rh_pct": 41.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 30,
+          "timestamp": "2024-09-26T11:00",
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 101.7,
+          "temp_c": 34.2,
+          "rh_pct": 38.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 31,
+          "timestamp": "2024-09-26T12:00",
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 106.0,
+          "temp_c": 34.8,
+          "rh_pct": 35.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 32,
+          "timestamp": "2024-09-26T13:00",
+          "wind_speed_ms": 4.68,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 110.9,
+          "temp_c": 35.3,
+          "rh_pct": 34.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 33,
+          "timestamp": "2024-09-26T14:00",
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 116.1,
+          "temp_c": 35.4,
+          "rh_pct": 34.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 34,
+          "timestamp": "2024-09-26T15:00",
+          "wind_speed_ms": 4.75,
+          "wind_speed_kmh": 17.1,
+          "wind_dir_deg": 121.2,
+          "temp_c": 35.3,
+          "rh_pct": 34.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 35,
+          "timestamp": "2024-09-26T16:00",
+          "wind_speed_ms": 4.81,
+          "wind_speed_kmh": 17.3,
+          "wind_dir_deg": 125.9,
+          "temp_c": 34.8,
+          "rh_pct": 35.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 36,
+          "timestamp": "2024-09-26T17:00",
+          "wind_speed_ms": 4.84,
+          "wind_speed_kmh": 17.4,
+          "wind_dir_deg": 129.9,
+          "temp_c": 34.2,
+          "rh_pct": 38.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 37,
+          "timestamp": "2024-09-26T18:00",
+          "wind_speed_ms": 4.76,
+          "wind_speed_kmh": 17.1,
+          "wind_dir_deg": 132.9,
+          "temp_c": 33.3,
+          "rh_pct": 41.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 38,
+          "timestamp": "2024-09-26T19:00",
+          "wind_speed_ms": 4.55,
+          "wind_speed_kmh": 16.4,
+          "wind_dir_deg": 134.7,
+          "temp_c": 32.3,
+          "rh_pct": 44.4,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 39,
+          "timestamp": "2024-09-26T20:00",
+          "wind_speed_ms": 4.19,
+          "wind_speed_kmh": 15.1,
+          "wind_dir_deg": 135.2,
+          "temp_c": 31.2,
+          "rh_pct": 48.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 40,
+          "timestamp": "2024-09-26T21:00",
+          "wind_speed_ms": 3.71,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 134.5,
+          "temp_c": 30.1,
+          "rh_pct": 51.6,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 41,
+          "timestamp": "2024-09-26T22:00",
+          "wind_speed_ms": 3.64,
+          "wind_speed_kmh": 13.1,
+          "wind_dir_deg": 132.7,
+          "temp_c": 29.1,
+          "rh_pct": 55.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 42,
+          "timestamp": "2024-09-26T23:00",
+          "wind_speed_ms": 3.52,
+          "wind_speed_kmh": 12.7,
+          "wind_dir_deg": 129.9,
+          "temp_c": 28.2,
+          "rh_pct": 57.9,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 43,
+          "timestamp": "2024-09-27T00:00",
+          "wind_speed_ms": 3.35,
+          "wind_speed_kmh": 12.1,
+          "wind_dir_deg": 126.4,
+          "temp_c": 27.6,
+          "rh_pct": 60.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 44,
+          "timestamp": "2024-09-27T01:00",
+          "wind_speed_ms": 3.17,
+          "wind_speed_kmh": 11.4,
+          "wind_dir_deg": 122.6,
+          "temp_c": 27.1,
+          "rh_pct": 61.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 45,
+          "timestamp": "2024-09-27T02:00",
+          "wind_speed_ms": 3.02,
+          "wind_speed_kmh": 10.9,
+          "wind_dir_deg": 118.8,
+          "temp_c": 27.0,
+          "rh_pct": 62.0,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 46,
+          "timestamp": "2024-09-27T03:00",
+          "wind_speed_ms": 2.93,
+          "wind_speed_kmh": 10.6,
+          "wind_dir_deg": 115.2,
+          "temp_c": 27.1,
+          "rh_pct": 61.5,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 47,
+          "timestamp": "2024-09-27T04:00",
+          "wind_speed_ms": 2.92,
+          "wind_speed_kmh": 10.5,
+          "wind_dir_deg": 112.3,
+          "temp_c": 27.6,
+          "rh_pct": 60.1,
+          "source": "era5_daily_diurnal_profile"
+        },
+        {
+          "hour": 48,
+          "timestamp": "2024-09-27T05:00",
+          "wind_speed_ms": 2.98,
+          "wind_speed_kmh": 10.7,
+          "wind_dir_deg": 110.2,
+          "temp_c": 28.2,
+          "rh_pct": 57.9,
+          "source": "era5_daily_diurnal_profile"
+        }
+      ],
+      "savi_summary": {
+        "mean": 0.44,
+        "p90": 0.509,
+        "source": "SAVI_HUETE1988_VEG_CALIBRATED"
+      },
+      "slope_summary": {
+        "mean_deg": 4.52,
+        "max_deg": 12.29,
+        "dem_source": "COPERNICUS_DEM_GLO30_PARAMETRIC"
+      },
+      "grid_summary": {
+        "cols": 120,
+        "rows": 120,
+        "cell_size_m": 91.67,
+        "bounds": {
+          "south": -8.248070445312642,
+          "north": -8.148589554687359,
+          "west": -75.31660724956248,
+          "east": -75.21677275043751
+        },
+        "total_area_ha": 414.26,
+        "head_ros_m_min": 2.1,
+        "length_to_breadth": 2.54
+      },
+      "bands": [
+        {
+          "hours": 6,
+          "area_ha": 7.56
+        },
+        {
+          "hours": 12,
+          "area_ha": 27.73
+        },
+        {
+          "hours": 24,
+          "area_ha": 123.52
+        },
+        {
+          "hours": 36,
+          "area_ha": 271.41
+        },
+        {
+          "hours": 48,
+          "area_ha": 414.26
+        }
+      ],
+      "hourly_progression": [
+        {
+          "hour": 1,
+          "timestamp": "2024-09-25T06:00",
+          "burned_cells": 1,
+          "cumulative_area_ha": 0.84,
+          "hourly_increment_ha": 0.84,
+          "wind_speed_ms": 3.37,
+          "wind_speed_kmh": 12.1,
+          "wind_dir_deg": 116.3,
+          "head_ros_m_min": 1.77,
+          "length_to_breadth": 2.1
+        },
+        {
+          "hour": 2,
+          "timestamp": "2024-09-25T07:00",
+          "burned_cells": 1,
+          "cumulative_area_ha": 0.84,
+          "hourly_increment_ha": 0.0,
+          "wind_speed_ms": 3.19,
+          "wind_speed_kmh": 11.5,
+          "wind_dir_deg": 112.9,
+          "head_ros_m_min": 1.68,
+          "length_to_breadth": 2.01
+        },
+        {
+          "hour": 3,
+          "timestamp": "2024-09-25T08:00",
+          "burned_cells": 3,
+          "cumulative_area_ha": 2.52,
+          "hourly_increment_ha": 1.68,
+          "wind_speed_ms": 3.45,
+          "wind_speed_kmh": 12.4,
+          "wind_dir_deg": 110.3,
+          "head_ros_m_min": 1.81,
+          "length_to_breadth": 2.14
+        },
+        {
+          "hour": 4,
+          "timestamp": "2024-09-25T09:00",
+          "burned_cells": 3,
+          "cumulative_area_ha": 2.52,
+          "hourly_increment_ha": 0.0,
+          "wind_speed_ms": 3.72,
+          "wind_speed_kmh": 13.4,
+          "wind_dir_deg": 108.7,
+          "head_ros_m_min": 1.94,
+          "length_to_breadth": 2.29
+        },
+        {
+          "hour": 5,
+          "timestamp": "2024-09-25T10:00",
+          "burned_cells": 7,
+          "cumulative_area_ha": 5.88,
+          "hourly_increment_ha": 3.36,
+          "wind_speed_ms": 4.03,
+          "wind_speed_kmh": 14.5,
+          "wind_dir_deg": 108.2,
+          "head_ros_m_min": 2.09,
+          "length_to_breadth": 2.48
+        },
+        {
+          "hour": 6,
+          "timestamp": "2024-09-25T11:00",
+          "burned_cells": 9,
+          "cumulative_area_ha": 7.56,
+          "hourly_increment_ha": 1.68,
+          "wind_speed_ms": 4.39,
+          "wind_speed_kmh": 15.8,
+          "wind_dir_deg": 108.9,
+          "head_ros_m_min": 2.28,
+          "length_to_breadth": 2.72
+        },
+        {
+          "hour": 7,
+          "timestamp": "2024-09-25T12:00",
+          "burned_cells": 11,
+          "cumulative_area_ha": 9.24,
+          "hourly_increment_ha": 1.68,
+          "wind_speed_ms": 4.8,
+          "wind_speed_kmh": 17.3,
+          "wind_dir_deg": 110.6,
+          "head_ros_m_min": 2.49,
+          "length_to_breadth": 3.03
+        },
+        {
+          "hour": 8,
+          "timestamp": "2024-09-25T13:00",
+          "burned_cells": 15,
+          "cumulative_area_ha": 12.6,
+          "hourly_increment_ha": 3.36,
+          "wind_speed_ms": 5.2,
+          "wind_speed_kmh": 18.7,
+          "wind_dir_deg": 113.2,
+          "head_ros_m_min": 2.7,
+          "length_to_breadth": 3.36
+        },
+        {
+          "hour": 9,
+          "timestamp": "2024-09-25T14:00",
+          "burned_cells": 17,
+          "cumulative_area_ha": 14.28,
+          "hourly_increment_ha": 1.68,
+          "wind_speed_ms": 5.54,
+          "wind_speed_kmh": 19.9,
+          "wind_dir_deg": 116.4,
+          "head_ros_m_min": 2.89,
+          "length_to_breadth": 3.68
+        },
+        {
+          "hour": 10,
+          "timestamp": "2024-09-25T15:00",
+          "burned_cells": 23,
+          "cumulative_area_ha": 19.33,
+          "hourly_increment_ha": 5.05,
+          "wind_speed_ms": 5.73,
+          "wind_speed_kmh": 20.6,
+          "wind_dir_deg": 120.0,
+          "head_ros_m_min": 2.99,
+          "length_to_breadth": 3.87
+        },
+        {
+          "hour": 11,
+          "timestamp": "2024-09-25T16:00",
+          "burned_cells": 26,
+          "cumulative_area_ha": 21.85,
+          "hourly_increment_ha": 2.52,
+          "wind_speed_ms": 5.71,
+          "wind_speed_kmh": 20.6,
+          "wind_dir_deg": 123.6,
+          "head_ros_m_min": 2.98,
+          "length_to_breadth": 3.84
+        },
+        {
+          "hour": 12,
+          "timestamp": "2024-09-25T17:00",
+          "burned_cells": 33,
+          "cumulative_area_ha": 27.73,
+          "hourly_increment_ha": 5.88,
+          "wind_speed_ms": 5.48,
+          "wind_speed_kmh": 19.7,
+          "wind_dir_deg": 126.8,
+          "head_ros_m_min": 2.85,
+          "length_to_breadth": 3.62
+        },
+        {
+          "hour": 13,
+          "timestamp": "2024-09-25T18:00",
+          "burned_cells": 41,
+          "cumulative_area_ha": 34.45,
+          "hourly_increment_ha": 6.72,
+          "wind_speed_ms": 5.04,
+          "wind_speed_kmh": 18.2,
+          "wind_dir_deg": 129.5,
+          "head_ros_m_min": 2.62,
+          "length_to_breadth": 3.23
+        },
+        {
+          "hour": 14,
+          "timestamp": "2024-09-25T19:00",
+          "burned_cells": 52,
+          "cumulative_area_ha": 43.69,
+          "hourly_increment_ha": 9.24,
+          "wind_speed_ms": 4.46,
+          "wind_speed_kmh": 16.1,
+          "wind_dir_deg": 131.2,
+          "head_ros_m_min": 2.31,
+          "length_to_breadth": 2.77
+        },
+        {
+          "hour": 15,
+          "timestamp": "2024-09-25T20:00",
+          "burned_cells": 59,
+          "cumulative_area_ha": 49.58,
+          "hourly_increment_ha": 5.89,
+          "wind_speed_ms": 3.82,
+          "wind_speed_kmh": 13.7,
+          "wind_dir_deg": 131.9,
+          "head_ros_m_min": 1.99,
+          "length_to_breadth": 2.35
+        },
+        {
+          "hour": 16,
+          "timestamp": "2024-09-25T21:00",
+          "burned_cells": 67,
+          "cumulative_area_ha": 56.3,
+          "hourly_increment_ha": 6.72,
+          "wind_speed_ms": 3.19,
+          "wind_speed_kmh": 11.5,
+          "wind_dir_deg": 131.4,
+          "head_ros_m_min": 1.68,
+          "length_to_breadth": 2.01
+        },
+        {
+          "hour": 17,
+          "timestamp": "2024-09-25T22:00",
+          "burned_cells": 76,
+          "cumulative_area_ha": 63.86,
+          "hourly_increment_ha": 7.56,
+          "wind_speed_ms": 3.03,
+          "wind_speed_kmh": 10.9,
+          "wind_dir_deg": 129.7,
+          "head_ros_m_min": 1.6,
+          "length_to_breadth": 1.93
+        },
+        {
+          "hour": 18,
+          "timestamp": "2024-09-25T23:00",
+          "burned_cells": 87,
+          "cumulative_area_ha": 73.1,
+          "hourly_increment_ha": 9.24,
+          "wind_speed_ms": 2.94,
+          "wind_speed_kmh": 10.6,
+          "wind_dir_deg": 126.8,
+          "head_ros_m_min": 1.56,
+          "length_to_breadth": 1.89
+        },
+        {
+          "hour": 19,
+          "timestamp": "2024-09-26T00:00",
+          "burned_cells": 91,
+          "cumulative_area_ha": 76.47,
+          "hourly_increment_ha": 3.37,
+          "wind_speed_ms": 2.92,
+          "wind_speed_kmh": 10.5,
+          "wind_dir_deg": 123.0,
+          "head_ros_m_min": 1.55,
+          "length_to_breadth": 1.88
+        },
+        {
+          "hour": 20,
+          "timestamp": "2024-09-26T01:00",
+          "burned_cells": 102,
+          "cumulative_area_ha": 85.71,
+          "hourly_increment_ha": 9.24,
+          "wind_speed_ms": 2.97,
+          "wind_speed_kmh": 10.7,
+          "wind_dir_deg": 118.6,
+          "head_ros_m_min": 1.58,
+          "length_to_breadth": 1.9
+        },
+        {
+          "hour": 21,
+          "timestamp": "2024-09-26T02:00",
+          "burned_cells": 114,
+          "cumulative_area_ha": 95.79,
+          "hourly_increment_ha": 10.08,
+          "wind_speed_ms": 3.1,
+          "wind_speed_kmh": 11.2,
+          "wind_dir_deg": 113.7,
+          "head_ros_m_min": 1.64,
+          "length_to_breadth": 1.96
+        },
+        {
+          "hour": 22,
+          "timestamp": "2024-09-26T03:00",
+          "burned_cells": 122,
+          "cumulative_area_ha": 102.51,
+          "hourly_increment_ha": 6.72,
+          "wind_speed_ms": 3.27,
+          "wind_speed_kmh": 11.8,
+          "wind_dir_deg": 108.8,
+          "head_ros_m_min": 1.72,
+          "length_to_breadth": 2.05
+        },
+        {
+          "hour": 23,
+          "timestamp": "2024-09-26T04:00",
+          "burned_cells": 132,
+          "cumulative_area_ha": 110.92,
+          "hourly_increment_ha": 8.41,
+          "wind_speed_ms": 3.44,
+          "wind_speed_kmh": 12.4,
+          "wind_dir_deg": 104.3,
+          "head_ros_m_min": 1.8,
+          "length_to_breadth": 2.14
+        },
+        {
+          "hour": 24,
+          "timestamp": "2024-09-26T05:00",
+          "burned_cells": 147,
+          "cumulative_area_ha": 123.52,
+          "hourly_increment_ha": 12.6,
+          "wind_speed_ms": 3.59,
+          "wind_speed_kmh": 12.9,
+          "wind_dir_deg": 100.4,
+          "head_ros_m_min": 1.87,
+          "length_to_breadth": 2.22
+        },
+        {
+          "hour": 25,
+          "timestamp": "2024-09-26T06:00",
+          "burned_cells": 162,
+          "cumulative_area_ha": 136.13,
+          "hourly_increment_ha": 12.61,
+          "wind_speed_ms": 3.69,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 97.4,
+          "head_ros_m_min": 1.92,
+          "length_to_breadth": 2.28
+        },
+        {
+          "hour": 26,
+          "timestamp": "2024-09-26T07:00",
+          "burned_cells": 176,
+          "cumulative_area_ha": 147.89,
+          "hourly_increment_ha": 11.76,
+          "wind_speed_ms": 3.71,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 95.7,
+          "head_ros_m_min": 1.93,
+          "length_to_breadth": 2.29
+        },
+        {
+          "hour": 27,
+          "timestamp": "2024-09-26T08:00",
+          "burned_cells": 191,
+          "cumulative_area_ha": 160.49,
+          "hourly_increment_ha": 12.6,
+          "wind_speed_ms": 4.14,
+          "wind_speed_kmh": 14.9,
+          "wind_dir_deg": 95.2,
+          "head_ros_m_min": 2.15,
+          "length_to_breadth": 2.55
+        },
+        {
+          "hour": 28,
+          "timestamp": "2024-09-26T09:00",
+          "burned_cells": 209,
+          "cumulative_area_ha": 175.62,
+          "hourly_increment_ha": 15.13,
+          "wind_speed_ms": 4.46,
+          "wind_speed_kmh": 16.0,
+          "wind_dir_deg": 96.1,
+          "head_ros_m_min": 2.31,
+          "length_to_breadth": 2.77
+        },
+        {
+          "hour": 29,
+          "timestamp": "2024-09-26T10:00",
+          "burned_cells": 228,
+          "cumulative_area_ha": 191.58,
+          "hourly_increment_ha": 15.96,
+          "wind_speed_ms": 4.63,
+          "wind_speed_kmh": 16.7,
+          "wind_dir_deg": 98.3,
+          "head_ros_m_min": 2.4,
+          "length_to_breadth": 2.9
+        },
+        {
+          "hour": 30,
+          "timestamp": "2024-09-26T11:00",
+          "burned_cells": 246,
+          "cumulative_area_ha": 206.71,
+          "hourly_increment_ha": 15.13,
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 101.7,
+          "head_ros_m_min": 2.44,
+          "length_to_breadth": 2.95
+        },
+        {
+          "hour": 31,
+          "timestamp": "2024-09-26T12:00",
+          "burned_cells": 261,
+          "cumulative_area_ha": 219.31,
+          "hourly_increment_ha": 12.6,
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 106.0,
+          "head_ros_m_min": 2.44,
+          "length_to_breadth": 2.95
+        },
+        {
+          "hour": 32,
+          "timestamp": "2024-09-26T13:00",
+          "burned_cells": 275,
+          "cumulative_area_ha": 231.08,
+          "hourly_increment_ha": 11.77,
+          "wind_speed_ms": 4.68,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 110.9,
+          "head_ros_m_min": 2.43,
+          "length_to_breadth": 2.94
+        },
+        {
+          "hour": 33,
+          "timestamp": "2024-09-26T14:00",
+          "burned_cells": 282,
+          "cumulative_area_ha": 236.96,
+          "hourly_increment_ha": 5.88,
+          "wind_speed_ms": 4.7,
+          "wind_speed_kmh": 16.9,
+          "wind_dir_deg": 116.1,
+          "head_ros_m_min": 2.44,
+          "length_to_breadth": 2.95
+        },
+        {
+          "hour": 34,
+          "timestamp": "2024-09-26T15:00",
+          "burned_cells": 292,
+          "cumulative_area_ha": 245.36,
+          "hourly_increment_ha": 8.4,
+          "wind_speed_ms": 4.75,
+          "wind_speed_kmh": 17.1,
+          "wind_dir_deg": 121.2,
+          "head_ros_m_min": 2.47,
+          "length_to_breadth": 2.99
+        },
+        {
+          "hour": 35,
+          "timestamp": "2024-09-26T16:00",
+          "burned_cells": 306,
+          "cumulative_area_ha": 257.13,
+          "hourly_increment_ha": 11.77,
+          "wind_speed_ms": 4.81,
+          "wind_speed_kmh": 17.3,
+          "wind_dir_deg": 125.9,
+          "head_ros_m_min": 2.5,
+          "length_to_breadth": 3.04
+        },
+        {
+          "hour": 36,
+          "timestamp": "2024-09-26T17:00",
+          "burned_cells": 323,
+          "cumulative_area_ha": 271.41,
+          "hourly_increment_ha": 14.28,
+          "wind_speed_ms": 4.84,
+          "wind_speed_kmh": 17.4,
+          "wind_dir_deg": 129.9,
+          "head_ros_m_min": 2.51,
+          "length_to_breadth": 3.06
+        },
+        {
+          "hour": 37,
+          "timestamp": "2024-09-26T18:00",
+          "burned_cells": 342,
+          "cumulative_area_ha": 287.38,
+          "hourly_increment_ha": 15.97,
+          "wind_speed_ms": 4.76,
+          "wind_speed_kmh": 17.1,
+          "wind_dir_deg": 132.9,
+          "head_ros_m_min": 2.47,
+          "length_to_breadth": 3.0
+        },
+        {
+          "hour": 38,
+          "timestamp": "2024-09-26T19:00",
+          "burned_cells": 362,
+          "cumulative_area_ha": 304.18,
+          "hourly_increment_ha": 16.8,
+          "wind_speed_ms": 4.55,
+          "wind_speed_kmh": 16.4,
+          "wind_dir_deg": 134.7,
+          "head_ros_m_min": 2.36,
+          "length_to_breadth": 2.84
+        },
+        {
+          "hour": 39,
+          "timestamp": "2024-09-26T20:00",
+          "burned_cells": 379,
+          "cumulative_area_ha": 318.47,
+          "hourly_increment_ha": 14.29,
+          "wind_speed_ms": 4.19,
+          "wind_speed_kmh": 15.1,
+          "wind_dir_deg": 135.2,
+          "head_ros_m_min": 2.18,
+          "length_to_breadth": 2.59
+        },
+        {
+          "hour": 40,
+          "timestamp": "2024-09-26T21:00",
+          "burned_cells": 395,
+          "cumulative_area_ha": 331.91,
+          "hourly_increment_ha": 13.44,
+          "wind_speed_ms": 3.71,
+          "wind_speed_kmh": 13.3,
+          "wind_dir_deg": 134.5,
+          "head_ros_m_min": 1.93,
+          "length_to_breadth": 2.29
+        },
+        {
+          "hour": 41,
+          "timestamp": "2024-09-26T22:00",
+          "burned_cells": 407,
+          "cumulative_area_ha": 341.99,
+          "hourly_increment_ha": 10.08,
+          "wind_speed_ms": 3.64,
+          "wind_speed_kmh": 13.1,
+          "wind_dir_deg": 132.7,
+          "head_ros_m_min": 1.9,
+          "length_to_breadth": 2.25
+        },
+        {
+          "hour": 42,
+          "timestamp": "2024-09-26T23:00",
+          "burned_cells": 424,
+          "cumulative_area_ha": 356.28,
+          "hourly_increment_ha": 14.29,
+          "wind_speed_ms": 3.52,
+          "wind_speed_kmh": 12.7,
+          "wind_dir_deg": 129.9,
+          "head_ros_m_min": 1.84,
+          "length_to_breadth": 2.18
+        },
+        {
+          "hour": 43,
+          "timestamp": "2024-09-27T00:00",
+          "burned_cells": 439,
+          "cumulative_area_ha": 368.88,
+          "hourly_increment_ha": 12.6,
+          "wind_speed_ms": 3.35,
+          "wind_speed_kmh": 12.1,
+          "wind_dir_deg": 126.4,
+          "head_ros_m_min": 1.76,
+          "length_to_breadth": 2.09
+        },
+        {
+          "hour": 44,
+          "timestamp": "2024-09-27T01:00",
+          "burned_cells": 453,
+          "cumulative_area_ha": 380.65,
+          "hourly_increment_ha": 11.77,
+          "wind_speed_ms": 3.17,
+          "wind_speed_kmh": 11.4,
+          "wind_dir_deg": 122.6,
+          "head_ros_m_min": 1.67,
+          "length_to_breadth": 2.0
+        },
+        {
+          "hour": 45,
+          "timestamp": "2024-09-27T02:00",
+          "burned_cells": 461,
+          "cumulative_area_ha": 387.37,
+          "hourly_increment_ha": 6.72,
+          "wind_speed_ms": 3.02,
+          "wind_speed_kmh": 10.9,
+          "wind_dir_deg": 118.8,
+          "head_ros_m_min": 1.6,
+          "length_to_breadth": 1.92
+        },
+        {
+          "hour": 46,
+          "timestamp": "2024-09-27T03:00",
+          "burned_cells": 475,
+          "cumulative_area_ha": 399.13,
+          "hourly_increment_ha": 11.76,
+          "wind_speed_ms": 2.93,
+          "wind_speed_kmh": 10.6,
+          "wind_dir_deg": 115.2,
+          "head_ros_m_min": 1.56,
+          "length_to_breadth": 1.88
+        },
+        {
+          "hour": 47,
+          "timestamp": "2024-09-27T04:00",
+          "burned_cells": 483,
+          "cumulative_area_ha": 405.85,
+          "hourly_increment_ha": 6.72,
+          "wind_speed_ms": 2.92,
+          "wind_speed_kmh": 10.5,
+          "wind_dir_deg": 112.3,
+          "head_ros_m_min": 1.55,
+          "length_to_breadth": 1.88
+        },
+        {
+          "hour": 48,
+          "timestamp": "2024-09-27T05:00",
+          "burned_cells": 493,
+          "cumulative_area_ha": 414.26,
+          "hourly_increment_ha": 8.41,
+          "wind_speed_ms": 2.98,
+          "wind_speed_kmh": 10.7,
+          "wind_dir_deg": 110.2,
+          "head_ros_m_min": 1.58,
+          "length_to_breadth": 1.9
+        }
+      ],
+      "isochrones": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "step_h": 6,
+              "label": "+6 h",
+              "risk_level": "critical",
+              "area_ha": 7.56,
+              "perimeter_km": 1.29
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -75.26585804584062,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.199159007421878
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "step_h": 12,
+              "label": "+12 h",
+              "risk_level": "high",
+              "area_ha": 27.73,
+              "perimeter_km": 2.58
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -75.27168172495624,
+                    -8.19833
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.27001781663749,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.27001781663749,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.26669,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.26669,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.19833
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.19833
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "step_h": 24,
+              "label": "+24 h",
+              "risk_level": "moderate",
+              "area_ha": 123.52,
+              "perimeter_km": 5.72
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -75.27750540407187,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.27833735823124,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.27833735823124,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.27417758743437,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.27417758743437,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.27251367911562,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.27251367911562,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.193355955468736
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.193355955468736
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.19833
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.19833
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.27251367911562,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.27251367911562,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.19833
+                  ],
+                  [
+                    -75.27584149575311,
+                    -8.19833
+                  ],
+                  [
+                    -75.27584149575311,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.196671985156245
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "step_h": 36,
+              "label": "+36 h",
+              "risk_level": "low",
+              "area_ha": 271.41,
+              "perimeter_km": 8.67
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -75.2833290831875,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.28499299150624,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.28499299150624,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.28083322070937,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.28083322070937,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.27833735823124,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.27833735823124,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.273345633275,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.273345633275,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.26918586247812,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.193355955468736
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.193355955468736
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.197500992578123
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.19833
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.19833
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.26669,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.26669,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.26752195415938,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.20164602968751
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.20164602968751
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.2833290831875,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.2833290831875,
+                    -8.194184962890613
+                  ]
+                ]
+              ]
+            }
+          },
+          {
+            "type": "Feature",
+            "properties": {
+              "step_h": 48,
+              "label": "+48 h",
+              "risk_level": "extended",
+              "area_ha": 414.26,
+              "perimeter_km": 10.88
+            },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    -75.28499299150624,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.28582494566561,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.28582494566561,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.28665689982499,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.28665689982499,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.28748885398437,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.28748885398437,
+                    -8.184236873828086
+                  ],
+                  [
+                    -75.28832080814374,
+                    -8.184236873828086
+                  ],
+                  [
+                    -75.28832080814374,
+                    -8.18257885898433
+                  ],
+                  [
+                    -75.28915276230312,
+                    -8.18257885898433
+                  ],
+                  [
+                    -75.28915276230312,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28832080814374,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28832080814374,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28748885398437,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28748885398437,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28665689982499,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28665689982499,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28582494566561,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28582494566561,
+                    -8.180091836718699
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.180091836718699
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28166517486875,
+                    -8.180920844140577
+                  ],
+                  [
+                    -75.28166517486875,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28083322070937,
+                    -8.181749851562452
+                  ],
+                  [
+                    -75.28083322070937,
+                    -8.18257885898433
+                  ],
+                  [
+                    -75.27916931239062,
+                    -8.18257885898433
+                  ],
+                  [
+                    -75.27916931239062,
+                    -8.183407866406208
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.183407866406208
+                  ],
+                  [
+                    -75.2766734499125,
+                    -8.184236873828086
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.184236873828086
+                  ],
+                  [
+                    -75.27500954159375,
+                    -8.185065881249962
+                  ],
+                  [
+                    -75.273345633275,
+                    -8.185065881249962
+                  ],
+                  [
+                    -75.273345633275,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.18589488867184
+                  ],
+                  [
+                    -75.27168172495624,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.186723896093717
+                  ],
+                  [
+                    -75.27084977079687,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.27001781663749,
+                    -8.187552903515595
+                  ],
+                  [
+                    -75.27001781663749,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.188381910937473
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.26669,
+                    -8.189210918359349
+                  ],
+                  [
+                    -75.26669,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.190039925781226
+                  ],
+                  [
+                    -75.26585804584062,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.190868933203104
+                  ],
+                  [
+                    -75.26502609168125,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.26419413752187,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.19252694804686
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26253022920312,
+                    -8.195013970312491
+                  ],
+                  [
+                    -75.26253022920312,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.196671985156245
+                  ],
+                  [
+                    -75.2633621833625,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.26835390831874,
+                    -8.20164602968751
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.20164602968751
+                  ],
+                  [
+                    -75.27750540407187,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.200817022265632
+                  ],
+                  [
+                    -75.28000126654999,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.28166517486875,
+                    -8.199988014843756
+                  ],
+                  [
+                    -75.28166517486875,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.199159007421878
+                  ],
+                  [
+                    -75.28249712902812,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.2833290831875,
+                    -8.195842977734369
+                  ],
+                  [
+                    -75.2833290831875,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.194184962890613
+                  ],
+                  [
+                    -75.28416103734686,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.28499299150624,
+                    -8.191697940624982
+                  ],
+                  [
+                    -75.28499299150624,
+                    -8.190039925781226
+                  ]
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "assumptions": [
+        "Vegetacion modelada mediante indice SAVI (L=0.5, promedio 0.44); celdas con SAVI <= 0.12 actuan como barrera no combustible.",
+        "Topografia integrada con pendiente direccional DEM (promedio 4.5°, duplicacion de velocidad cada +10° cuesta arriba).",
+        "Viento horario de 48 pasos (era5_daily_diurnal_profile); promedio 4.6 m/s (16.6 km/h) desde 118°.",
+        "Humedad del combustible fino 9% (contenido de extincion Rothermel 30%).",
+        "Modelo exploratorio condicional a ignicion hipotetica; sin supresion activa, pavesas ni fuego de copas."
+      ],
+      "outputs": {
+        "gif": "/api/v1/spread-outputs/simulacion_48h.gif",
+        "mp4": "/api/v1/spread-outputs/pronostico_48h.mp4",
+        "shapefiles_zip": "/api/v1/spread-outputs/mchanaq_propagacion_48h_qgis.zip",
+        "infografia_impacto": "/api/v1/spread-outputs/infografia_impacto_48h.png",
+        "panel_modelo": "/api/v1/spread-outputs/panel_modelo_48h.png"
+      },
+      "model_metadata": {
+        "model_name": "heuristic_wind_slope_spread_v1",
+        "disclaimer": "Proyeccion exploratoria basada en viento diario, DEM y cobertura; no sustituye modelos fisicos operativos en tiempo real.",
+        "references": [
+          "Argentina Ley 26.815 / SNMF / CONAE - Instituto Gulich (UNC) / SARTiv",
+          "Rothermel (1972); Anderson (1983); Alexander (1985); Huete (1988) SAVI"
+        ]
+      }
+    }
+  ]
+}

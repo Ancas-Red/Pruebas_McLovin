@@ -1,5 +1,6 @@
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
+import { API_BASE } from "../api/client";
 import { SPREAD_DISCLAIMER, SPREAD_MODEL_NAME, type SpreadResult } from "../lib/spread";
 import { formatLatLon, type LatLon } from "../lib/geo";
 
@@ -157,6 +158,10 @@ export function SpreadRail(p: Props) {
             </label>
             <input id="sp-h" type="range" min={3} max={48} step={1}
               value={v.horizonHours} onChange={(e) => set("horizonHours", Number(e.target.value))} />
+            <div className="btn-row" style={{ marginTop: 6 }}>
+              <button type="button" className="btn" onClick={() => set("horizonHours", 24)}>24 h</button>
+              <button type="button" className="btn" onClick={() => set("horizonHours", 48)}>Pronóstico 48 h (SAVI + DEM)</button>
+            </div>
           </div>
 
           <button className="btn btn--ember btn--block" disabled={!ready || p.running} onClick={p.onRun}>
@@ -227,10 +232,20 @@ export function SpreadRail(p: Props) {
 
           <hr className="hr" />
           <dl className="kv">
+            <dt>SAVI medio (Huete 1988)</dt><dd>{p.result.saviMean.toFixed(2)}</dd>
             <dt>Relación largo/ancho</dt><dd>{p.result.lengthToBreadth.toFixed(2)} : 1</dd>
             <dt>Resolución de celda</dt><dd>{Math.round(p.result.cellSizeM)} m</dd>
             <dt>Grilla</dt><dd>{p.result.cols} × {p.result.rows}</dd>
           </dl>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>Productos GIS · 48 h (Python)</div>
+          <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
+            <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif`} target="_blank" rel="noreferrer">GIF 48h</a>
+            <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} target="_blank" rel="noreferrer">MP4 48h</a>
+            <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
+            <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png`} target="_blank" rel="noreferrer">Infografía</a>
+            <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png`} target="_blank" rel="noreferrer">Panel 48h</a>
+          </div>
 
           <div className="legend__title" style={{ marginTop: 14 }}>Supuestos activos</div>
           <ul className="assume">

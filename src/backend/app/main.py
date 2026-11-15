@@ -8,10 +8,10 @@ import os
 from datetime import date as dt_date
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA = Path(os.getenv("MCHANAQ_DATA_DIR", ROOT / "data" / "processed"))
@@ -83,7 +83,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_origin_regex=CORS_ORIGIN_REGEX,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -703,3 +703,210 @@ def territory_hotspots(type: str, id: str, date: str = Query(...), sensor: str =
         and f.get("properties", {}).get("sensor") == sensor
     ]
     return {"schema_version": "1.0", "type": "FeatureCollection", "features": feats}
+
+
+# ---------------------------------------------------------------------------
+# Fase 2 (Opcional y desacoplada) — Simulación espacial de propagación (48 h)
+# ---------------------------------------------------------------------------
+
+SPREAD_FORECASTS = load_json("spread_forecasts.json") or {"items": []}
+SPREAD_OUTPUTS_DIR = (DATA / "spread_outputs") if (DATA / "spread_outputs").exists() else (ROOT / "data" / "processed" / "spread_outputs")
+_SPREAD_MIME_TYPES = {
+    "simulacion_48h.gif": "image/gif",
+    "pronostico_48h.mp4": "video/mp4",
+    "mchanaq_propagacion_48h_qgis.zip": "application/zip",
+    "infografia_impacto_48h.png": "image/png",
+    "panel_modelo_48h.png": "image/png",
+}
+
+
+def _territory_centroid_and_geom(terr: dict):
+    from shapely.geometry import shape
+
+    geom = shape(terr["geometry"]) if terr.get("geometry") else None
+    if geom is not None and not geom.is_empty:
+        pt = geom.representative_point()
+        return float(pt.y), float(pt.x), geom
+    return -8.19833, -75.26669, None
+
+
+def _run_phase2_simulation(
+    t_type: str,
+    t_id: str,
+    t_name: str,
+    geom,
+    lat: float,
+    lon: float,
+    date_str: str,
+    horizon_h: int,
+    wind_speed_ms: float | None = None,
+    wind_dir_deg: float | None = None,
+    vegetation_pct: float | None = None,
+    slope_mean_deg: float | None = None,
+    fuel_moisture_pct: float | None = None,
+) -> dict:
+    from src.analytics.spread_model import build_spread_forecast_payload, simulate_spread_48h
+
+    daily_match = next(
+        (
+            r for r in DAILY
+            if r.get("territory_type") == t_type
+            and str(r.get("territory_id")) == t_id
+            and r.get("date") == date_str
+        ),
+        None,
+    )
+    assess_match = next(
+        (
+            r for r in ASSESS
+            if r.get("territory_type") == t_type
+            and str(r.get("territory_id")) == t_id
+            and r.get("period_id") == date_str[:7]
+        ),
+        None,
+    )
+
+    def _ev_num(var_name: str) -> float | None:
+        if not assess_match:
+            return None
+        for ev in assess_match.get("evidence") or []:
+            if ev.get("variable") == var_name and isinstance(ev.get("value"), (int, float)):
+                return float(ev["value"])
+        return None
+
+    ws = wind_speed_ms if wind_speed_ms is not None else (
+        float(daily_match["wind_speed_10m_ms"])
+        if daily_match and daily_match.get("wind_speed_10m_ms") is not None
+        else (_ev_num("wind_speed_10m_ms") or 4.6)
+    )
+    wd = wind_dir_deg if wind_dir_deg is not None else (
+        float(daily_match["wind_dir_deg"])
+        if daily_match and daily_match.get("wind_dir_deg") is not None
+        else 118.0
+    )
+    veg = vegetation_pct if vegetation_pct is not None else (_ev_num("vegetation_area_pct") or 82.0)
+    slope_pct = _ev_num("slope_class_area_pct")
+    slp = slope_mean_deg if slope_mean_deg is not None else (
+        round(math.degrees(math.atan(slope_pct / 100.0)), 1) if slope_pct is not None else 6.5
+    )
+    precip = _ev_num("precip_30d_mm")
+    fm = fuel_moisture_pct if fuel_moisture_pct is not None else (
+        max(4.0, min(28.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
+    )
+
+    res = simulate_spread_48h(
+        territory_type=t_type,
+        territory_id=t_id,
+        territory_name=t_name,
+        territory_geom=geom,
+        date_str=date_str,
+        ignition_lat=lat,
+        ignition_lon=lon,
+        horizon_h=horizon_h,
+        vegetation_pct=veg,
+        slope_mean_deg=slp,
+        fuel_moisture_pct=fm,
+        base_wind_ms=ws,
+        base_wind_dir_deg=wd,
+    )
+    return build_spread_forecast_payload(res)
+
+
+@app.get("/api/v1/territories/{type}/{id}/spread-forecast")
+def territory_spread_forecast(
+    type: str,
+    id: str,
+    date: str | None = Query(default=None),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+):
+    check_type(type)
+    terr = find_territory(type, id)
+    if date is not None:
+        check_date_syntax(date)
+
+    for item in SPREAD_FORECASTS.get("items", []):
+        t_info = item.get("territory") or {}
+        if (
+            t_info.get("type") == type
+            and str(t_info.get("id")) == id
+            and (date is None or item.get("date") == date)
+            and int(item.get("horizon_h") or 48) == horizon_h
+        ):
+            return item
+
+    lat, lon, geom = _territory_centroid_and_geom(terr)
+    t_name = str(terr.get("name") or terr.get("territory_name") or id)
+    resolved_date = date or (
+        SPREAD_FORECASTS.get("items", [{}])[0].get("date")
+        if SPREAD_FORECASTS.get("items")
+        else "2024-09-25"
+    )
+    return _run_phase2_simulation(
+        t_type=type,
+        t_id=id,
+        t_name=t_name,
+        geom=geom,
+        lat=lat,
+        lon=lon,
+        date_str=resolved_date,
+        horizon_h=horizon_h,
+    )
+
+
+@app.post("/api/v1/spread-simulate")
+@app.get("/api/v1/spread-simulate")
+def spread_simulate(
+    lat: float | None = Query(default=None, ge=-90.0, le=90.0),
+    lon: float | None = Query(default=None, ge=-180.0, le=180.0),
+    date: str = Query(default="2024-09-25"),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+    wind_speed_10m_ms: float | None = Query(default=None, ge=0.0, le=40.0),
+    wind_dir_deg: float | None = Query(default=None, ge=0.0, le=360.0),
+    vegetation_pct: float | None = Query(default=None, ge=0.0, le=100.0),
+    slope_mean_deg: float | None = Query(default=None, ge=0.0, le=60.0),
+    fuel_moisture_pct: float | None = Query(default=None, ge=1.0, le=35.0),
+    payload: dict | None = Body(default=None),
+):
+    body = payload or {}
+    r_lat = float(body["lat"]) if "lat" in body else lat
+    r_lon = float(body["lon"]) if "lon" in body else lon
+    if r_lat is None or r_lon is None:
+        raise ApiError(400, "INVALID_PARAMETER", "Debe indicar lat y lon para simular propagación")
+    if not (-90.0 <= r_lat <= 90.0 and -180.0 <= r_lon <= 180.0):
+        raise ApiError(400, "INVALID_PARAMETER", "Coordenadas fuera de rango global")
+
+    r_date = str(body.get("date") or date)
+    check_date_syntax(r_date)
+    r_horizon = int(body.get("horizon_h") or horizon_h)
+    if not (6 <= r_horizon <= 48):
+        raise ApiError(400, "INVALID_PARAMETER", "horizon_h debe estar entre 6 y 48 horas")
+
+    return _run_phase2_simulation(
+        t_type=str(body.get("territory_type") or "custom"),
+        t_id=str(body.get("territory_id") or "custom"),
+        t_name=str(body.get("territory_name") or f"Punto ({r_lat:.3f}, {r_lon:.3f})"),
+        geom=None,
+        lat=r_lat,
+        lon=r_lon,
+        date_str=r_date,
+        horizon_h=r_horizon,
+        wind_speed_ms=float(body["wind_speed_10m_ms"]) if "wind_speed_10m_ms" in body else wind_speed_10m_ms,
+        wind_dir_deg=float(body["wind_dir_deg"]) if "wind_dir_deg" in body else wind_dir_deg,
+        vegetation_pct=float(body["vegetation_pct"]) if "vegetation_pct" in body else vegetation_pct,
+        slope_mean_deg=float(body["slope_mean_deg"]) if "slope_mean_deg" in body else slope_mean_deg,
+        fuel_moisture_pct=float(body["fuel_moisture_pct"]) if "fuel_moisture_pct" in body else fuel_moisture_pct,
+    )
+
+
+@app.get("/api/v1/spread-outputs/{filename}")
+def spread_output_file(filename: str):
+    if filename not in _SPREAD_MIME_TYPES:
+        raise ApiError(404, "NOT_FOUND", f"Archivo de salida de Fase 2 no encontrado: {filename}")
+    target = SPREAD_OUTPUTS_DIR / filename
+    if not target.exists():
+        raise ApiError(404, "NOT_FOUND", f"El archivo {filename} aún no fue generado en el servidor")
+    return FileResponse(
+        path=target,
+        media_type=_SPREAD_MIME_TYPES[filename],
+        filename=filename,
+    )
