@@ -787,10 +787,10 @@ export function MapStage(props: Props) {
             que nadie puede leer: es el primer dato que hay que poder traducir. */}
         {choropleth.length > 0 && (
           <div className="legend legend--ramp">
-            <div className="legend__title">
-              {METRIC_LABELS[metric]}
-              {metricUnit ? ` · ${metricUnit}` : ""}
-            </div>
+            {/* La unidad va en su propia línea: algunas son una frase entera
+                («píxeles-día detectados / píxeles-día válidos»), y pegarla al
+                título estiraba la caja hasta ocupar medio mapa. */}
+            <div className="legend__title">{METRIC_LABELS[metric]}</div>
             {metric === "conditions_classification" ? (
               <div className="legend__items legend__items--flush">
                 {(["low", "moderate", "high", "partial"] as Classification[]).map((c) => (
@@ -818,6 +818,7 @@ export function MapStage(props: Props) {
                   <span>{scale ? fmtShort(scale.lo) : "—"}</span>
                   <span>{scale ? fmtShort(scale.hi) : "—"}</span>
                 </div>
+                {metricUnit && <div className="legend__unit">{metricUnit}</div>}
               </>
             )}
             <div className="legend__item legend__item--nodata">

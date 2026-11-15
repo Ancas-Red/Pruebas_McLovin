@@ -1040,8 +1040,21 @@ input[type="range"]:focus-visible {
   padding-top: 7px;
   color: var(--fg-faint);
 }
+.legend--ramp {
+  /* Tope de ancho: el nombre de la métrica y la unidad son textos de
+     longitud muy variable, y sin tope la caja crecía hasta tapar el mapa. */
+  max-width: 240px;
+}
 .legend--ramp .legend__title {
   color: var(--fg-dim);
+  white-space: normal;
+  line-height: 1.35;
+}
+.legend__unit {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--fg-faint);
 }
 
 /* Ficha del puntero -------------------------------------------------------
