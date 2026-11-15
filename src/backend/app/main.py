@@ -32,12 +32,15 @@ CORS_ORIGIN_REGEX = os.getenv("MCHANAQ_CORS_ORIGIN_REGEX", "").strip() or None
 TYPES = {"province", "hydro_unit"}
 SENSORS = {"MODIS_TERRA", "MODIS_AQUA", "VIIRS_SNPP"}
 
-# Piso histórico documentado por sensor (docs/.../v1.7 y run_pipeline.py build_metadata):
-# MODIS Terra 2000-02, MODIS Aqua 2002-07, VIIRS S-NPP 2012-01. Antes de esto el sensor
-# directamente no existía/no tenía cobertura, ni siquiera vía NASA FIRMS.
+# Piso histórico del complemento en vivo: 2012-01-19, el inicio de la ventana multisensor
+# verificada en GEE (MODIS_TERRA + MODIS_AQUA + VIIRS_SNPP + ERA5-Land) documentada en
+# AGENTS.md. Aunque MODIS Terra/Aqua tienen cobertura real desde 2000-02/2002-07, esos años
+# (2000-2011) quedan retirados explícitamente como "fuera de alcance operativo" del
+# proyecto — no se habilita el complemento en vivo ahí para no exponer una ventana más
+# amplia de la que el proyecto reclama cubrir.
 _SENSOR_HISTORICAL_SINCE = {
-    "MODIS_TERRA": "2000-02-24",
-    "MODIS_AQUA": "2002-07-04",
+    "MODIS_TERRA": "2012-01-19",
+    "MODIS_AQUA": "2012-01-19",
     "VIIRS_SNPP": "2012-01-19",
 }
 # NASA FIRMS Area API expone MODIS Terra/Aqua bajo una sola fuente "MODIS_SP" (Standard

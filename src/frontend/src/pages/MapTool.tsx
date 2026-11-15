@@ -1066,7 +1066,39 @@ export function MapTool({
     // debe pintar fechas que la metadata no declara disponibles (antes salían
     // p. ej. meses de 2026 sin respaldo en `available_periods_by_sensor`).
     const cells = raw.filter((c) => availablePeriods.has(`${c.year}-${pad2(c.month)}`));
-    return mergeAnomaly(cells, period, summary?.activity.historical_anomaly ?? null);
+    // `availablePeriods` incluye el piso histórico "en vivo" (NASA FIRMS, ver
+    // firms_live_available_since_by_sensor), pero esos meses no tienen fila en
+    // activity_summary.json/activity_daily.json local, así que nunca aparecen en `raw`.
+    // Sin esto, aunque el día individual sí se pudiera seleccionar, la cuadrícula del
+    // calendario jamás dibujaba esas columnas de años (p. ej. 2012-2021 desaparecía por
+    // completo del calendario, aunque /summary ya respondiera para esas fechas).
+    // Se agregan como celdas vacías — nunca con detecciones/cobertura inventadas, eso
+    // solo lo entrega /summary al pedir un día puntual — solo para que el mes exista
+    // como columna seleccionable.
+    const present = new Set(cells.map((c) => c.period));
+    const liveOnly: MonthCell[] = [];
+    for (const pr of availablePeriods) {
+      if (present.has(pr)) continue;
+      const [y, m] = pr.split("-").map(Number);
+      if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+      liveOnly.push({
+        year: y,
+        month: m,
+        period: pr,
+        detections: 0,
+        detections_low: 0,
+        activity_rate: null,
+        observation_coverage: null,
+        active_days: 0,
+        max_consecutive_active_days: 0,
+        unobserved_days: 0,
+        days_with_data: 0,
+        historical_anomaly: null,
+        anomaly_status: "not_estimable",
+        baseline_years: 0,
+      });
+    }
+    return mergeAnomaly([...cells, ...liveOnly], period, summary?.activity.historical_anomaly ?? null);
   }, [apiCalendar, series, daily, sensor, period, summary, availablePeriods]);
 
   const cell = useMemo(() => findCell(calendar, year, month), [calendar, year, month]);
