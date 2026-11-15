@@ -511,7 +511,15 @@ export function MapStage(props: Props) {
     if (!map || !selectedId || prevSelectedIdRef.current === selectedId) return;
     const entries = polysById.current.get(selectedId);
     if (!entries || entries.length === 0) return;
+    // El territorio preseleccionado al abrir la herramienta (para que los
+    // paneles de análisis tengan datos de entrada) no debe forzar un zoom
+    // automático a esa zona: la vista inicial del mapa es todo el Perú
+    // (`PERU_CENTER`, ver creación del mapa más arriba). Solo volamos a un
+    // territorio cuando el cambio de selección lo origina el propio usuario
+    // (clic en el mapa o en un panel), no en esta primera resolución.
+    const isInitialSelection = prevSelectedIdRef.current === null;
     prevSelectedIdRef.current = selectedId;
+    if (isInitialSelection) return;
     const group = L.featureGroup(entries.map((e) => e.poly));
     const bounds = group.getBounds();
     if (bounds.isValid()) {
