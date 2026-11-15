@@ -92,6 +92,24 @@ COMPARE = (load_json("sensor_comparison.json") or {}).get("items", [])
 ASSESS = (load_json("conditions_assessment.json") or {}).get("items", [])
 HOTSPOTS = load_json("hotspots.geojson")
 
+# Índice por (territory_type, territory_id, sensor, date) construido una sola vez al
+# arrancar. Sin esto, cada /summary hacía un pick(DAILY, ...) por fecha exacta: con la
+# ventana FIRMS 2020-2025 cargada (427 territorios x ~3 sensores x ~2190 días, ver
+# AGENTS.md sobre el tamaño de activity_daily.json), un pick() que no encuentra fila
+# (p. ej. cualquier fecha fuera de la tabla, que es justo cuando se activa el
+# complemento en vivo de NASA FIRMS) recorre TODA la lista, millones de filas, en cada
+# petición. Medido en producción: ~3 s por /summary sin esto, pase lo que pase con FIRMS.
+_DAILY_INDEX: dict[tuple, dict] = {
+    (r.get("territory_type"), str(r.get("territory_id")), r.get("sensor"), r.get("date")): r
+    for r in DAILY
+}
+# Mismo problema para el fallback de dem_source en _build_summary_provenance: agrupado
+# por (territory_type, territory_id, sensor, period) para no recorrer DAILY completo.
+_DAILY_BY_TERRITORY_SENSOR_PERIOD: dict[tuple, list[dict]] = {}
+for _r in DAILY:
+    _k = (_r.get("territory_type"), str(_r.get("territory_id")), _r.get("sensor"), (_r.get("date") or "")[:7])
+    _DAILY_BY_TERRITORY_SENSOR_PERIOD.setdefault(_k, []).append(_r)
+
 
 def _is_useful_daily_record(record: dict) -> bool:
     """Replica el criterio de src/analytics/run_pipeline.py: >=70% cobertura o tasa valida."""
@@ -455,14 +473,8 @@ def _build_summary_provenance(
 
     dem_source = (daily_row or {}).get("dem_source")
     if not dem_source:
-        for r in DAILY:
-            if (
-                r.get("territory_type") == t_type
-                and str(r.get("territory_id")) == t_id
-                and r.get("sensor") == sensor
-                and r.get("date", "").startswith(resolved_period)
-                and r.get("dem_source")
-            ):
+        for r in _DAILY_BY_TERRITORY_SENSOR_PERIOD.get((t_type, t_id, sensor, resolved_period), []):
+            if r.get("dem_source"):
                 dem_source = r.get("dem_source")
                 break
 
@@ -747,7 +759,7 @@ def territory_summary(
     resolved_period = check_date(d=date, period=None if date else period, sensor=sensor, full=False)
     terr = find_territory(type, id)
 
-    daily_row = pick(DAILY, territory_type=type, territory_id=id, sensor=sensor, date=date) if date else None
+    daily_row = _DAILY_INDEX.get((type, id, sensor, date)) if date else None
     if daily_row is None and date and _date_has_live_firms_fallback(sensor, date):
         # Sin fila en la tabla diaria local (p. ej. años antes de 2022-01-01, ver
         # AGENTS.md): se complementa con una consulta en vivo a NASA FIRMS. Nunca es
