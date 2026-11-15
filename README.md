@@ -21,18 +21,18 @@ Calendario longitudinal de actividad térmica (MODIS Terra/Aqua y VIIRS S-NPP) c
 ```text
 McHanaq/
 ├── src/
-│   ├── frontend/        # Sebastian — React + Vite + TypeScript + Leaflet
-│   ├── backend/         # Tom (Fase A) / Jhan (Fase B) — FastAPI de solo lectura
-│   ├── analytics/       # Tom — métricas, anomalías y árbol de reglas en Python
-│   └── gee/             # Angelo — pipelines de Google Earth Engine
-├── contracts/           # Contrato de API, diccionario de datos y esquemas (Jean / Jhan)
+│   ├── frontend/        # Sebastian — React + Vite + TypeScript + Leaflet (hosting y despliegue)
+│   ├── backend/         # Angelo — FastAPI + ingesta ambiental (co-revisión: Tom)
+│   ├── analytics/       # Tom — analítica longitudinal; Angelo — spread_model.py (Fase 2)
+│   └── gee/             # Angelo — Google Earth Engine y fuentes NASA/abiertas
+├── contracts/           # Contrato de API, diccionario de datos y esquemas (Jean Pierrer)
 ├── data/
-│   ├── reference/       # Capas territoriales oficiales de referencia (Jean)
-│   ├── fixtures/        # Datos sintéticos para desarrollo/pruebas (Jean)
+│   ├── reference/       # Capas territoriales oficiales de referencia (Jean Pierrer)
+│   ├── fixtures/        # Datos sintéticos para desarrollo/pruebas (Jean Pierrer)
 │   ├── intermediate/    # Exportaciones GEE crudas (ignorado en Git)
 │   └── processed/       # JSON/GeoJSON listos para la API
 ├── tests/               # Pruebas unitarias, de humo y de aceptación
-├── docs/                # Documentación técnica, metodológica y harness
+├── docs/                # Documentación técnica, metodológica y harness (Jean Pierrer)
 └── presentation/        # Deck y guion de exposición (Jean Pierrer)
 ```
 
@@ -41,13 +41,12 @@ McHanaq/
 * **Repositorio de integración activa (Fase 2 global + UX):** [`sebastiansb1232-boop/McHanaq-labs`](https://github.com/sebastiansb1232-boop/McHanaq-labs) en la rama `feature/labs-phase2-integration`.
 * **Repositorio *upstream* del equipo:** [`TomJordan1/McHanaq`](https://github.com/TomJordan1/McHanaq).
 
-| Rama | Responsable | Carpeta principal |
+| Rama | Responsable | Carpeta principal / alcance |
 |---|---|---|
-| `feature/gee-data-pipeline` | Angelo | `src/gee/` |
-| `feature/analytics-engine` | Tom | `src/analytics/` |
-| `feature/api-backend` | Jhan (Fase A: Tom) | `src/backend/` |
-| `feature/frontend-dashboard` | Sebastian | `src/frontend/` |
-| `feature/product-qa-demo` | Jean Pierrer | `data/reference/`, `contracts/`, `data/fixtures/`, `docs/`, `tests/acceptance/`, `presentation/` |
+| `feature/gee-data-pipeline`, `feature/api-backend` | Angelo | `src/backend/`, `src/gee/` (+ Open-Meteo/NASA FIRMS/Earth Engine) y `src/analytics/spread_model.py` (Fase 2) |
+| `feature/analytics-engine` | Tom | Liderazgo e integración transversal, `src/analytics/` (Fase 1 longitudinal) y co-revisión de `src/backend/` |
+| `feature/frontend-dashboard` | Sebastian | `src/frontend/`, hosting, dominio y despliegue en la nube (`infra/azure/`, Cloudflare Pages / SWA) |
+| `feature/product-qa-demo` | Jean Pierrer | `docs/`, `contracts/`, `AI_USAGE.md`, `presentation/`, auditoría documental, `data/reference/`, `data/fixtures/`, `tests/acceptance/` |
 
 ## Inicio rápido
 
@@ -101,7 +100,7 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
   * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`? Guía`, 7 pasos en `MAP_TOUR_STEPS`), selector territorial, calendario longitudinal 2D y relieve 3D (`CalendarTerrain3D`, `2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
   * **Simulación (Fase 2 opcional, hasta 48 h):** abre automáticamente el cajón `Escenario · Fase 2` con `? Guía` dedicada de 5 pasos (`SPREAD_TOUR_STEPS`), modelo exploratorio desacoplado (`src/analytics/spread_model.py`, `heuristic_wind_slope_spread_v1`) que combina SAVI (Sentinel-2 L2A vía Microsoft Planetary Computer o fallback calibrado), pendiente DEM (Copernicus GLO-90 vía Open-Meteo, incluyendo fallback Python puro `COPERNICUS_DEM_GLO90_OPEN_METEO` en Azure F1) y viento horario de hasta `48 h` (`+6h..+48h`). Incluye **simulación global en 1 clic** (presets *Ucayali*, *California*, *Grecia* o cualquier par Lat/Lon), selector `Fecha de inicio (48 h)`, **geocodificación administrativa inversa** país / región / provincia / ciudad / distrito (`GET /api/v1/reverse-geocode`) sincronizada en la cabecera (`SiteNav`) y en el panel, previsualización integrada (`simulacion_48h.gif`, `infografia_impacto_48h.png`, `panel_modelo_48h.png`) y generación/descarga bajo demanda (`/spread-simulate`, `/spread-export`, `/spread-outputs/{filename}`) más consultas globales Open-Meteo / NASA FIRMS NRT (`/realtime/area`, opcional con `FIRMS_MAP_KEY`).
 * **Tecnología (`#/tecnologia`):** vista dedicada con tarjetas filtrables por capa técnica (`src/frontend/src/data/tech.ts`) y terminal interactiva (`TechTerminal` en pestañas Bash / Python / API).
-* **Fotos del equipo:** archivos activos en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`; `jhan.jpg` queda pendiente y la interfaz muestra su monograma `"J"` automáticamente).
+* **Fotos del equipo:** las 4 fotos del equipo están activas en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`).
 
 ## Límites que la interfaz declara siempre
 

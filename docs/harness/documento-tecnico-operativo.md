@@ -29,43 +29,45 @@ McHanaq **no predice dónde se iniciará un incendio, no estima la probabilidad 
 
 ### Cómo se conectan las partes (en sencillo)
 
-McHanaq tendrá una sola ruta de datos. **Angelo lidera el procesamiento geoespacial en GEE; Tom calcula los indicadores y aplica el árbol de decisión; Jhan construye la API y conecta los módulos; Sebastian desarrolla la interfaz; Jean Pierrer prepara referencias territoriales, fixtures, pruebas de aceptación y la presentación.** La presentación se construye desde T0, pero las cifras se agregan únicamente cuando los responsables técnicos las verifican.
+McHanaq tendrá una sola ruta de datos. **Tom asume el liderazgo general, el motor analítico longitudinal (`src/analytics/`) y la integración entre módulos; Angelo está a cargo del backend (`src/backend/`), los datos ambientales desde fuentes abiertas y obligatorias de NASA (`src/gee/`) y la implementación del modelo de propagación (`src/analytics/spread_model.py`, Fase 2); Sebastian desarrolla el frontend inicial (`src/frontend/`), el hosting, el dominio y la configuración completa del despliegue; Jean Pierrer lidera la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), la presentación (`presentation/`), revisiones exhaustivas de documentación para evitar omisiones clave, además de referencias territoriales, fixtures y QA.** La presentación se construye desde T0, pero las cifras se agregan únicamente cuando los responsables técnicos las verifican.
 
 ### Cómo usar esta guía
 
 - **Todos:** lean las secciones 1–3, 8 y 11. Ahí están las decisiones, el alcance y las reglas de integración.
-- **Angelo y Tom:** prioricen las secciones 5–7 y el contrato de archivos de la sección 8.4.
-- **Jhan y Sebastian:** prioricen las secciones 8.5–8.7 y el contrato de API.
-- **Jean Pierrer:** use las secciones 4, 8.3–8.5, 10–15 y 19–20 para fuentes, QA, presentación, rúbrica y entrega.
+- **Angelo y Tom:** prioricen las secciones 5–7 y el contrato de archivos de la sección 8.4 (y Angelo además las secciones 8.5–8.6 de backend y la adenda de Fase 2).
+- **Angelo y Sebastian:** prioricen las secciones 8.5–8.7 y el contrato de API (con integración coordinada por Tom).
+- **Jean Pierrer:** use las secciones 4, 8.3–8.5, 10–15 y 19–20 para fuentes, documentación (`docs/`, `contracts/`, `AI_USAGE.md`), revisiones para evitar omisiones clave, QA, presentación, rúbrica y entrega.
 
 Las etiquetas **MVP obligatorio**, **solo si hay tiempo** y **fuera del alcance** indican qué debe tener prioridad durante las 48 horas. Si una fuente no está disponible o no puede procesarse dentro del tiempo, se documenta y se utiliza la alternativa prevista; no se simula que el dato existe.
 
 ```text
-Satélites y fuentes ambientales
+Satélites y fuentes ambientales (abiertas y obligatorias NASA)
             │
             ▼
-     GEE — Angelo
+ GEE y fuentes ambientales — Angelo
   extrae, filtra y agrega
             │
             ▼
      Tablas normalizadas
             │
             ▼
-  Analítica — Tom (Python)
+ Analítica longitudinal — Tom (Python)
  métricas mensuales, anomalías y árbol
+ (Fase 2 opcional: spread_model.py — Angelo)
             │
             ▼
   Resultados precomputados JSON/CSV
             │
             ▼
-    API — Jhan (FastAPI)
+    API — Angelo (FastAPI)
  valida, filtra y entrega resultados
             │
             ▼
- Interfaz — Sebastian (React)
+ Interfaz, hosting, dominio y despliegue — Sebastian (React)
  mapa, calendario y fichas
 
-Referencias territoriales, contratos, QA de producto y presentación — Jean Pierrer
+Liderazgo general e integración entre módulos — Tom
+Documentación (docs/, contracts/, AI_USAGE.md), revisiones, referencias, QA y presentación — Jean Pierrer
 ```
 
 Esta separación es deliberada: el navegador **no se conecta directamente a GEE**, el frontend **no calcula indicadores**, y el backend **no vuelve a implementar las fórmulas analíticas**. Cada módulo entrega datos en un formato acordado.
@@ -472,7 +474,7 @@ La aplicación seguirá este recorrido:
 [MODIS / VIIRS / MapBiomas / ERA5-Land / SRTM / límites]
                          │
                          ▼
-           [Google Earth Engine — Angelo]
+   [Google Earth Engine y fuentes abiertas/NASA — Angelo]
        descarga lógica, QA, máscaras y agregación zonal
                          │
                          ▼
@@ -480,23 +482,25 @@ La aplicación seguirá este recorrido:
                   CSV / GeoJSON
                          │
                          ▼
-               [Analítica — Tom]
+          [Analítica longitudinal — Tom]
       métricas históricas + anomalías + reglas
+      (Fase 2 opcional: spread_model.py — Angelo)
                          │
                          ▼
             [Artefactos publicados]
         JSON / GeoJSON + metadata.json
                          │
                          ▼
-              [Backend — Jhan]
+              [Backend — Angelo]
                 FastAPI / REST
           valida, filtra y entrega los datos
                          │
                          ▼
-             [Frontend — Sebastian]
+     [Frontend, hosting, dominio y despliegue — Sebastian]
          React / mapa / gráficos / fichas
 
- [Jean Pierrer: insumos territoriales de referencia, contrato/documentación, QA de producto y presentación/demo]
+ [Tom: liderazgo general e integración entre módulos]
+ [Jean Pierrer: documentación (docs/, contracts/, AI_USAGE.md), revisiones para evitar omisiones clave, insumos territoriales, QA y presentación/demo]
 ```
 
 **Reglas de separación:**
@@ -527,36 +531,36 @@ Estas son las tecnologías recomendadas para que el equipo arranque con una base
 
 ```text
 McHanaq/
-├── contracts/                   # Jean coordina; Jhan valida el contrato técnico de API
+├── contracts/                   # Jean Pierrer coordina; Tom y Angelo validan integración y contrato API
 │   ├── api-contract.md
 │   ├── data-dictionary.md
 │   └── schemas/
-├── gee/                         # Angelo
+├── gee/                         # Angelo (src/gee/: GEE + fuentes abiertas y obligatorias de NASA)
 │   ├── hotspots_pipeline.js
 │   ├── environmental_context.js
 │   └── README.md
-├── analytics/                   # Tom
+├── analytics/                   # Tom (src/analytics/: motor longitudinal); Angelo (spread_model.py, Fase 2)
 │   ├── metrics.py
 │   ├── anomalies.py
 │   ├── decision_rules.py
 │   └── README.md
-├── backend/                     # Jhan
+├── backend/                     # Angelo (src/backend/: API FastAPI, integrado con Tom)
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── routers/
 │   │   ├── schemas/
 │   │   └── services/
 │   └── requirements.txt
-├── frontend/                    # Sebastian
+├── frontend/                    # Sebastian (src/frontend/: UI inicial, hosting, dominio y despliegue)
 │   ├── src/
 │   └── package.json
 ├── data/
-│   ├── reference/                # Capas oficiales pequeñas revisadas por Jean
-│   ├── fixtures/                 # Ejemplos sintéticos/pequeños; Jean coordina
+│   ├── reference/                # Capas oficiales pequeñas revisadas por Jean Pierrer
+│   ├── fixtures/                 # Ejemplos sintéticos/pequeños; Jean Pierrer coordina
 │   ├── intermediate/             # Exportaciones GEE temporales (ignorado en Git)
 │   └── processed/                # Resultados compactos por mes para la API/demo
-├── tests/                       # Pruebas por módulo y aceptación
-├── docs/                        # Jean Pierrer
+├── tests/                       # Pruebas por módulo y aceptación (QA Jean Pierrer)
+├── docs/                        # Jean Pierrer (docs/, AI_USAGE.md y revisiones exhaustivas)
 │   ├── methodology.md
 │   ├── sources.md
 │   └── demo_script.md
@@ -565,7 +569,7 @@ McHanaq/
 └── README.md
 ```
 
-Cada responsable trabaja principalmente dentro de su carpeta. Los cambios en `contracts/` afectan a todos y deben revisarse con el equipo antes de fusionarse. Las capas oficiales pequeñas revisadas por Jean se guardan en `data/reference/`; Angelo las valida técnicamente y las incorpora al flujo GEE. Las exportaciones GEE (`daily_activity.csv` y `environmental_context.csv`) pasan por `data/intermediate/`; Tom las procesa y genera los archivos API-ready en `data/processed/`: `territories.geojson`, `activity_daily.json`, `activity_summary.json`, `conditions_assessment.json` y `metadata.json`. Jhan configura FastAPI para leer esa carpeta, no una ruta distinta dentro de `backend/`. La tabla CSV intermedia no debe ser consumida directamente por el frontend.
+Cada responsable trabaja principalmente dentro de su carpeta (en la estructura unificada bajo `src/`). Los cambios en `contracts/` afectan a todos y deben revisarse con el equipo antes de fusionarse. Las capas oficiales pequeñas revisadas por Jean Pierrer se guardan en `data/reference/`; Angelo las valida técnicamente y las incorpora al flujo GEE junto con las fuentes ambientales abiertas y obligatorias de NASA (`src/gee/`). Las exportaciones GEE (`daily_activity.csv` y `environmental_context.csv`) pasan por `data/intermediate/`; Tom las procesa en el motor analítico longitudinal (`src/analytics/`), genera los archivos API-ready de Fase 1 en `data/processed/` (`territories.geojson`, `activity_daily.json`, `activity_summary.json`, `conditions_assessment.json` y `metadata.json`) y coordina la integración general; Angelo implementa `src/backend/` (para leer esa carpeta y no una ruta distinta dentro de `backend/`) y el modelo de propagación de Fase 2 (`src/analytics/spread_model.py`); Sebastian desarrolla `src/frontend/`, gestiona el hosting, el dominio personalizado y la configuración completa del despliegue; y Jean Pierrer lidera la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), las revisiones documentales exhaustivas para evitar omisiones clave y el desarrollo de `presentation/`. La tabla CSV intermedia no debe ser consumida directamente por el frontend.
 
 **Cómo se comparten los datos entre computadoras y despliegue oficial (Microsoft Azure Free Tier):** GitHub contiene código, contratos, fixtures, metadatos y resultados compactos necesarios para la demo. Las tareas batch desde Google Earth Engine Code Editor exportan inicialmente a Google Drive o GCS; luego los archivos se descargan localmente a `data/intermediate/` y se almacenan/espejan junto con los paquetes de `data/processed/` en **Azure Blob Storage (Free Tier / Azure Storage)**, sincronizándose offline o en tiempo de build/deploy hacia `data/processed/` (nunca se suben exportaciones pesadas a Git). El despliegue oficial (`infra/azure/`) utiliza **Azure App Service (Plan Free F1, Linux Python)** para `src/backend/` (de solo lectura sobre `data/processed/` o `data/fixtures/`, con `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP) y **Azure Static Web Apps (Plan Free)** sirviendo `src/frontend/dist/` (`VITE_API_BASE` / `VITE_API_BASE_URL` apuntando al App Service; `render.yaml` queda únicamente como referencia *legacy*/opcional).
 
@@ -575,15 +579,15 @@ Los nombres de archivo y campos son parte del contrato. No se deben renombrar un
 
 | Archivo | Lo genera | Lo consume | Contenido |
 |---|---|---|---|
-| `territories.geojson` | Jean entrega las capas oficiales; Angelo valida, normaliza y exporta | Backend y frontend | Geometrías provinciales e hidrográficas con IDs estables y `territory_type`; archivo API-ready en `data/processed/`. |
+| `territories.geojson` | Jean Pierrer entrega las capas oficiales; Angelo valida, normaliza y exporta | Backend (Angelo) y frontend (Sebastian) | Geometrías provinciales e hidrográficas con IDs estables y `territory_type`; archivo API-ready en `data/processed/`. |
 | `daily_activity.csv` | Angelo | Tom | Tabla intermedia con conteos diarios por territorio y sensor, observaciones válidas y esperadas. No la consume directamente el frontend. |
 | `environmental_context.csv` | Angelo | Tom | Tabla intermedia con variables ambientales agregadas por territorio y mes calendario, con fecha de referencia por variable. |
-| `activity_daily.json` | Tom | Jhan | Serie diaria normalizada y lista para que la API alimente el calendario/gráfico del mes seleccionado. |
-| `activity_summary.json` | Tom | Jhan | Tasas, fire pixel-days, días activos, racha máxima y anomalías por territorio, sensor y mes; se calcula para cada mes habilitado y sus líneas base. |
-| `sensor_comparison.json` | Tom | Jhan | Comparación del mismo territorio y mes entre sensores disponibles: tasas/anomalías individuales, cobertura y estado de concordancia/discrepancia; nunca suma conteos brutos. |
-| `conditions_assessment.json` | Tom | Jhan | Categoría de susceptibilidad, ruta de decisión, factores y modificadores activados, evidencia y datos faltantes por territorio y mes; independiente del sensor seleccionado. |
-| `hotspots.geojson` | Angelo, solo si el volumen lo permite | Backend y frontend | Capa opcional de puntos de detección. La coropleta por territorio no depende de este archivo. |
-| `metadata.json` | Angelo y Tom; Jean completa atribución y documentación | Backend y frontend | Fuentes, colecciones, fechas disponibles, períodos comunes, resolución, unidades, versiones y limitaciones; archivo API-ready en `data/processed/`. |
+| `activity_daily.json` | Tom | Backend (Angelo) | Serie diaria normalizada y lista para que la API alimente el calendario/gráfico del mes seleccionado. |
+| `activity_summary.json` | Tom | Backend (Angelo) | Tasas, fire pixel-days, días activos, racha máxima y anomalías por territorio, sensor y mes; se calcula para cada mes habilitado y sus líneas base. |
+| `sensor_comparison.json` | Tom | Backend (Angelo) | Comparación del mismo territorio y mes entre sensores disponibles: tasas/anomalías individuales, cobertura y estado de concordancia/discrepancia; nunca suma conteos brutos. |
+| `conditions_assessment.json` | Tom | Backend (Angelo) | Categoría de susceptibilidad, ruta de decisión, factores y modificadores activados, evidencia y datos faltantes por territorio y mes; independiente del sensor seleccionado. |
+| `hotspots.geojson` | Angelo, solo si el volumen lo permite | Backend (Angelo) y frontend (Sebastian) | Capa opcional de puntos de detección. La coropleta por territorio no depende de este archivo. |
+| `metadata.json` | Tom (a partir de analítica y `gee_manifest.json` de Angelo); Jean Pierrer revisa atribución y documentación | Backend y frontend | Fuentes, colecciones, fechas disponibles, períodos comunes, resolución, unidades, versiones y limitaciones; archivo API-ready en `data/processed/`. |
 
 **Claves obligatorias en datos territoriales:** `territory_type` (`province` o `hydro_unit`) y `territory_id`. Para sensores: `MODIS_TERRA`, `MODIS_AQUA` y `VIIRS_SNPP`. Las fechas se expresan como `YYYY-MM-DD`. Los valores numéricos desconocidos o no estimables se representan como `null`, nunca como cero.
 
@@ -775,26 +779,28 @@ Los valores del ejemplo son marcadores de esquema, no resultados. `classificatio
 
 ### 8.6. Responsabilidad del backend y del frontend
 
-**Backend (Jhan):**
+**Backend (Angelo, con integración coordinada por Tom):**
 
-- Implementar FastAPI y las rutas definidas arriba.
+- Implementar FastAPI (`src/backend/`) y las rutas definidas arriba.
 - Validar parámetros (`type`, `id`, `period`, sensor y métrica solicitada).
 - Leer los JSON/GeoJSON ya generados desde `data/processed/` y devolverlos con el formato pactado. El endpoint `activity` lee `activity_daily.json`; el endpoint `summary` combina `activity_summary.json` con `conditions_assessment.json`; el endpoint `sensor-comparison` lee `sensor_comparison.json`.
 - Para una ficha completa, validar que `period` esté en `available_periods_by_sensor[sensor]` y `common_environmental_periods`. Para una comparación multisensor, exigir `common_analysis_periods`. Para consultas de solo actividad, validar únicamente `available_periods_by_sensor[sensor]`.
-- No calcular sumas, tasas, anomalías o reglas; esos resultados ya vienen preparados por Tom.
+- No calcular sumas, tasas, anomalías o reglas; esos resultados ya vienen preparados por el motor longitudinal de Tom (`src/analytics/`).
 - Manejar errores de forma consistente (`400` para parámetros inválidos, `404` para territorio/datos inexistentes y `500` para errores internos).
 - Mantener fuera del frontend cualquier credencial o clave de servicios externos.
-- No reimplementar las fórmulas de Tom ni ejecutar GEE por cada petición.
+- No reimplementar las fórmulas de `src/analytics/` (Tom) ni ejecutar GEE por cada petición.
+- En la extensión opcional de Fase 2, exponer los endpoints del modelo de propagación (`src/analytics/spread_model.py`, también implementado por Angelo) de forma desacoplada de Fase 1.
 
-**Frontend (Sebastian):**
+**Frontend, hosting y despliegue (Sebastian):**
 
-- Construir la interfaz React consumiendo exclusivamente `/api/v1`.
+- Construir la interfaz React inicial (`src/frontend/`) consumiendo exclusivamente `/api/v1`.
 - Usar los IDs territoriales para enlazar geometrías, indicadores y fichas.
 - Habilitar únicamente años, meses y días útiles analizables publicados en `/metadata` (`available_periods_by_sensor` y `available_date_ranges_by_sensor`, donde `valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70` y `activity_rate` no es `null`).
 - Implementar estados de carga, error, datos faltantes y cobertura insuficiente.
 - Mostrar claramente sensor, período, unidades y fuente.
 - Consultar `/sensor-comparison` para mostrar concordancia/discrepancia; no derivarla en React.
 - No calcular tasas, anomalías ni categorías de reglas en componentes React.
+- Gestionar el hosting, dominio personalizado y configuración completa del despliegue productivo del frontend (`VITE_API_BASE` / `VITE_API_BASE_URL` apuntando al backend).
 
 **Desarrollo local:** backend en `http://localhost:8000`; frontend en `http://localhost:5173`. Configurar Vite para reenviar `/api` al backend durante desarrollo, o habilitar CORS solo para el origen local del frontend. En producción, preferir servir ambos bajo un mismo dominio o configurar explícitamente el origen permitido.
 
@@ -874,37 +880,35 @@ No se requiere una matriz de confusión para evaluar el árbol de reglas como si
 
 ---
 
-## 11. Organización del equipo y cinco ramas de GitHub
+## 11. Organización del equipo y cuatro ramas de GitHub
 
 ### 11.1. Reparto basado en las fortalezas y en la carga real
 
-La presentación es una entrega importante, pero **no debe ser el único trabajo de Jean Pierrer ni empezar recién cuando los demás terminen**. Su rama debe generar insumos útiles desde el primer bloque y sostener una línea de trabajo paralela: preparar las referencias territoriales, revisar la calidad y coherencia de los resultados, definir criterios de aceptación y construir progresivamente la historia del proyecto.
+La presentación es una entrega importante, pero **no debe ser el único trabajo de Jean Pierrer ni empezar recién cuando los demás terminen**. Su rama sostiene una línea de trabajo paralela clave desde T0: liderar la documentación integral (`docs/`, `contracts/`, `AI_USAGE.md`), realizar revisiones exhaustivas de documentación para evitar omisiones clave, preparar las referencias territoriales y fixtures, ejecutar pruebas de QA y construir progresivamente la historia y el deck en `presentation/`.
 
 | Integrante | Fortaleza considerada | Responsabilidad principal | Entregables concretos |
 |---|---|---|---|
-| **Angelo** | Es quien comprende y maneja Google Earth Engine. | Líder GEE y responsable técnico geoespacial: hotspots MODIS/VIIRS, QA, variables ambientales y agregación espacial. | Scripts GEE y exportaciones verificables con QA, fechas, unidades, resolución y metadatos. |
-| **Tom** | Analítica, armonización multisensor, anomalías e interpretación de indicadores. | Módulo analítico: métricas históricas, comparación por sensor y motor de reglas. | Funciones Python probadas y `activity_summary.json` / `conditions_assessment.json`. |
-| **Jhan** | Desarrollo backend e integración de servicios. | Arquitectura y backend: FastAPI, lectura de artefactos, validación, filtros, endpoints e integración. | API `/api/v1` ejecutable, modelos Pydantic y documentación OpenAPI. |
-| **Sebastian** | UX/UI y desarrollo frontend. | Interfaz: mapa, filtros, calendario, gráficos, fichas y estados de carga/error. | Frontend React que consume la API definida, con un recorrido completo de usuario. |
-| **Jean Pierrer** | Documentación, organización, propuesta de valor y comunicación del proyecto. | Datos territoriales de referencia, coordinación del contrato/documentación, QA de producto, validación de evidencia, presentación y demo. | Capas de referencia verificadas, fixtures y criterios de aceptación, registro de QA, deck actualizado progresivamente y guion de demo. |
+| **Angelo** | Google Earth Engine, fuentes ambientales abiertas/NASA, backend Python/FastAPI y modelado espacial. | Backend (`src/backend/`), datos ambientales desde fuentes abiertas y obligatorias de NASA (`src/gee/`), e implementación del modelo de propagación (`src/analytics/spread_model.py`, Fase 2). | Scripts GEE y exportaciones verificables (QA, fechas, unidades, resolución y metadatos), API `/api/v1` ejecutable (modelos Pydantic, OpenAPI, filtros) y módulo `spread_model.py` (Fase 2). |
+| **Tom** | Liderazgo técnico, analítica longitudinal, armonización multisensor, anomalías, interpretación e integración. | Liderazgo general, motor analítico longitudinal (`src/analytics/`: métricas históricas, comparación por sensor, árbol de reglas) e integración transversal entre módulos. | Funciones Python probadas, `activity_summary.json` / `activity_daily.json` / `sensor_comparison.json` / `conditions_assessment.json` / `metadata.json` e integración end-to-end verificada. |
+| **Sebastian** | UX/UI, desarrollo frontend e infraestructura de publicación web. | Frontend inicial (`src/frontend/`: mapa, filtros, calendario, gráficos, fichas y estados de carga/error), hosting, dominio propio y configuración completa del despliegue. | Frontend React que consume la API definida con recorrido completo de usuario, más entorno productivo publicado con dominio y despliegue configurado. |
+| **Jean Pierrer** | Documentación técnica, revisión exhaustiva, organización, propuesta de valor y comunicación del proyecto. | Documentación (`docs/`, `contracts/`, `AI_USAGE.md`), desarrollo de la presentación (`presentation/`), revisiones exhaustivas de documentación para evitar omisiones clave, además de capas de referencia (`data/reference/`), `data/fixtures/` y QA. | Documentación consolidada sin omisiones clave, `AI_USAGE.md`, contratos/fixtures y referencias verificadas, registro de QA, deck actualizado progresivamente y guion de demo. |
 
-**Cómo se complementan:** Angelo lidera GEE y no debe distraerse buscando, limpiando y documentando por sí solo todas las capas territoriales. Jean puede localizar y revisar las fuentes oficiales de límites provinciales y unidades hidrográficas, comprobar códigos, metadatos y nivel Pfafstetter, y entregar a Angelo un paquete de referencia ordenado. Angelo decide e implementa cómo incorporarlo en GEE. Tom define qué variables necesita el análisis y acuerda con Angelo cuáles son realmente viables. Jhan define e implementa la API sin duplicar el cálculo analítico. Sebastian trabaja contra el contrato y los fixtures. Jean acompaña la integración, detecta inconsistencias y convierte los resultados comprobados en una narrativa clara.
+**Cómo se complementan:** Angelo lidera el procesamiento geoespacial en `src/gee/` (fuentes abiertas y obligatorias de NASA), la API en `src/backend/` y el modelo de propagación opcional en `src/analytics/spread_model.py` (Fase 2), sin distraerse buscando, limpiando y documentando por sí solo todas las capas territoriales. Jean Pierrer localiza y revisa las fuentes oficiales de límites provinciales y unidades hidrográficas, mantiene `docs/`, `contracts/` y `AI_USAGE.md`, ejecuta revisiones exhaustivas para evitar omisiones clave, prepara `presentation/` y entrega a Angelo un paquete de referencia ordenado. Tom ejerce el liderazgo general, desarrolla el motor analítico longitudinal (`src/analytics/`), acuerda con Angelo las variables viables y coordina la integración transversal entre `src/gee/`, `src/analytics/`, `src/backend/` y `src/frontend/`. Sebastian desarrolla el frontend inicial (`src/frontend/`) contra el contrato y los fixtures, y gestiona el hosting, el dominio y la configuración completa del despliegue.
 
-**Jean no necesita esperar a que existan resultados finales para trabajar:** desde T0 puede producir límites territoriales revisados, inventario de fuentes, contrato legible, fixtures, criterios de aceptación, estructura de presentación, contexto del problema y propuesta de valor. Más adelante reemplaza los espacios reservados de la presentación por resultados reales revisados con los responsables técnicos.
+**Jean no necesita esperar a que existan resultados finales para trabajar:** desde T0 puede producir límites territoriales revisados, inventario de fuentes, contrato legible, documentación y `AI_USAGE.md`, revisiones de coherencia para evitar omisiones, fixtures, criterios de aceptación, estructura de `presentation/`, contexto del problema y propuesta de valor. Más adelante reemplaza los espacios reservados de la presentación por resultados reales revisados con los responsables técnicos.
 
-### 11.2. Las cinco ramas
+### 11.2. Las cuatro ramas
 
-Se mantiene una rama por frente funcional. Las carpetas están separadas para reducir conflictos; los contratos y cambios de integración se revisan en conjunto.
+Se mantiene una rama principal por integrante y frente funcional. Las carpetas están separadas para reducir conflictos; los contratos y cambios de integración se revisan en conjunto.
 
 | Rama | Responsable | Carpeta principal | Alcance de la rama |
 |---|---|---|---|
-| `feature/gee-data-pipeline` | Angelo | `gee/` | Extracción/QA MODIS-VIIRS, contexto ambiental, agregación zonal y exportaciones. |
-| `feature/analytics-engine` | Tom | `analytics/` | Métricas, anomalías, persistencia, comparación multisensor y reglas interpretables. |
-| `feature/api-backend` | Jhan | `backend/` | FastAPI, modelos Pydantic, endpoints, filtros y lectura de archivos JSON/GeoJSON. |
-| `feature/frontend-dashboard` | Sebastian | `frontend/` | Mapa, filtros, calendario, gráficos, fichas y estados de carga/error. |
-| `feature/product-qa-demo` | Jean Pierrer | `data/reference/`, `contracts/`, `data/fixtures/`, `docs/`, `tests/acceptance/`, `presentation/` | Límites y referencias verificadas, fixtures, criterios de aceptación, control de calidad, documentación, narrativa, deck y demo. |
+| `feature/gee-data-pipeline` | Angelo | `src/gee/`, `src/backend/`, `src/analytics/spread_model.py` | Extracción/QA MODIS-VIIRS y datos ambientales abiertos/NASA, FastAPI (`/api/v1`, Pydantic, filtros, lectura de JSON/GeoJSON) y modelo de propagación de Fase 2. |
+| `feature/analytics-engine` | Tom | `src/analytics/` (motor longitudinal) e integración | Liderazgo general, métricas longitudinales, anomalías, persistencia, comparación multisensor, reglas interpretables e integración transversal entre módulos. |
+| `feature/frontend-dashboard` | Sebastian | `src/frontend/` y configuración de despliegue | Frontend inicial (mapa, filtros, calendario, gráficos, fichas, estados), hosting, dominio propio y configuración completa del despliegue. |
+| `feature/product-qa-demo` | Jean Pierrer | `docs/`, `contracts/`, `AI_USAGE.md`, `presentation/`, `data/reference/`, `data/fixtures/`, `tests/acceptance/` | Documentación integral, revisiones exhaustivas para evitar omisiones clave, contratos, fixtures, referencias, QA, narrativa, deck y demo. |
 
-**Límite de responsabilidades para evitar conflictos:** Jean mantiene el contrato en lenguaje claro, los fixtures y el checklist de producto. Angelo es dueño del esquema de exportación GEE; Tom es dueño del esquema de salida analítica; Jhan es dueño del contrato REST y de los modelos Pydantic; Sebastian confirma que el contrato permite construir la interfaz. Cada cambio se revisa con el responsable de la etapa anterior y posterior. Ninguna persona cambia unilateralmente nombres, tipos o unidades.
+**Límite de responsabilidades para evitar conflictos:** Jean Pierrer mantiene la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), la presentación (`presentation/`), revisiones exhaustivas de omisiones, los fixtures y el checklist de producto. Angelo es dueño del esquema de exportación GEE/NASA (`src/gee/`), de la implementación de `src/backend/` (rutas `/api/v1` y modelos Pydantic) y de `src/analytics/spread_model.py` (Fase 2); Tom lidera el proyecto a nivel general, es dueño del motor analítico longitudinal y su esquema de salida (`src/analytics/`) y coordina la integración entre módulos y contrato REST; Sebastian confirma que el contrato permite construir `src/frontend/` y gestiona hosting, dominio y despliegue. Cada cambio se revisa con el responsable de la etapa anterior y posterior. Ninguna persona cambia unilateralmente nombres, tipos o unidades.
 
 ### 11.3. Qué debe hacer cada persona
 
@@ -920,13 +924,13 @@ Su trabajo se divide en cuatro frentes que avanzan en paralelo. La presentación
 4. Entregar a Angelo los archivos originales y la ficha de cada capa. Angelo valida técnicamente las geometrías y decide cómo incorporarlas a GEE; Jean no necesita programar ni corregir geometrías.
 5. Preparar, a partir de los atributos disponibles, una lista preliminar de `territory_id`, `territory_type`, `territory_name` y `pfafstetter_level` cuando exista. Angelo confirma los IDs definitivos después de revisar los datos en GEE.
 
-**Frente 2 — Contrato, fixtures y criterios de aceptación (desde T0)**
+**Frente 2 — Documentación, contratos, `AI_USAGE.md`, fixtures y revisiones (desde T0)**
 
-1. Mantener `contracts/api-contract.md` y `contracts/data-dictionary.md` en lenguaje comprensible, describiendo rutas, parámetros, campos, unidades y estados sin datos.
-2. Crear fixtures pequeños y claramente marcados como demostrativos: una provincia, una cuenca, dos sensores y varios días de actividad. Nunca presentarlos como observaciones reales.
-3. Coordinar con Jhan los esquemas de respuesta; Jhan los implementa en Pydantic. Sebastian confirma que los datos permiten construir las vistas; Tom y Angelo validan el significado científico/técnico.
-4. Preparar criterios de aceptación concretos: seleccionar territorio, filtrar fechas/sensor, ver actividad, abrir condiciones y revisar calidad de observación.
-5. Mantener un registro corto de problemas con pasos para reproducirlos, responsable y prioridad.
+1. Mantener `docs/`, `contracts/api-contract.md`, `contracts/data-dictionary.md` y `AI_USAGE.md` en lenguaje comprensible, describiendo rutas, parámetros, campos, unidades y estados sin datos.
+2. Ejecutar revisiones exhaustivas de toda la documentación para prevenir omisiones clave (criterios de rúbrica, atribución de fuentes NASA/abiertas, requisitos de elegibilidad y coherencia entre archivos).
+3. Crear fixtures pequeños y claramente marcados como demostrativos: una provincia, una cuenca, dos sensores y varios días de actividad. Nunca presentarlos como observaciones reales.
+4. Coordinar con Tom (integración/analítica) y Angelo (backend/modelos Pydantic) los esquemas de respuesta. Sebastian confirma que los datos permiten construir las vistas; Tom y Angelo validan el significado científico/técnico.
+5. Preparar criterios de aceptación concretos y mantener un registro corto de problemas con pasos para reproducirlos, responsable y prioridad.
 
 **Frente 3 — QA del producto y verificación de evidencia (durante todo el desarrollo)**
 
@@ -936,79 +940,71 @@ Su trabajo se divide en cuatro frentes que avanzan en paralelo. La presentación
 4. Verificar que las etiquetas «sin datos», «no evaluable» y «cero detecciones» no se confundan.
 5. Ejecutar el recorrido de usuario al integrar cada módulo y reportar errores a su responsable.
 
-**Frente 4 — Presentación y demo progresivas (desde T0; completar al final)**
+**Frente 4 — Presentación y demo progresivas (`presentation/`, desde T0; completar al final)**
 
 1. Crear desde el inicio la estructura del deck: problema, oportunidad, solución, fuentes, metodología, arquitectura, demo, resultados, limitaciones e impacto.
 2. Investigar y redactar el contexto del problema y el valor diferencial con fuentes rastreables; no esperar a las métricas para preparar estas partes.
 3. Preparar un diagrama sencillo de arquitectura y un flujo de demo que coincidan con la implementación real.
-4. Mantener espacios reservados para resultados; solo insertar cifras y capturas cuando Angelo/Tom/Jhan las hayan verificado.
+4. Mantener espacios reservados para resultados; solo insertar cifras y capturas cuando Tom y Angelo las hayan verificado.
 5. Capturar pantallas del producto, pedir a cada responsable una explicación breve de su módulo y convertirla en una diapositiva fiel a lo implementado.
 6. Preparar un guion de exposición con tiempos, transición entre integrantes, preguntas previsibles y limitaciones explícitas.
 7. Mantener un plan B de demo con fixtures etiquetados como datos de muestra por si falla la conexión o la API durante la presentación.
 8. Mantener un registro de datasets, herramientas, librerías, código, textos, imágenes y recursos externos utilizados, con URL, versión, licencia/atribución y propósito.
-9. Mantener un registro de uso de IA: herramienta, tarea realizada, componente afectado (código, datos, texto, imagen, audio o video) y revisión humana; preparar la declaración para la página del proyecto.
+9. Mantener actualizado `AI_USAGE.md` con herramienta, tarea realizada, componente afectado (código, datos, texto, imagen, audio o video) y revisión humana; preparar la declaración para la página del proyecto.
 
-**No debe:** esperar pasivamente a que los demás terminen; inventar estadísticas para completar diapositivas; asumir tareas de programación/GIS para las que no fue asignado; implementar una segunda versión de GEE, fórmulas o API; cambiar contratos técnicos sin revisión; ni afirmar que el sistema predice o simula propagación.
+**No debe:** esperar pasivamente a que los demás terminen; inventar estadísticas para completar diapositivas; asumir tareas de programación/GIS para las que no fue asignado; implementar una segunda versión de GEE, fórmulas o API; cambiar contratos técnicos sin revisión; ni afirmar que el sistema predice o simula ignición operativa.
 
-#### B. Angelo — `feature/gee-data-pipeline`
+#### B. Angelo — `feature/gee-data-pipeline` (GEE/NASA, `src/backend/` y Fase 2 `spread_model.py`)
 
 1. Revisar con Jean las capas territoriales y elegir con el equipo el área piloto y nivel Pfafstetter.
 2. Crear y probar primero un script mínimo en GEE para el área piloto y una ventana corta.
-3. Procesar MOD14A1, MYD14A1 y VNP14A1; implementar lectura de `FireMask` y `QA` según el producto y documentar diferencias.
+3. Procesar MOD14A1, MYD14A1 y VNP14A1 e ingestar los datos ambientales desde fuentes abiertas y obligatorias de NASA (`src/gee/`); implementar lectura de `FireMask` y `QA` según el producto y documentar diferencias.
 4. Separar detecciones clase 7 de clases 8–9 y calcular observaciones válidas/cobertura.
 5. Incorporar `territories.geojson` y preparar `daily_activity.csv`; generar `hotspots.geojson` solo si el volumen lo permite.
-6. Preparar `environmental_context.csv` por prioridad: cobertura MapBiomas; una o dos variables meteorológicas/precipitación o humedad del suelo de ERA5-Land; pendiente y orientación SRTM. Añadir MOD13A3 si hay tiempo; usar MOD13Q1 solo si se necesita mayor detalle y se puede resolver su composición temporal.
-7. Registrar resolución, unidad, fechas, fuente y versión; comenzar por el área piloto, no por todo Perú.
-8. Entregar a Tom un conjunto pequeño de datos reales con un ejemplo verificable.
+6. Preparar `environmental_daily.csv` y `environmental_context.csv` por prioridad: cobertura `CobVeg_180615.shp`/MapBiomas; variables meteorológicas/precipitación o humedad del suelo de ERA5-Land; pendiente y elevación `COPERNICUS_DEM_GLO30` (y MOD13A3/MOD13Q1 según disponibilidad).
+7. Registrar resolución, unidad, fechas, fuente y versión en `gee_manifest.json`; entregar a Tom un conjunto pequeño de datos reales con un ejemplo verificable.
+8. Mantener el proyecto FastAPI (`src/backend/`) con `/api/v1/health`, documentación OpenAPI automática y los endpoints definidos en la sección 8.5 con modelos Pydantic.
+9. Definir y aplicar la validación de parámetros y respuestas conforme al contrato, manejar errores y valores faltantes consistentemente, y aplicar filtros por territorio, período y sensor devolviendo JSON/GeoJSON con la estructura acordada.
+10. Leer los archivos procesados de la ruta configurada (`data/processed/` o `data/fixtures/`), integrarlos con Tom y entregar a Sebastian una URL local/desplegada estable con ejemplos coincidentes con los fixtures.
+11. Implementar el modelo opcional de propagación espacial de Fase 2 en `src/analytics/spread_model.py` y sus rutas desacopladas de Paso 1 / Paso 2.
 
-**No debe:** calcular anomalías finales ni inventar el significado de categorías ambientales. Su salida son datos geoespaciales procesados y documentados.
+**No debe:** calcular anomalías finales de Fase 1 ni duplicar en los endpoints de la API las métricas, tasas o reglas del motor longitudinal de Tom; tampoco conectar el navegador directamente a GEE.
 
-#### C. Tom — `feature/analytics-engine`
+#### C. Tom — `feature/analytics-engine` (liderazgo general, `src/analytics/` e integración)
 
-1. Crear funciones Python para tasas, `fire_pixel_days_8_9`, días activos, persistencia y cobertura.
-2. Implementar métricas por sensor y territorio, sin sumar conteos entre sensores.
-3. Calcular anomalías con ventanas equivalentes y línea base suficiente; controlar MAD cero/casi cero y datos faltantes.
-4. Definir con Angelo cuáles variables ambientales estarán realmente disponibles y sus unidades.
-5. Implementar el árbol de decisión de susceptibilidad (nodos N0 a N3, modificadores y `decision_path`) con umbrales estacionales documentados y salida `not_evaluable` cuando falte información esencial.
-6. Generar `activity_summary.json` y `conditions_assessment.json` siguiendo el contrato.
-7. Añadir pruebas unitarias con datos de muestra y revisar manualmente uno o dos casos reales.
-8. Dar a Jean una explicación breve de las fórmulas, los umbrales y las limitaciones para que la presentación no exagere las conclusiones.
+1. Ejercer el liderazgo general del proyecto, coordinando prioridades técnicas, cronograma e integración entre `src/gee/`, `src/analytics/`, `src/backend/` y `src/frontend/`.
+2. Crear funciones Python en `src/analytics/` para tasas, `fire_pixel_days_8_9`, días activos, persistencia y cobertura.
+3. Implementar métricas por sensor y territorio, sin sumar conteos entre sensores.
+4. Calcular anomalías con ventanas equivalentes y línea base suficiente; controlar MAD cero/casi cero y datos faltantes.
+5. Definir con Angelo cuáles variables ambientales estarán realmente disponibles y sus unidades.
+6. Implementar el árbol de decisión de susceptibilidad (nodos N0 a N3, modificadores y `decision_path`) con umbrales estacionales documentados y salida `not_evaluable` cuando falte información esencial.
+7. Generar `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json` y `metadata.json` siguiendo el contrato.
+8. Añadir pruebas unitarias con datos de muestra, revisar manualmente casos reales y verificar la integración de punta a punta con `src/backend/` (Angelo) y `src/frontend/` (Sebastian).
+9. Dar a Jean una explicación breve de las fórmulas, los umbrales y las limitaciones para que la presentación y documentación no omitan ni exageren conclusiones.
 
-**No debe:** modificar los datos fuente ni duplicar fórmulas en el frontend. Las reglas y métricas tienen una sola implementación.
+**No debe:** modificar los datos fuente crudos, duplicar fórmulas en el frontend ni permitir divergencias entre los artefactos de `data/processed/`, el contrato y los endpoints servidos por `src/backend/`.
 
-#### D. Jhan — `feature/api-backend`
+#### D. Sebastian — `feature/frontend-dashboard` (`src/frontend/`, hosting, dominio y despliegue)
 
-1. Crear el proyecto FastAPI con `/api/v1/health` y documentación OpenAPI automática.
-2. Implementar los endpoints definidos en la sección 8.5 con modelos Pydantic.
-3. Definir la validación de parámetros y respuestas conforme al contrato.
-4. Leer los archivos procesados de la ruta configurada, sin depender de ubicaciones manuales distintas.
-5. Aplicar filtros por territorio, período y sensor y devolver JSON/GeoJSON con la estructura acordada.
-6. Manejar errores y valores faltantes consistentemente.
-7. Entregar a Sebastian una URL local estable y ejemplos de respuesta coincidentes con los fixtures.
-8. Integrar artefactos reales cuando Angelo y Tom los publiquen.
-
-**No debe:** recalcular tasas, anomalías o reglas ni conectar el navegador directamente a GEE.
-
-#### E. Sebastian — `feature/frontend-dashboard`
-
-1. Crear la estructura React/Vite/TypeScript o conservar la existente si ya está creada.
-2. Implementar la interfaz primero con fixtures del contrato.
+1. Crear la estructura React/Vite/TypeScript en `src/frontend/` o conservar la existente si ya está creada.
+2. Implementar la interfaz inicial primero con fixtures del contrato.
 3. Construir el mapa con selección provincial/hidrográfica y filtros de fecha y sensor.
 4. Implementar calendario o gráfico de actividad y ficha territorial.
 5. Separar visualmente actividad térmica histórica y condiciones territoriales.
 6. Mostrar unidades, fechas, fuentes, cobertura y estados «Sin datos», «No estimable» y «No evaluable».
 7. Cambiar de fixtures a la API real sin alterar nombres de campos ni incluir cálculos propios.
-8. Reportar incompatibilidades con ejemplos concretos de request/response.
+8. Gestionar el hosting, el dominio personalizado y la configuración completa del despliegue productivo (`Cloudflare Pages` / `Azure` / variables `VITE_API_BASE`, cabeceras y CORS coordinado con el backend).
+9. Reportar incompatibilidades con ejemplos concretos de request/response.
 
 **No debe:** calcular anomalías, normalizar sensores o construir su propia clasificación de condiciones.
 
 ### 11.4. Contrato e integración: cómo evitar desvaríos
 
-El contrato es el acuerdo técnico entre las cinco ramas. Sin él, es fácil que cada integrante use nombres, unidades, fechas o estructuras diferentes y que la integración se convierta en trabajo de último minuto.
+El contrato es el acuerdo técnico entre las cuatro ramas. Sin él, es fácil que cada integrante use nombres, unidades, fechas o estructuras diferentes y que la integración se convierta en trabajo de último minuto.
 
 **Reglas obligatorias:**
 
-1. Jean Pierrer prepara el borrador legible y los fixtures. Angelo confirma los campos que puede exportar; Tom define las salidas analíticas; Jhan convierte el contrato REST en modelos Pydantic; Sebastian valida que baste para la interfaz. Se congela una versión mínima en `main` antes de que las ramas avancen en profundidad.
+1. Jean Pierrer prepara el borrador legible, documentación y fixtures. Angelo confirma los campos que exporta (`src/gee/`) y los modelos Pydantic/endpoints (`src/backend/`); Tom lidera la coordinación, define las salidas analíticas (`src/analytics/`) y valida la integración REST; Sebastian valida que baste para `src/frontend/` y el despliegue. Se congela una versión mínima en `main` antes de que las ramas avancen en profundidad.
 2. Se fija la versión inicial `schema_version: "1.0"` y el prefijo `/api/v1`.
 3. Las fechas usan ISO `YYYY-MM-DD`; los campos usan `snake_case`; las unidades se incluyen en el nombre o diccionario (por ejemplo, `_mm`, `_ms`, `_c`, `_pct`).
 4. Los identificadores territoriales siempre viajan junto con `territory_type`; no usar nombres de provincia como clave primaria.
@@ -1021,49 +1017,47 @@ El contrato es el acuerdo técnico entre las cinco ramas. Sin él, es fácil que
 
 **Primeros 30 minutos:**
 
-- Jean Pierrer abre el inventario territorial, prepara los fixtures, el borrador legible del contrato y el esqueleto del deck.
-- Angelo comprueba colecciones, bandas, QA y geometrías candidatas en GEE; acuerda con Tom las columnas de entrada.
-- Tom fija las fórmulas y campos mínimos de las salidas analíticas; prueba con fixtures.
-- Jhan crea el esqueleto FastAPI y define los modelos de respuesta de la API con Sebastian.
-- Sebastian crea las vistas con fixtures y confirma el recorrido principal.
+- Jean Pierrer abre el inventario territorial, prepara los fixtures, la documentación (`docs/`, `contracts/`, `AI_USAGE.md`) y el esqueleto del deck en `presentation/`.
+- Angelo comprueba colecciones, bandas, QA y geometrías candidatas en GEE/fuentes NASA (`src/gee/`), acuerda con Tom las columnas de entrada y levanta el esqueleto FastAPI (`src/backend/`).
+- Tom ejerce la coordinación general, fija las fórmulas y campos mínimos de las salidas analíticas (`src/analytics/`), prueba con fixtures y alinea la integración del contrato REST.
+- Sebastian crea las vistas iniciales con fixtures en `src/frontend/`, confirma el recorrido principal y prepara hosting, dominio y configuración de despliegue.
 
-**Congelar la primera versión del contrato:** Jean abre un PR breve con fixtures/documentación; Angelo, Tom, Jhan y Sebastian revisan únicamente los campos que les corresponden. Jhan integra los modelos API. El equipo fusiona ese PR a `main`; las cuatro ramas funcionales se crean o actualizan desde ese `main`. Después se evita cambiar el contrato salvo error crítico.
+**Congelar la primera versión del contrato:** Jean Pierrer abre un PR breve con fixtures/documentación; Angelo, Tom y Sebastian revisan únicamente los campos que les corresponden. Angelo integra los modelos API en `src/backend/` con revisión de integración de Tom. El equipo fusiona ese PR a `main`; las cuatro ramas funcionales se crean o actualizan desde ese `main`. Después se evita cambiar el contrato salvo error crítico.
 
 **Después del primer contrato congelado:**
 
-1. Angelo exporta datos diarios por sensor y contexto ambiental mensual para el área piloto.
-2. Tom produce resúmenes mensuales y evaluaciones por reglas según el esquema.
-3. Jhan integra los archivos compactos de `data/processed/` en FastAPI.
-4. Sebastian apunta el frontend a FastAPI y deja de usar los fixtures en el recorrido principal.
-5. Jean ejecuta el checklist de aceptación, revisa la consistencia territorial y de fuentes, mantiene el registro de incidencias y actualiza el deck con resultados confirmados.
+1. Angelo exporta datos diarios por sensor y datos ambientales de fuentes abiertas/NASA (`src/gee/`), implementa los endpoints de `src/backend/` y avanza `src/analytics/spread_model.py` (Fase 2 opcional).
+2. Tom lidera la integración, produce resúmenes mensuales, series diarias y evaluaciones por reglas en `src/analytics/`, y valida los archivos compactos de `data/processed/` conectados con `src/backend/`.
+3. Sebastian apunta el frontend a FastAPI, deja de usar los fixtures en el recorrido principal y finaliza hosting, dominio y despliegue completo.
+4. Jean Pierrer ejecuta revisiones exhaustivas de documentación (`docs/`, `contracts/`, `AI_USAGE.md`) para evitar omisiones clave, corre el checklist de aceptación/QA, revisa la consistencia territorial y de fuentes, y actualiza `presentation/` con resultados confirmados.
 
 No se debe esperar a que GEE esté completo para empezar el backend o frontend. Tampoco se deben crear tres formatos de datos paralelos para «avanzar más rápido».
 
 ### 11.6. Git y revisión
 
 - No hacer commits directos a `main`.
-- Primero fusionar el PR del contrato inicial a `main`; después crear o actualizar las cinco ramas desde ese `main`.
-- Cada integrante modifica principalmente su carpeta asignada. Angelo es dueño de `gee/`; Tom de `analytics/`; Jhan de `backend/`; Sebastian de `frontend/`; Jean de `data/reference/`, `data/fixtures/`, `contracts/`, `docs/`, `tests/acceptance/` y `presentation/`.
+- Primero fusionar el PR del contrato inicial a `main`; después crear o actualizar las cuatro ramas desde ese `main`.
+- Cada integrante modifica principalmente su carpeta asignada. Angelo es dueño de `src/gee/`, `src/backend/` y `src/analytics/spread_model.py` (Fase 2); Tom es dueño del liderazgo general, el motor longitudinal `src/analytics/` y la integración transversal; Sebastian de `src/frontend/`, hosting, dominio y configuración de despliegue; Jean Pierrer de `docs/`, `contracts/`, `AI_USAGE.md`, `presentation/`, `data/reference/`, `data/fixtures/`, `tests/acceptance/` y revisiones exhaustivas de documentación.
 - Abrir PRs pequeños y frecuentes; incluir objetivo, archivos, prueba ejecutada y limitaciones.
 - Antes de fusionar, actualizar la rama con el `main` vigente según el flujo que acuerde el equipo.
-- Cada módulo mantiene sus propias pruebas; Jean prepara y coordina pruebas de aceptación de extremo a extremo, además de revisar referencias territoriales y mantener el paquete de demo.
+- Cada módulo mantiene sus propias pruebas; Jean Pierrer prepara y coordina pruebas de aceptación de extremo a extremo, además de revisar referencias territoriales, documentación y el paquete de demo.
 - Fusionar primero los esqueletos funcionales, no esperar a que todo quede perfecto.
-- Jhan coordina la integración API↔frontend; Angelo y Tom coordinan el traspaso GEE↔analítica; Jean mantiene el checklist y avisa de incompatibilidades, pero no aprueba por sí solo la semántica técnica de los datos.
+- Tom coordina el liderazgo general y la integración transversal (`src/gee/` ↔ `src/analytics/` ↔ `src/backend/` ↔ `src/frontend/`); Jean Pierrer mantiene el checklist, realiza revisiones exhaustivas de documentación y avisa de incompatibilidades u omisiones, pero la semántica técnica de los datos se valida conjuntamente con Angelo y Tom.
 - No subir credenciales, tokens, exportaciones grandes ni rásteres completos.
 
 ### 11.7. Criterio de terminado por módulo
 
 | Módulo | Está listo cuando… |
 |---|---|
-| GEE — Angelo | Exporta un ejemplo real del área piloto con QA correcto y campos del contrato. |
-| Analítica — Tom | Consume esos archivos y genera indicadores y reglas reproducibles con pruebas. |
-| Backend — Jhan | Los endpoints devuelven los artefactos reales con estructura estable y errores controlados. |
-| Frontend — Sebastian | Las vistas consumen la API real y se actualizan por territorio/período/sensor. |
-| Producto/QA/demo — Jean Pierrer | Las referencias territoriales están documentadas; el recorrido supera el checklist; el deck refleja resultados verificados y existe un guion/demo alternativo reproducible. |
+| GEE y datos abiertos/NASA — Angelo | Exporta un ejemplo real del área piloto con QA correcto y campos del contrato. |
+| Analítica longitudinal e integración — Tom | Consume esos archivos, genera indicadores y reglas reproducibles con pruebas y valida la integración completa entre módulos. |
+| Backend (`/api/v1`) y Fase 2 (`spread_model.py`) — Angelo | Los endpoints devuelven los artefactos reales con estructura estable y errores controlados (y Fase 2 desacoplada si aplica). |
+| Frontend, hosting, dominio y despliegue — Sebastian | Las vistas consumen la API real, se actualizan por territorio/período/sensor y el sitio opera en el hosting/dominio desplegado. |
+| Documentación, revisiones, QA y presentación — Jean Pierrer | La documentación (`docs/`, `contracts/`, `AI_USAGE.md`) está revisada sin omisiones clave, las referencias territoriales están documentadas, el recorrido supera el checklist, `presentation/` refleja resultados verificados y existe un guion/demo alternativo reproducible. |
 
 ### 11.8. Chatbot y ampliaciones
 
-No se crea una sexta rama ni se asigna un responsable exclusivo al chatbot antes de completar el flujo principal. Si el MVP está integrado, Jhan puede exponer el resumen territorial para una integración sencilla y Sebastian puede añadir el panel. Tom revisa que las respuestas se limiten a los resultados calculados; Jean prepara preguntas de demo. Si requiere un LLM externo, la clave queda en el backend. Si no hay tiempo para implementarlo con seguridad, se excluye.
+No se crea una rama adicional ni se asigna un responsable exclusivo al chatbot antes de completar el flujo principal. Si el MVP está integrado, Angelo puede exponer el resumen territorial en el backend (`src/backend/`, con integración coordinada por Tom, verificando que las respuestas se limiten a los resultados calculados) y Sebastian puede añadir el panel; Jean Pierrer prepara preguntas de demo. Si requiere un LLM externo, la clave queda en el backend. Si no hay tiempo para implementarlo con seguridad, se excluye.
 
 ---
 
@@ -1073,13 +1067,13 @@ Los bloques son relativos al inicio efectivo del hackathon (T0); se ajustarán a
 
 | Bloque | Trabajo coordinado | Condición de salida |
 |---|---|---|
-| T0–T+1 h | Jean: inventario y revisión inicial de límites/IDs, fixtures y esqueleto del deck; Angelo: prueba GEE, QA y disponibilidad de colecciones; Tom: métricas con fixtures; Jhan: FastAPI y contrato REST; Sebastian: interfaz con fixtures. El equipo fija región piloto, nivel hidrográfico y mes completo común. | Área piloto, período disponible, contrato v1, primera prueba GEE, API/UI arrancadas y presentación estructurada. |
-| T+1–T+8 h | Angelo: pipeline de hotspots y primera capa ambiental del mes elegido. Tom: métricas y reglas. Jhan: endpoints con fixtures. Sebastian: coropleta/interfaz. Jean: entrega capas/IDs a Angelo, completa diccionario/fixtures, verifica licencias/atribución y redacta problema, solución y arquitectura. | Primeros datos reales, API navegable, UI funcional, referencias territoriales y narrativa inicial. |
-| T+8–T+16 h | Angelo entrega tablas diarias y contexto del mes completo común; Tom genera resúmenes mensuales y reglas; Jhan integra artefactos reales; Sebastian consume la API. Jean verifica IDs, fechas, metadatos y coherencia de una muestra; actualiza fuentes/metodología del deck. | Ficha territorial real end-to-end y presentación con evidencia inicial. |
-| T+16–T+24 h | Ajustar capas, comparación por sensor, cobertura y estados de datos faltantes. Jean ejecuta pruebas de aceptación, registra y asigna errores, prueba el recorrido como usuario y escribe resultados/limitaciones verificadas en el deck. | Flujo completo sobre el área piloto, sin mocks en el recorrido principal, y presentación actualizada. |
-| T+24–T+32 h | Resolver bugs y mejorar visualizaciones. Jean revisa plausibilidad de resultados, consistencia de etiquetas, storyboard y guion de exposición; realiza un primer ensayo cronometrado. | Demo estable sobre área piloto, narrativa y tiempos de exposición probados. |
-| T+32–T+40 h | Añadir comparación retrospectiva/áreas quemadas o chatbot solo si lo esencial está completo. Jean incorpora únicamente la ampliación implementada, termina diagramas/créditos y prepara preguntas previsibles y respuestas. | Ampliación funcional o exclusión documentada; deck casi final. |
-| T+40–T+48 h | Congelar funciones. Jean cierra deck, créditos, fuentes, guion, orden de intervención y plan B con fixtures/capturas; coordina ensayo general. Todo el equipo corrige fallos críticos. | Demo reproducible, presentación fiel a lo construido y exposición ensayada. |
+| T0–T+1 h | Jean Pierrer: inventario y revisión inicial de límites/IDs, fixtures, base de `docs/`/`AI_USAGE.md` y esqueleto de `presentation/`; Angelo: prueba GEE/fuentes NASA, QA, disponibilidad de colecciones y esqueleto FastAPI (`src/backend/`); Tom: coordinación general, métricas con fixtures (`src/analytics/`) e integración del contrato REST; Sebastian: interfaz inicial con fixtures y base de hosting/despliegue. El equipo fija región piloto, nivel hidrográfico y mes completo común. | Área piloto, período disponible, contrato v1, primera prueba GEE, API/UI arrancadas y presentación estructurada. |
+| T+1–T+8 h | Angelo: pipeline de hotspots, capa ambiental abierta/NASA y endpoints base en `src/backend/`. Tom: métricas, reglas e integración con fixtures/esquemas. Sebastian: coropleta/interfaz y configuración de hosting/dominio. Jean Pierrer: entrega capas/IDs a Angelo, completa diccionario/fixtures, verifica licencias/atribución y redacta problema, solución y arquitectura en `docs/` y `presentation/`. | Primeros datos reales, API navegable, UI funcional, referencias territoriales y narrativa inicial. |
+| T+8–T+16 h | Angelo entrega tablas diarias/contexto del mes completo común y consolida `src/backend/` (más avance de `spread_model.py` Fase 2); Tom genera resúmenes mensuales, reglas y valida la integración de artefactos reales hacia FastAPI; Sebastian consume la API y conecta dominio/despliegue. Jean Pierrer verifica IDs, fechas, metadatos y coherencia de una muestra; actualiza fuentes/metodología del deck y revisa `docs/` contra omisiones clave. | Ficha territorial real end-to-end y presentación con evidencia inicial. |
+| T+16–T+24 h | Ajustar capas, comparación por sensor, cobertura y estados de datos faltantes. Tom coordina integración end-to-end; Jean Pierrer ejecuta pruebas de aceptación, realiza revisión documental exhaustiva, registra y asigna errores, prueba el recorrido como usuario y escribe resultados/limitaciones verificadas en `presentation/`. | Flujo completo sobre el área piloto, sin mocks en el recorrido principal, y presentación actualizada. |
+| T+24–T+32 h | Resolver bugs y mejorar visualizaciones/despliegue (Sebastian/Angelo/Tom). Jean Pierrer revisa plausibilidad de resultados, consistencia de etiquetas, documentación (`docs/`, `contracts/`, `AI_USAGE.md`), storyboard y guion de exposición; realiza un primer ensayo cronometrado. | Demo estable sobre área piloto, narrativa y tiempos de exposición probados. |
+| T+32–T+40 h | Añadir comparación retrospectiva/áreas quemadas o Fase 2 (`spread_model.py`, Angelo) solo si lo esencial está completo. Jean Pierrer incorpora únicamente la ampliación implementada, termina diagramas/créditos, revisa omisiones finales y prepara preguntas previsibles y respuestas. | Ampliación funcional o exclusión documentada; deck casi final. |
+| T+40–T+48 h | Congelar funciones. Sebastian verifica despliegue final y dominio; Tom lidera verificación integral; Angelo verifica estabilidad de `src/backend/`; Jean Pierrer cierra deck (`presentation/`), créditos, fuentes, `AI_USAGE.md`, guion, orden de intervención y plan B con fixtures/capturas, y coordina ensayo general. Todo el equipo corrige fallos críticos. | Demo reproducible, presentación fiel a lo construido y exposición ensayada. |
 
 ### 12.1. Regla de recorte de alcance
 
@@ -1337,7 +1331,7 @@ Por la naturaleza del proyecto, los encajes más defendibles serían: **Best Use
 
 La guía detallada de juzgamiento 2025 establecía como requisitos mínimos: proyecto principalmente en inglés; respuesta al reto seleccionado; demo de no más de siete diapositivas (incluyendo portada/cierre) o video de hasta 30 segundos; enlaces públicos sin contraseña; uso de datos/recursos abiertos NASA; y declaración del uso de IA. Una respuesta aceptada en el foro de soporte comunitario del 12/11/2026 (no publicada por una cuenta identificada como GO Team) también menciona demo de hasta siete diapositivas o video de 30 segundos, enlaces públicos, contenido en inglés y envío antes de las 23:59 del 15/11 según hora local. Tratar estos detalles como provisionales hasta contrastarlos con la guía oficial 2026. Revisar la guía 2026 enlazada en Recursos antes de confirmar estos límites como definitivos.
 
-**Lista de verificación para Jean Pierrer y todo el equipo:**
+**Lista de verificación para Jean Pierrer (documentación, revisión de omisiones y entrega) y todo el equipo:**
 
 - [ ] La página del proyecto está redactada principalmente en inglés.
 - [ ] El resumen indica el reto elegido y describe el calendario MODIS/VIIRS como núcleo.

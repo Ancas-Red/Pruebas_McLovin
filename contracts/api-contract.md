@@ -1,7 +1,7 @@
 # McHanaq — Contrato de API `/api/v1` (versión legible)
 
 **Versión del contrato:** 1.2 · `schema_version: "1.0"`
-**Mantiene:** Jean Pierrer (redacción) · **Valida:** Jhan/Tom (backend), Sebastian (frontend), Tom y Angelo (significado de los datos)
+**Mantiene:** Jean Pierrer (documentación y revisión de omisiones) · **Valida:** Angelo (backend, datos ambientales NASA/abiertos y Fase 2), Tom (analítica longitudinal, arquitectura y co-revisión de backend/API), Sebastian (frontend, hosting y despliegue)
 **Basado en:** `docs/McHanaq_documento_tecnico_operativo_v1.7.md` (§8.4–8.6) y `docs/arquitectura_frontend_backend_McHanaq.md` (§4–5)
 
 > Este documento explica el contrato en lenguaje claro. Si hay contradicción con los documentos de `docs/`, se avisa al equipo y se corrige en un PR; nadie cambia nombres, tipos o unidades por su cuenta (ver §8).
@@ -252,7 +252,7 @@ Con fixtures (desde la raíz del repositorio): `MCHANAQ_DATA_DIR=data/fixtures M
 ## 8. Cómo se cambia este contrato
 
 1. Quien necesite el cambio lo propone en el chat del equipo.
-2. Jean abre **un PR** que cambia a la vez `contracts/` y `data/fixtures/` (y vuelve a ejecutar `generate_fixtures.py`).
+2. Jean Pierrer abre **un PR** que cambia a la vez `contracts/` y `data/fixtures/` (y vuelve a ejecutar `generate_fixtures.py`).
 3. Revisan los responsables afectados: antes (quien produce el dato) y después (quien lo consume).
 4. Solo se fusiona a `main` con su aprobación. Cambios que rompen → subir `schema_version`.
 

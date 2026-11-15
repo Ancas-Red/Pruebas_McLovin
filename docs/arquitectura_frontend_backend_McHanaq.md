@@ -10,12 +10,12 @@
 
 Todo lo descrito en las secciones 1 a 11 corresponde a la **Fase 1 (MVP)**, enfocada en observación histórica, variables diarias y susceptibilidad contextual. *(La extensión opcional para predecir y visualizar propagación del fuego se define aparte en la **Sección 12 — Fase 2 opcional** para no bloquear el MVP.)*
 
-Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de conflicto** y respetar las decisiones metodológicas del documento técnico v1.7:
+Con Tom a cargo del liderazgo general, el motor analítico longitudinal (`src/analytics/`) y la integración entre módulos; Angelo a cargo de `src/backend/`, la ingesta de datos ambientales de fuentes abiertas y obligatorias de NASA (`src/gee/`) y la implementación del modelo de propagación (`src/analytics/spread_model.py`, Fase 2); Sebastian a cargo del frontend inicial (`src/frontend/`), hosting, dominio y configuración completa del despliegue; y Jean Pierrer a cargo de la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), la presentación (`presentation/`), revisiones exhaustivas de documentación para evitar omisiones clave, capas de referencia, fixtures y QA, la regla es **minimizar superficie de conflicto** y respetar las decisiones metodológicas del documento técnico v1.7:
 
-1. **Un backend mínimo, de solo lectura.** No calcula nada en tiempo de petición: lee los JSON preprocesados que Tom generó en `data/processed/` y los sirve filtrados.
+1. **Un backend mínimo, de solo lectura.** No calcula nada en tiempo de petición: lee los JSON preprocesados que Tom generó en `data/processed/` (desde `src/analytics/`) y Angelo los sirve filtrados desde `src/backend/`.
 2. **Motor oficial GEE y armonización sin sumar sensores.** El procesamiento geoespacial se realiza en **Google Earth Engine (GEE)** (exportando por bloques de 1–2 años sobre el área piloto). Según la sección 7 (Etapa 3) de v1.7, `MODIS_TERRA` (`MOD14A1`, ~10:30 h, catálogo desde feb-2000), `MODIS_AQUA` (`MYD14A1`, ~13:30 h, catálogo desde jul-2002) y `VIIRS_SNPP` (`VNP14A1`, desde `2012-01-19`) **nunca se suman ni se mezclan como conteos equivalentes** (tampoco existe un producto diario combinado `MCD14A1`; `MCD64A1` se usa solo como área quemada mensual retrospectiva). La armonización operativa en Ucayali cubre la ventana común multisensor verificada **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**, ~14.8 años > 5 años de línea base mínima; el tramo pre-2012 `2000–2011` queda retirado de las exportaciones operativas como nota *legacy* fuera de alcance). Es una armonización semántica, temporal y estadística: cada sensor mantiene su propio denominador (`valid_land_pixel_days`) y se comparan en `sensor_comparison.json`.
-3. **Procesamiento longitudinal diario → mensual.** Las variables extras solicitadas (`T_amb`, `T_suelo`, `dirección del viento` diaria y `altura` DEM por época) se procesan a resolución **diaria** en `data/intermediate/` y luego Tom las agrega al calendario mensual y a las series diarias (`activity_daily.json`) y fichas (`conditions_assessment.json`).
-4. **El contrato `/api/v1` de v1.7 (sección 8.5) se mantiene.** Cuando se incorpore Jhan (Fase B), reemplaza o amplía la implementación y el frontend ni se entera.
+3. **Procesamiento longitudinal diario → mensual.** Las variables extras solicitadas (`T_amb`, `T_suelo`, `dirección del viento` diaria y `altura` DEM por época) se procesan a resolución **diaria** en `data/intermediate/` y luego Tom las agrega en `src/analytics/` al calendario mensual y a las series diarias (`activity_daily.json`) y fichas (`conditions_assessment.json`).
+4. **El contrato `/api/v1` de v1.7 (sección 8.5) se mantiene.** Angelo implementa y valida el backend FastAPI (`src/backend/`) —incluidos los modelos Pydantic, documentación OpenAPI y validación de parámetros— con coordinación e integración de Tom sin alterar la interfaz esperada por el frontend.
 5. **Un solo escritor por archivo.** Nadie edita un archivo que otro genera.
 6. **El frontend nunca tiene modo "mock" propio.** Para desarrollar con fixtures se arranca el mismo backend apuntando a `data/fixtures/`.
 
@@ -24,27 +24,27 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
 ## 2. Vista general y proyecto longitudinal
 
 ```text
- Angelo (GEE — Ventana común 2012→2026)        Tom (Python — analytics/)            Sebastian (React)
- ─────────────────────────────────────────         ─────────────────────────            ─────────────────
- data/intermediate/                                analytics/ ──genera──► data/processed/*.json
-   daily_activity.csv          (MOD14/MYD14/VNP14)   • tasas y anomalías (MAD)    │
-   environmental_daily.csv     (T_amb, T_suelo,      • resumen mensual            │ lee al arrancar
-                                viento diario, DEM)  • árbol de susceptibilidad   ▼
-   environmental_context.csv   (mensual + CobVeg/MapBiomas) • comparación multisensor   backend/app/main.py (Tom)
-   gee_manifest.json           (fuentes, DEM/época)                              FastAPI, solo lectura
- data/processed/                                                                         │
-   territories.geojson         ────────────────────────────────────────────────►  HTTP   │ /api/v1/...
-                                                                                  JSON/CSV▼
-                                                                           frontend/src/api/client.ts
-                                                                           (único módulo que hace fetch)
-                                                                                         │
-                                                                                         ▼
-                                                                      mapa · calendario · fichas · CSV
+ Angelo (GEE / NASA — 2012→2026)             Tom (Python — analytics/ e integración)   Sebastian (React + despliegue)
+ ─────────────────────────────────            ─────────────────────────────────────   ──────────────────────────────
+ data/intermediate/                           analytics/ ──genera──► data/processed/*.json
+   daily_activity.csv     (MOD14/MYD14/VNP14)   • tasas y anomalías (MAD)    │
+   environmental_daily.csv (T_amb, T_suelo,     • resumen mensual            │ lee al arrancar
+                            viento diario, DEM) • árbol de susceptibilidad   ▼
+   environmental_context.csv (mensual + CobVeg) • comparación multisensor   src/backend/app/main.py (Angelo)
+   gee_manifest.json      (fuentes, DEM/época)                              FastAPI, solo lectura
+ data/processed/                                                                     │
+   territories.geojson    ──────────────────────────────────────────────────► HTTP   │ /api/v1/...
+                                                                              JSON/CSV▼
+                                                                       src/frontend/src/api/client.ts
+                                                                       (único módulo que hace fetch)
+                                                                                     │
+                                                                                     ▼
+                                                                  mapa · calendario · fichas · CSV
 ```
 
 ### 2.1. Proyecto longitudinal de procesamiento (ventana común verificada `2012-01-19` → `2026-11-02`)
 
-1. **Capa diaria en GEE (Angelo → `data/intermediate/`):**
+1. **Capa diaria en GEE y fuentes abiertas/NASA (Angelo → `data/intermediate/`):**
    * **Cobertura nacional (todo el Perú) y piloto Ucayali:** Todas las colecciones elegidas (`MOD14A1`, `MYD14A1`, `VNP14A1`, `MOD11A1`/`MYD11A1`, `VNP21A1D/N`, `ERA5-Land`, `Copernicus GLO-30` y `MapBiomas Perú Col. 4` / MINAM `CobVeg_180615.shp`) cubren el 100 % del territorio peruano (`ee.Filter.bounds(territories)`).
    * **`daily_activity.csv`:** conteos diarios por territorio y sensor dentro de la ventana común multisensor verificada **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**, donde coinciden `MODIS_TERRA`, `MODIS_AQUA`, `VIIRS_SNPP` y `ERA5-Land`) con clases `FireMask` 7 y 8–9, `valid_land_pixels`, `expected_land_pixels_per_day` y `observation_coverage` (sección 8.4 de v1.7). *(Nota legacy fuera de alcance operativo: se retira la expectativa de exportar bloques pre-2012 `2000–2011`).*
    * **Control de nubes y cobertura (`< 30%` de nubes):** se exige **`observation_coverage >= 0.70`** (y `lst_valid_pixel_pct >= 70%` para LST). Si un día supera el 30 % de nubes/huecos en el polígono, se conserva el registro con su cobertura real pero el valor térmico (`t_suelo_c`) se marca como `null` para no sesgar la serie.
@@ -90,39 +90,41 @@ En desarrollo local:
 
 ---
 
-## 3. Reparto temporal del backend (Fase A) y relevo (Fase B)
+## 3. Responsabilidades por módulo e insumos de datos (Tom, Angelo, Sebastian y Jean Pierrer)
 
-### Fase A — ahora (Tom y Angelo)
+### Propiedad de código y datos
 
-El código de `backend/` tiene **un solo dueño: Tom**. Angelo participa en el backend **solo a través de archivos de datos**, nunca editando código del backend.
+El código de `src/backend/`, la ingesta ambiental de fuentes abiertas y obligatorias de NASA (`src/gee/`) y el modelo de propagación de Fase 2 (`src/analytics/spread_model.py`) están a cargo de **Angelo**. **Tom** lidera el proyecto a nivel general, es dueño del motor analítico longitudinal (`src/analytics/`) y coordina la integración entre módulos (`data/intermediate/` → `data/processed/` → `src/backend/` → `src/frontend/`). **Sebastian** está a cargo del frontend inicial (`src/frontend/`), el hosting, el dominio y la configuración completa del despliegue. **Jean Pierrer** está a cargo de la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), la presentación (`presentation/`), revisiones exhaustivas de documentación para evitar omisiones clave, además de capas de referencia, `data/fixtures/` y QA.
 
-| Archivo | Único escritor | Lo lee |
+| Archivo / Módulo | Único escritor | Lo lee / consume |
 |---|---|---|
-| `data/intermediate/daily_activity.csv` | Angelo | Tom |
-| `data/intermediate/environmental_daily.csv` *(diario: `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`, `dem_source`)* | Angelo | Tom |
-| `data/intermediate/environmental_context.csv` *(mensual: CobVeg/MapBiomas, `MOD13A3`, ERA5-Land, pendiente `COPERNICUS_DEM_GLO30`)* | Angelo | Tom |
-| `data/intermediate/gee_manifest.json` *(colecciones, fechas disponibles, DEM por época, versiones)* | Angelo | Tom |
-| `data/processed/territories.geojson` | Angelo (validado con las capas de Jean) | Backend |
-| `data/processed/activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json` | Tom | Backend |
-| `data/processed/metadata.json` | **Tom** (a partir de `gee_manifest.json` y parámetros de `analytics/`) | Backend y frontend |
-| `backend/**` | Tom | — |
-| `frontend/**` | Sebastian | — |
-| `contracts/**`, `data/fixtures/**` | Jean | Todos |
+| `data/intermediate/daily_activity.csv` | Angelo | Tom (`src/analytics/`) |
+| `data/intermediate/environmental_daily.csv` *(diario: `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`, `dem_source`)* | Angelo | Tom (`src/analytics/`) |
+| `data/intermediate/environmental_context.csv` *(mensual: CobVeg/MapBiomas, `MOD13A3`, ERA5-Land, pendiente `COPERNICUS_DEM_GLO30`)* | Angelo | Tom (`src/analytics/`) |
+| `data/intermediate/gee_manifest.json` *(colecciones, fechas disponibles, DEM por época, versiones)* | Angelo | Tom (`src/analytics/`) |
+| `data/processed/territories.geojson` | Angelo (validado con las capas de referencia de Jean Pierrer) | Backend (Angelo) y Frontend (Sebastian) |
+| `data/processed/activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json` | Tom (`src/analytics/`) | Backend (Angelo) |
+| `data/processed/metadata.json` | **Tom** (a partir de `gee_manifest.json` y parámetros de `src/analytics/`) | Backend y frontend |
+| `src/analytics/**` *(motor analítico longitudinal Fase 1)* | Tom | Backend (Angelo) |
+| `src/analytics/spread_model.py` *(Fase 2)* y `data/processed/spread_forecasts.json` | Angelo | Backend (Angelo) y Frontend (Sebastian) |
+| `src/backend/**` | Angelo *(integración coordinada con Tom)* | Frontend (Sebastian) |
+| `src/frontend/**`, hosting, dominio y despliegue | Sebastian | — |
+| `docs/**`, `contracts/**`, `AI_USAGE.md`, `presentation/**`, `data/fixtures/**`, `data/reference/**` | Jean Pierrer *(con revisión técnica del equipo)* | Todos |
 
-**Cambio respecto al documento v1.7:** allí `metadata.json` lo escriben Angelo y Tom. Para evitar conflictos de fusión, aquí lo escribe solo Tom, y Angelo le entrega su parte en `gee_manifest.json`.
+**Cambio respecto al documento v1.7:** allí `metadata.json` lo escriben Angelo y Tom. Para evitar conflictos de fusión, aquí lo escribe Tom desde `src/analytics/` a partir del `gee_manifest.json` de Angelo, mientras Angelo asume `src/backend/`, `src/gee/` y `src/analytics/spread_model.py`.
 
-Lo que sí hace Angelo "en el back" (todo es de datos, no de código):
+Responsabilidades operativas clave por frente:
 
-1. Entrega `territories.geojson` con IDs estables y `territory_type`.
-2. Entrega `environmental_daily.csv` (con `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y `environmental_context.csv`.
-3. Entrega `gee_manifest.json` con los meses completos disponibles por sensor/fuente y la trazabilidad del DEM por época.
-4. Revisa, sin editar, que lo que devuelve `/territories` y `/metadata` coincide con lo que él exportó.
+1. **Angelo (`src/gee/`, `src/backend/`, `src/analytics/spread_model.py`):** entrega `territories.geojson`, `daily_activity.csv`, `environmental_daily.csv` (fuentes abiertas y obligatorias de NASA), `environmental_context.csv` y `gee_manifest.json`; implementa y mantiene `src/backend/` (rutas `/api/v1`, modelos Pydantic, OpenAPI, validaciones y pruebas de humo de la sección 9) y el modelo de propagación de Fase 2 (`spread_model.py`).
+2. **Tom (liderazgo general, `src/analytics/` e integración):** lidera la coordinación técnica general, genera `data/processed/` desde el motor analítico longitudinal y valida la integración entre `src/gee/`, `src/analytics/`, `src/backend/` y `src/frontend/` (incluyendo fidelidad de `/territories` y `/metadata`).
+3. **Sebastian (`src/frontend/`, hosting, dominio y despliegue):** desarrolla el frontend inicial en React/Vite/TS y gestiona el hosting, dominio propio y configuración completa del despliegue productivo.
+4. **Jean Pierrer (documentación, presentación, revisiones y QA):** mantiene `docs/`, `contracts/`, `AI_USAGE.md`, `presentation/`, capas de referencia (`data/reference/`), `data/fixtures/` y QA, realizando revisiones exhaustivas de documentación para evitar omisiones clave.
 
-### Fase B — cuando llegue quien asume el backend (Jhan)
+### Validación, OpenAPI y evolución del backend (Angelo, en integración con Tom)
 
-1. Recibe `backend/` con el código de Tom y las pruebas de humo de la sección 9.
-2. Añade modelos Pydantic, documentación OpenAPI completa y validaciones más finas.
-3. Mantiene rutas, parámetros, nombres de campos y códigos de error. Si necesita cambiar algo del contrato, sigue la regla de la sección 10.
+1. Angelo mantiene `src/backend/` junto con las pruebas de humo de la sección 9.
+2. Mantiene modelos Pydantic, documentación OpenAPI completa y validaciones de parámetros y respuesta.
+3. Mantiene rutas, parámetros, nombres de campos y códigos de error; con Tom coordina la integración y si se requiere cambiar el contrato se sigue la regla de la sección 10.
 
 ---
 
@@ -279,9 +281,9 @@ server: { proxy: { "/api": "http://localhost:8000" } }
 
 ---
 
-## 7. Backend mínimo (Fase A)
+## 7. Backend mínimo de solo lectura (Angelo)
 
-Un solo archivo, `backend/app/main.py`, que carga los JSON al arrancar y los sirve filtrados. No calcula tasas, anomalías ni reglas. El punto de partida (Tom lo completa y lo prueba contra los fixtures):
+Un solo archivo, `src/backend/app/main.py`, que carga los JSON al arrancar y los sirve filtrados. No calcula tasas, anomalías ni reglas. El punto de partida (Angelo lo completa y mantiene en coordinación e integración con Tom, probándolo contra los fixtures):
 
 ```python
 # src/backend/app/main.py (estructura unificada bajo src/, por eso usa parents[3])
@@ -371,7 +373,7 @@ def territories(type: str):
     feats = [f for f in TERR["features"] if f["properties"].get("territory_type") == type]
     return {"schema_version": "1.0", "type": "FeatureCollection", "features": feats}
 
-# Pendientes para Tom, con el mismo patrón (validar → filtrar → devolver):
+# Endpoints mantenidos por Angelo con el mismo patrón (validar → filtrar → devolver):
 #   GET /api/v1/territory-metrics
 #   GET /api/v1/territories/{type}/{id}/summary
 #   GET /api/v1/territories/{type}/{id}/activity
@@ -386,7 +388,7 @@ Puntos que cuidar:
 - **Dos modos con el mismo código:**
   - Datos reales: `uvicorn src.backend.app.main:app --port 8000`
   - Fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn src.backend.app.main:app --port 8000`
-- Los fixtures de Jean deben llamarse igual que los archivos de `data/processed/` y respetar el envoltorio `{"items": [...]}`.
+- Los fixtures de Jean Pierrer deben llamarse igual que los archivos de `data/processed/` y respetar el envoltorio `{"items": [...]}`.
 - La ficha (`summary`) combina `activity_summary.json` con `conditions_assessment.json` (incluyendo `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y arma la respuesta de la sección 8.5 de v1.7.
 
 ---
@@ -397,12 +399,12 @@ Contando desde el inicio del hackathon (09:00 del 14/11):
 
 | Cuándo | Qué | Quién |
 |---|---|---|
-| T+1 h | Contrato v1.2 congelado en `main` y fixtures con las 4 variables extras | Jean (revisan Angelo, Tom, Sebastian) |
-| T+1,5 h | Backend con `health`, `metadata`, `territories`, `territory-metrics` y `summary` sirviendo fixtures | Tom |
-| T+2 h | Frontend consumiendo la API real con fixtures: mapa, coropleta y calendario | Sebastian |
-| T+4 h | `activity`, `sensor-comparison` y `export.csv` disponibles | Tom |
-| T+8 h | Primeros datos reales longitudinales de GEE en `data/intermediate/` (`daily_activity.csv` y `environmental_daily.csv`) | Angelo |
-| T+10 h | Primeros `data/processed/` reales y cambio de fixtures a datos reales (solo cambia la variable de entorno) | Tom |
+| T+1 h | Contrato v1.2 congelado en `main` y fixtures con las 4 variables extras | Jean Pierrer (revisan Tom, Angelo y Sebastian) |
+| T+1,5 h | Backend con `health`, `metadata`, `territories`, `territory-metrics` y `summary` sirviendo fixtures | Angelo (integración con Tom) |
+| T+2 h | Frontend consumiendo la API real con fixtures: mapa, coropleta, calendario y configuración inicial de despliegue | Sebastian |
+| T+4 h | `activity`, `sensor-comparison` y `export.csv` disponibles en `src/backend/` | Angelo |
+| T+8 h | Primeros datos reales longitudinales de GEE y fuentes abiertas/NASA en `data/intermediate/` (`daily_activity.csv` y `environmental_daily.csv`) | Angelo |
+| T+10 h | Primeros `data/processed/` reales desde `src/analytics/` e integración hacia backend y despliegue | Tom (analítica e integración), Angelo (backend) y Sebastian (despliegue/frontend) |
 
 ---
 
@@ -430,8 +432,8 @@ Criterio de listo para esta capa:
 
 ## 10. Cómo cambiar el contrato sin romper la integración
 
-1. Jean abre un PR que actualiza `contracts/` y `data/fixtures/` en el mismo cambio.
-2. Tom confirma que el backend puede servirlo; Sebastian, que el frontend puede consumirlo; Angelo, solo si afecta a lo que él exporta.
+1. Jean Pierrer abre un PR que actualiza `contracts/`, `docs/` y `data/fixtures/` en el mismo cambio, con revisión exhaustiva para evitar omisiones clave.
+2. Tom confirma la compatibilidad del motor analítico (`src/analytics/`) y la integración general; Angelo confirma que `src/backend/`, las exportaciones (`src/gee/`) y Fase 2 (`spread_model.py`) lo soportan; Sebastian confirma que `src/frontend/` y el despliegue pueden consumirlo.
 3. Se fusiona en `main` y las ramas se actualizan antes de seguir.
 4. Nadie renombra campos, tipos ni unidades por su cuenta.
 
@@ -440,7 +442,7 @@ Criterio de listo para esta capa:
 ## 11. Plan B si falla la API durante la demo
 
 1. Dejar el backend corriendo con `MCHANAQ_DATA_DIR` apuntando a una copia de `data/processed/` ya verificada, sin conexión a nada externo (es solo lectura local).
-2. Si el backend no arranca, tener capturas reales de la aplicación y los fixtures etiquetados como datos de muestra (la guía de demo de Jean lo prevé).
+2. Si el backend no arranca, tener capturas reales de la aplicación y los fixtures etiquetados como datos de muestra (la guía de demo de Jean Pierrer lo prevé).
 3. Los fixtures nunca se presentan como resultados reales.
 
 ---
@@ -449,7 +451,7 @@ Criterio de listo para esta capa:
 
 Esta fase es **estrictamente opcional y desacoplada de la Fase 1**: no bloquea ni modifica los endpoints de las secciones 1–11, sino que reutiliza las variables diarias ya preparadas en Fase 1 (más insumos globales opcionales vía APIs) para estimar y proyectar visualmente y en formatos GIS hacia dónde podría avanzar un frente desde una ignición hipotética o foco detectado hasta **48 horas**.
 
-### 12.1. Entradas y marco metodológico (`src/analytics/spread_model.py`)
+### 12.1. Entradas y marco metodológico (`src/analytics/spread_model.py`, Angelo)
 
 Referencia documental completa en [docs/Fase2_Simulacion_Espacial_Propagacion_48h.md](docs/Fase2_Simulacion_Espacial_Propagacion_48h.md) (marco legal/espacial argentino **Ley N.º 26.815 / SNMF / SMN / CONAE – Instituto Gulich UNC / SARTiv** por Autómatas Celulares, acoplado con **Huete 1988 SAVI**, **Rothermel 1972** y propagación elíptica **Anderson 1983 / Alexander 1985**).
 
