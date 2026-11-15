@@ -752,25 +752,29 @@ export function sensorsAvailableOn(date: string, meta: Metadata | null): Sensor[
 export function availablePeriodsForSensor(sensor: Sensor, meta: Metadata | null): Set<string> {
   const set = new Set<string>();
   if (!meta) return set;
+  // OJO: antes cada rama (useful/periods/ranges) hacía `return set` apenas encontraba
+  // algo, así que el piso histórico "en vivo" de más abajo nunca se alcanzaba en
+  // producción (available_periods_by_sensor casi siempre viene poblado). Ahora las tres
+  // ramas son aditivas y el piso en vivo se suma siempre al final, sin importar cuál
+  // de las tres trajo datos.
   const useful = meta.available_useful_dates_by_sensor?.[sensor];
-  if (Array.isArray(useful)) {
+  if (Array.isArray(useful) && useful.length) {
     for (const d of useful) {
       if (typeof d === "string" && d.length >= 7) set.add(d.slice(0, 7));
     }
-    return set;
-  }
-  const periods = meta.available_periods_by_sensor?.[sensor];
-  if (periods?.length) {
-    for (const pr of periods) set.add(pr);
-    return set;
-  }
-  const ranges = meta.available_date_ranges_by_sensor?.[sensor];
-  if (ranges?.length) {
-    for (const r of ranges) {
-      const b = rangeBounds(r);
-      if (!b) continue;
-      for (const [y, m] of monthsBetween(b.from, b.to)) {
-        set.add(`${y}-${pad2(m)}`);
+  } else {
+    const periods = meta.available_periods_by_sensor?.[sensor];
+    if (periods?.length) {
+      for (const pr of periods) set.add(pr);
+    }
+    const ranges = meta.available_date_ranges_by_sensor?.[sensor];
+    if (ranges?.length) {
+      for (const r of ranges) {
+        const b = rangeBounds(r);
+        if (!b) continue;
+        for (const [y, m] of monthsBetween(b.from, b.to)) {
+          set.add(`${y}-${pad2(m)}`);
+        }
       }
     }
   }
