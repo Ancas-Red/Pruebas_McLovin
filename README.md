@@ -14,6 +14,7 @@ Calendario longitudinal de actividad térmica (MODIS Terra/Aqua y VIIRS S-NPP) c
 * [Fase 2: Simulación espacial de propagación 48 h (SAVI + Topografía + Viento horario)](docs/Fase2_Simulacion_Espacial_Propagacion_48h.md)
 * [Descripción del reto](docs/reto.txt)
 * [Ancla para agentes (`docs/harness/`)](docs/harness/README.md)
+* [Uso de IA y transparencia (NASA Space Apps 2026)](AI_USAGE.md)
 
 ## Estructura del repositorio
 
@@ -35,7 +36,10 @@ McHanaq/
 └── presentation/        # Deck y guion de exposición (Jean Pierrer)
 ```
 
-## Ramas del equipo
+## Ramas del equipo y repositorios
+
+* **Repositorio de integración activa (Fase 2 global + UX):** [`sebastiansb1232-boop/McHanaq-labs`](https://github.com/sebastiansb1232-boop/McHanaq-labs) en la rama `feature/labs-phase2-integration`.
+* **Repositorio *upstream* del equipo:** [`TomJordan1/McHanaq`](https://github.com/TomJordan1/McHanaq).
 
 | Rama | Responsable | Carpeta principal |
 |---|---|---|
@@ -48,9 +52,10 @@ McHanaq/
 ## Inicio rápido
 
 ```bash
-git clone https://github.com/TomJordan1/McHanaq.git
-cd McHanaq
-git checkout <tu-rama>
+git clone https://github.com/sebastiansb1232-boop/McHanaq-labs.git
+cd McHanaq-labs
+git checkout feature/labs-phase2-integration
+# Upstream oficial: https://github.com/TomJordan1/McHanaq.git
 ```
 
 ### Arrancar el backend (en modo fixtures)
@@ -78,7 +83,7 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 
 * **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para habilitar vistas previas. Opera en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP.
 * **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (Plan Free, `infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL del Azure App Service.
-* **Puente de datos y estado de `data/processed/`:** **Azure Blob Storage (Free Tier)** resguarda `data/intermediate/` y `data/processed/` mediante `python -m src.analytics.azure_sync`. Actualmente `data/processed/` ya contiene `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson` y `ucayali_districts_static.csv`; los JSON de series diarias (`metadata.json`, `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json`) se compilarán con `python -m src.analytics.run_pipeline` al ingresar los CSVs desde GEE (`data/fixtures/` cubre el modo de desarrollo/pruebas entretanto). `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
+* **Puente de datos y estado actual (`data/processed/` vs. `data/intermediate/`):** **Azure Blob Storage (Free Tier)** resguarda `data/intermediate/` y `data/processed/` mediante `python -m src.analytics.azure_sync`. Actualmente `data/processed/` ya contiene `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson`, `peru_territories.geojson`, `ucayali_districts_static.csv`, `metadata.json` y los artefactos precalculados de Fase 2 (`spread_forecasts.json` y `spread_outputs/`). En cambio, `data/intermediate/` aún espera la descarga de los CSVs exportados desde GEE y aún no existen `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json` ni `conditions_assessment.json` en `data/processed/`. Por ello, la **Fase 1** opera en modo `"Datos de muestra"` (`data/fixtures/`) hasta que ingresen los CSVs en `data/intermediate/` y se ejecute `python -m src.analytics.run_pipeline`; mientras tanto, la **Fase 2 global** ya corre en vivo con **Open-Meteo** (clima/viento y elevación **Copernicus GLO-90 DEM**), **OSM Nominatim** (geocodificación administrativa) y **Microsoft Planetary Computer (Sentinel-2 L2A)** para SAVI. `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
 
 ## Ventana común verificada (Ucayali) y días útiles
 
@@ -91,10 +96,10 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 
 ## Qué hace la aplicación
 
-* **Inicio (`#/`):** portada por bloques con cortina orbital (`OrbitalLoader`), globo 3D interactivo + campo estelar (`#inicio`, titular animado de la ventana `2012 — 2026`), propósito y límites (`#proyecto`), y sección de equipo **Los McLovin** (`#equipo`) con transición de opacidad suave entre bloques y enlace oficial en el emblema de lentes.
+* **Inicio (`#/`):** portada por bloques con paleta bosque-carbón (`#040806` / `#0c1810` / `#d8ff33`), cortina orbital (`OrbitalLoader`), globo 3D interactivo + campo estelar (`#inicio`, titular animado de la ventana `2012 — 2026`), propósito y límites (`#proyecto`), y sección de equipo **Los McLovin** (`#equipo`) con transición de opacidad suave entre bloques, enlaces individuales a LinkedIn/GitHub (`src/frontend/src/data/team.ts`) y enlace oficial en el emblema de lentes.
 * **Mapa (`#/mapa`):**
-  * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`GuidedTour`), selector territorial, calendario longitudinal (`2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
-  * **Simulación (Fase 2 opcional, hasta 48 h):** modelo exploratorio desacoplado (`src/analytics/spread_model.py`, marco Ley 26.815 / SNMF / CONAE-Gulich AC + Rothermel/Anderson/SAVI) que combina SAVI, pendiente DEM y viento horario de 48 h (`+6h..+48h`) con arquitectura API en 2 pasos (`/spread-simulate` instantáneo y `/spread-export` bajo demanda para GIF, MP4, Shapefiles QGIS `.zip` e infografías 300 DPI) y consultas globales Open-Meteo / NASA FIRMS (`/realtime/area`).
+  * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`? Guía`, 7 pasos en `MAP_TOUR_STEPS`), selector territorial, calendario longitudinal 2D y relieve 3D (`CalendarTerrain3D`, `2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
+  * **Simulación (Fase 2 opcional, hasta 48 h):** abre automáticamente el cajón `Escenario · Fase 2` con `? Guía` dedicada de 5 pasos (`SPREAD_TOUR_STEPS`), modelo exploratorio desacoplado (`src/analytics/spread_model.py`, `heuristic_wind_slope_spread_v1`) que combina SAVI (Sentinel-2 L2A vía Microsoft Planetary Computer o fallback calibrado), pendiente DEM (Copernicus GLO-90 vía Open-Meteo, incluyendo fallback Python puro `COPERNICUS_DEM_GLO90_OPEN_METEO` en Azure F1) y viento horario de hasta `48 h` (`+6h..+48h`). Incluye **simulación global en 1 clic** (presets *Ucayali*, *California*, *Grecia* o cualquier par Lat/Lon), selector `Fecha de inicio (48 h)`, **geocodificación administrativa inversa** país / región / provincia / ciudad / distrito (`GET /api/v1/reverse-geocode`) sincronizada en la cabecera (`SiteNav`) y en el panel, previsualización integrada (`simulacion_48h.gif`, `infografia_impacto_48h.png`, `panel_modelo_48h.png`) y generación/descarga bajo demanda (`/spread-simulate`, `/spread-export`, `/spread-outputs/{filename}`) más consultas globales Open-Meteo / NASA FIRMS NRT (`/realtime/area`, opcional con `FIRMS_MAP_KEY`).
 * **Tecnología (`#/tecnologia`):** vista dedicada con tarjetas filtrables por capa técnica (`src/frontend/src/data/tech.ts`) y terminal interactiva (`TechTerminal` en pestañas Bash / Python / API).
 * **Fotos del equipo:** archivos activos en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`; `jhan.jpg` queda pendiente y la interfaz muestra su monograma `"J"` automáticamente).
 
@@ -108,6 +113,6 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 
 ## Créditos de datos
 
-* Focos activos: MODIS `MOD14A1.061` y `MYD14A1.061`, VIIRS `VNP14A1.002` (NASA LP DAAC).
-* Contexto ambiental: ERA5-Land (Copernicus/ECMWF), Copernicus DEM GLO-30 (`COPERNICUS_DEM_GLO30` para `2012–2026`), MapBiomas Perú / MINAM `CobVeg_180615.shp`.
+* Focos activos: MODIS `MOD14A1.061` y `MYD14A1.061`, VIIRS `VNP14A1.002` (NASA LP DAAC) y focos NRT opcionales vía NASA FIRMS (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT` con `FIRMS_MAP_KEY`).
+* Contexto ambiental y Fase 2 global: ERA5-Land (Copernicus/ECMWF), Copernicus DEM GLO-30 (`COPERNICUS_DEM_GLO30` para `2012–2026`), MapBiomas Perú / MINAM `CobVeg_180615.shp`, **Open-Meteo** (clima/viento actual y API de elevación Copernicus GLO-90), **Microsoft Planetary Computer** (`sentinel-2-l2a` para SAVI global) y **OpenStreetMap Nominatim** (geocodificación inversa administrativa).
 * Mapas base: OpenStreetMap, OpenTopoMap (CC-BY-SA), Esri World Imagery.

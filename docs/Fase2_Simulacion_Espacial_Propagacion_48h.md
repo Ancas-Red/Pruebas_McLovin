@@ -86,21 +86,28 @@ El módulo funciona de manera autónoma con los datos territoriales de McHanaq (
 
 ---
 
-## 5. Evaluación Mundial vía APIs y Arquitectura Web en 2 Pasos
+## 5. Evaluación Mundial vía APIs, Modo Liviano Azure F1 y Flujo UI
 
 Para evaluar propagación desde **cualquier coordenada del mundo** sin bloquear la interfaz web ni agotar el servidor (Plan Free F1), el flujo separa el cálculo interactivo de la exportación multimedia pesada:
 
-1. **Integración global por APIs (`use_open_meteo=true`, `use_global_savi` y `/api/v1/realtime/area`):**
+1. **Integración global por APIs (`use_open_meteo=true`, `use_global_savi`, `/api/v1/realtime/area` y `/api/v1/reverse-geocode`):**
    * **Vegetación / Combustible global (SAVI real):** Sentinel-2 L2A vía **Microsoft Planetary Computer STAC API** (`sentinel-2-l2a`, bandas `B04` RED y `B08` NIR con firma SAS pública sin API key; `savi_source = SENTINEL2_L2A_PLANETARY_COMPUTER`) cuando `use_global_savi=true` (activo por defecto si `use_open_meteo=true` y no se pasa `--savi-tif`).
-   * **Meteorología horaria 48 h:** Open-Meteo Forecast/Archive API (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `relative_humidity_2m`), seleccionando libremente cualquier fecha desde la interfaz (**selector de fecha**, botón **"Próximas 48 h (hoy)"** o **"Usar fecha del calendario"**).
-   * **Topografía global (DEM):** Open-Meteo Elevation API (`https://api.open-meteo.com/v1/elevation`, fuente `COPERNICUS_DEM_GLO90_OPEN_METEO`) muestreada en grilla `8×8` sobre el dominio de `11×11 km` e interpolada bilinealmente a `120×120` celdas.
+   * **Meteorología horaria 48 h:** Open-Meteo Forecast/Archive API (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `relative_humidity_2m`), seleccionando libremente cualquier fecha desde la interfaz (**`Fecha de inicio (48 h)`**, botón **"Próximas 48 h (hoy)"** o **"Usar fecha del calendario"**).
+   * **Topografía global (DEM):** Open-Meteo Elevation API (`https://api.open-meteo.com/v1/elevation`, fuente `COPERNICUS_DEM_GLO90_OPEN_METEO`), muestreada en grilla `8×8` sobre el dominio de `11×11 km` e interpolada bilinealmente a `120×120` celdas en el motor completo (`spread_model.py`), o muestreada en grilla `4×4` en el fallback liviano del backend.
+   * **Geocodificación administrativa global (`GET /api/v1/reverse-geocode`):** resuelve país, región/estado, provincia/condado y ciudad/distrito vía **OSM Nominatim** (`OSM_NOMINATIM`) para cualquier par `(lat, lon)` con caché en memoria; también se incluye como bloque `location` dentro de `GET /api/v1/realtime/area`.
    * **Focos activos globales NRT:** `GET /api/v1/realtime/area` consulta NASA FIRMS Area API (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT` sin mezclar sensores) cuando se configura `FIRMS_MAP_KEY`.
    * *Nota:* Si no hay conectividad externa o no existe escena Sentinel-2 con nubosidad `< 35 %`, el motor degrada deterministamente a `COPERNICUS_DEM_GLO30_PARAMETRIC`, `era5_daily_diurnal_profile` y `SAVI_HUETE1988_VEG_CALIBRATED`.
-2. **Paso 1 — Simulación interactiva instantánea (`POST/GET /api/v1/spread-simulate`):**
-   * Ejecuta `simulate_spread_48h` y devuelve el JSON/GeoJSON con isócronas (`+6h..+48h`), métricas (`SAVI`, pendiente, `ROS`, `L/B`), `data_sources` y `timings_s` para pintar la evolución en el mapa al instante.
-3. **Paso 2 — Exportación completa bajo demanda (`POST/GET /api/v1/spread-export` → `GET /api/v1/spread-outputs/{filename}`):**
-   * Genera bajo demanda los 5 artefactos descargables (`simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip`, `infografia_impacto_48h.png`, `panel_modelo_48h.png`), devolviendo las URLs y los tiempos medidos (`timings_s`).
+2. **Paso 1 — Simulación interactiva instantánea (`POST|GET /api/v1/spread-simulate`):**
+   * En entornos locales/analíticos completos ejecuta `simulate_spread_48h` y devuelve el JSON/GeoJSON con isócronas (`+6h..+48h`), métricas (`SAVI`, pendiente, `ROS`, `L/B`), `data_sources` y `timings_s`.
+   * **Modo liviano en Python puro (Azure App Service Free F1):** cuando el runtime solo dispone de `fastapi`, `uvicorn` y `httpx` (sin `geopandas`, `numpy`, `matplotlib` o `rasterio`), `src/backend/app/main.py` activa automáticamente `_run_lightweight_global_spread` + `_fetch_open_meteo_dem_slope_py`: consulta Open-Meteo Elevation (`COPERNICUS_DEM_GLO90_OPEN_METEO`, grilla `4×4`) y Open-Meteo actual vía `httpx` para devolver `slope_summary`, `dominant_wind`, `spread_summary` (`head_ros_m_min`, `length_to_breadth`) y `data_sources` sin dependencias GIS pesadas.
+3. **Paso 2 — Exportación bajo demanda y previsualización (`POST|GET /api/v1/spread-export` → `GET /api/v1/spread-outputs/{filename}`):**
+   * Genera bajo demanda los 5 artefactos descargables (`simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip`, `infografia_impacto_48h.png`, `panel_modelo_48h.png`), devolviendo las URLs y los tiempos medidos (`timings_s`). Si faltan las librerías GIS/video en el servidor liviano, responde `503 EXPORT_LIBS_UNAVAILABLE` mientras mantiene activas las descargas precalculadas en `/api/v1/spread-outputs/{filename}`.
    * **Optimización de renderizado:** `export_animation_gif_mp4` reutiliza la figura y el fondo estático mediante *blitting* en Matplotlib (`copy_from_bbox` / `restore_region` / `draw_artist`) y cuantización rápida (`FASTOCTREE` sin *dithering*) en Pillow.
+4. **Flujo operativo en la interfaz (`src/frontend/src/components/SpreadRail.tsx` y `GuidedTour.tsx`):**
+   * **Simulación rápida global · 1 clic (`Open-Meteo + DEM`):** botones de acceso directo para **`Ucayali`**, **`California`** y **`Grecia`**, además de campos manuales **`Latitud`** y **`Longitud`** con el botón **`Simular extensión aquí (1 clic)`** que traza el dominio, fija la ignición, consulta clima/DEM/ubicación y anima el frente sobre el mapa.
+   * **Fecha de inicio (48 h):** selector de fecha con accesos rápidos **`Próximas 48 h (hoy)`** y **`Usar fecha del calendario`**.
+   * **Previsualizaciones en línea (`Visualización y salidas 48 h · Python / GIS`):** los botones **`Ver GIF 48h`**, **`Ver infografía`** y **`Panel SAVI+DEM`** renderizan en línea las imágenes desde `/api/v1/spread-outputs/{filename}` sin salir del visor, junto al botón **`Generar reporte 48 h (API)`** y descargas directas (`GIF 48h`, `MP4 48h`, `Shapefiles QGIS`, `Infografía`, `Panel 48h`).
+   * **Guía visual interactiva de 5 pasos (`SPREAD_TOUR_STEPS` en `? Guía`):** recorre (1) *Simulación global en 1 clic* (`spread-quick`), (2) *Ignición y clima en vivo (Open-Meteo + FIRMS)* (`spread-env`), (3) *Área libre y Condiciones físicas* (`spread-poly`), (4) *Visualización y salidas 48 h (GIF, MP4, QGIS)* (`spread-exports`) y (5) *Reproducción temporal e isócronas* (`spread-result`).
 
 ### Tiempos medidos reales (corriendo `python -m src.analytics.spread_model`, grilla `120×120`, 48 h)
 

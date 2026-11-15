@@ -263,13 +263,80 @@ Con fixtures (desde la raíz del repositorio): `MCHANAQ_DATA_DIR=data/fixtures M
 - [x] `activity_rate` diario (`fire_pixels_nominal_high / valid_land_pixels`, `null` si no hubo observación o cobertura `< 0.70`) implementado en `src/analytics/metrics.py` y `src/analytics/run_pipeline.py`.
 - [x] Umbrales y parámetros implementados en `src/analytics/`: `observation_coverage >= 0.70`, `robust_z > 1.5` para señal elevada, `umbral_veg = 20 %`, `umbral_pend = 15 %`, `water_buffer_m = 150 m` / atenuación `>= 5 %`, `min_baseline_years = 5`.
 
-## 10. Endpoints opcionales y desacoplados (Fase 2 · 48 h y tiempo real global)
+## 10. Fase 2 opcional / tiempo real global (desacoplado de Fase 1)
 
-Los siguientes endpoints no modifican ni bloquean ningún contrato de las secciones 1–9 (Fase 1):
+Los siguientes endpoints operan de forma **opcional y desacoplada**: no modifican, bloquean ni alteran ningún contrato de solo lectura de las secciones 1–9 (Fase 1).
 
-- `GET /api/v1/territories/{type}/{id}/spread-forecast?date=YYYY-MM-DD&horizon_h=48`: devuelve isócronas (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`), `savi_summary`, `slope_summary`, `hourly_wind`, `outputs` y `timings_s`.
-- `POST|GET /api/v1/spread-simulate` *(Paso 1 rápido)*: ejecuta simulación 48 h para `{ lat, lon, date, horizon_h, use_open_meteo, ... }` y devuelve JSON/GeoJSON inmediato.
-- `POST|GET /api/v1/spread-export` *(Paso 2 bajo demanda)*: ejecuta la simulación y genera en `data/processed/spread_outputs/` `simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip`, `infografia_impacto_48h.png` y `panel_modelo_48h.png`, devolviendo URLs (`/api/v1/spread-outputs/{filename}`) y tiempos medidos (`timings_s`).
-- `GET /api/v1/realtime/area?south=…&west=…&north=…&east=…&days=3`: consulta global en vivo de clima Open-Meteo y focos activos NASA FIRMS (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, separados por sensor).
+| Ruta | Método(s) | Parámetros clave | Propósito |
+|---|---|---|---|
+| `/api/v1/territories/{type}/{id}/spread-forecast` | `GET` | `date` (`YYYY-MM-DD`, opcional), `horizon_h` (`6..48`, default `48`) | Devuelve pronóstico precalculado (`spread_forecasts.json`) o ejecuta simulación puntual sobre el territorio. |
+| `/api/v1/reverse-geocode` | `GET` | `lat` (`-90..90`), `lon` (`-180..180`) | Geocodificación inversa administrativa vía OSM Nominatim (`OSM_NOMINATIM`). |
+| `/api/v1/realtime/area` | `GET` | `south`, `west`, `north`, `east`, `days` (`1..10`, default `3`) | Clima en vivo (Open-Meteo), `location` administrativa y focos NRT separados por sensor (NASA FIRMS). |
+| `/api/v1/spread-simulate` | `GET` \| `POST` | `lat`, `lon`, `date`, `horizon_h`, `use_open_meteo`, overrides físicos | **Paso 1 rápido:** simula propagación condicional hasta 48 h y devuelve JSON/GeoJSON inmediato. |
+| `/api/v1/spread-export` | `GET` \| `POST` | Mismos parámetros que `/spread-simulate` | **Paso 2 bajo demanda:** genera GIF, MP4, ZIP QGIS e infografías PNG en `spread_outputs/`. |
+| `/api/v1/spread-outputs/{filename}` | `GET` | `filename` en lista blanca de 5 artefactos | Sirve artefactos multimedia/GIS generados o precalculados (`FileResponse`). |
+
+### 10.1 `GET /api/v1/reverse-geocode?lat=…&lon=…`
+
+- **Parámetros obligatorios:** `lat` (`-90.0..90.0`) y `lon` (`-180.0..180.0`).
+- **Fuente y caché:** consulta `https://nominatim.openstreetmap.org/reverse` (`zoom=14`, `accept-language=es`) con caché en memoria por coordenada redondeada a 3 decimales (hasta 512 entradas).
+- **Campos devueltos:** `schema_version` (`"1.0"`), `lat`, `lon` (redondeados a 5 decimales), `status` (`"ok"` | `"unavailable"`), `source` (`"OSM_NOMINATIM"`), `country`, `country_code`, `region`, `province`, `city`, `district` (`string | null`), `hierarchy` (`string[]` sin duplicados), `header_primary`, `header_sub`, `display_name` (y `detail` si `status == "unavailable"`).
+
+```json
+{
+  "schema_version": "1.0",
+  "lat": -8.19833,
+  "lon": -75.26669,
+  "status": "ok",
+  "source": "OSM_NOMINATIM",
+  "country": "Perú",
+  "country_code": "PE",
+  "region": "Ucayali",
+  "province": "Coronel Portillo",
+  "city": "Campo Verde",
+  "district": null,
+  "hierarchy": ["Perú", "Ucayali", "Coronel Portillo", "Campo Verde"],
+  "header_primary": "Perú",
+  "header_sub": "Campo Verde · Coronel Portillo",
+  "display_name": "Perú · Ucayali · Coronel Portillo · Campo Verde"
+}
+```
+
+### 10.2 `GET /api/v1/realtime/area?south=…&west=…&north=…&east=…&days=3`
+
+- **Parámetros:** `south`, `north` (`-90.0..90.0`), `west`, `east` (`-180.0..180.0`), `days` (`1..10`, default `3`). Si `south >= north` o `west >= east` → `400 INVALID_PARAMETER`.
+- **Bloque `location`:** resuelve el centro del `bbox` con el mismo esquema administrativo de `/reverse-geocode` (`status`, `source: "OSM_NOMINATIM"`, `country`, `country_code`, `region`, `province`, `city`, `district`, `hierarchy`, `header_primary`, `header_sub`, `display_name`).
+- **Bloque `weather`:** consulta Open-Meteo (`https://api.open-meteo.com/v1/forecast`, `wind_speed_unit=ms`) para el centro del `bbox`: `status` (`"ok"` | `"unavailable"`), `source` (`"Open-Meteo"`), `observed_at`, `center` (`{lat, lon}`), `t_amb_c`, `relative_humidity_2m_pct`, `wind_speed_10m_ms`, `wind_dir_deg` (o `detail` si falla).
+- **Focos activos NASA FIRMS (separados por sensor):** consulta `MODIS_NRT` (`MODIS`), `VIIRS_SNPP_NRT` (`VIIRS_SNPP`) y `VIIRS_NOAA20_NRT` (`VIIRS_NOAA20`) usando la variable de entorno opcional `FIRMS_MAP_KEY`:
+  - Sin `FIRMS_MAP_KEY`: devuelve `hotspots_status: "firms_map_key_required"`, `counts_by_sensor: {}`, `hotspots: {"type": "FeatureCollection", "features": []}` y `firms_setup: {"env_var": "FIRMS_MAP_KEY", "register_url": "...", "note": "..."}`.
+  - Con `FIRMS_MAP_KEY`: devuelve `hotspots_status` (`"ok"` | `"partial"`), `counts_by_sensor` (conteos independientes por sensor, **nunca sumados**), `errors_by_sensor` (`dict | null`) y `hotspots` (`FeatureCollection` de puntos con `sensor`, `firms_source`, `acq_date`, `acq_time`, `confidence`, `frp_mw`, `satellite`, `daynight`).
+
+### 10.3 `GET|POST /api/v1/spread-simulate` y `GET|POST /api/v1/spread-export`
+
+- **Parámetros (query string en `GET` o cuerpo JSON en `POST`; si se envían ambos, prevalece el JSON body):**
+  - Obligatorios: `lat` (`-90.0..90.0`), `lon` (`-180.0..180.0`). Si faltan o salen de rango → `400 INVALID_PARAMETER`.
+  - Opcionales con default: `date` (`YYYY-MM-DD`, default `"2024-09-25"`), `horizon_h` (`6..48`, default `48`; fuera de rango → `400 INVALID_PARAMETER`), `use_open_meteo` (`bool`, default `false`).
+  - Overrides físicos opcionales: `wind_speed_10m_ms` (`0..40`), `wind_dir_deg` (`0..360`), `vegetation_pct` (`0..100`), `slope_mean_deg` (`0..60`), `fuel_moisture_pct` (`1..35`).
+  - Solo en JSON body: `territory_type` (default `"custom"`), `territory_id` (default `"custom"`), `territory_name` (default `"Punto (lat, lon)"`).
+- **Respuesta de `/api/v1/spread-simulate`:**
+  - **Con motor analítico completo (`src/analytics/spread_model.py`):** devuelve `schema_version` (`"1.0"`), `phase` (`"phase_2_optional"`), `territory`, `date`, `horizon_h`, `ignition`, `dominant_wind`, `hourly_wind`, `savi_summary` (`mean`, `p90`, `source`), `slope_summary` (`mean_deg`, `max_deg`, `dem_source`), `grid_summary` (`cols`, `rows`, `cell_size_m`, `bounds`, `total_area_ha`, `head_ros_m_min`, `length_to_breadth`), `bands`, `hourly_progression`, `isochrones` (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`), `assumptions`, `data_sources` (`wind_source`, `dem_source`, `vegetation_index`, etc.), `outputs`, `model_metadata` y `timings_s`. Con `use_open_meteo=true`, activa por defecto Sentinel-2 L2A SAVI vía Planetary Computer (`SENTINEL2_L2A_PLANETARY_COMPUTER`), Open-Meteo horario y Open-Meteo Elevation (`COPERNICUS_DEM_GLO90_OPEN_METEO`), con respaldo determinista si no hay cobertura o red.
+  - **Modo liviano Azure Free Tier F1 (sin `geopandas`/`numpy`/`matplotlib` en runtime):** ejecuta `_run_lightweight_global_spread` en Python puro + `httpx` consultando Open-Meteo Elevation (`COPERNICUS_DEM_GLO90_OPEN_METEO` sobre grilla 4×4, fallback `COPERNICUS_DEM_GLO30_PARAMETRIC`) y viento actual Open-Meteo si `use_open_meteo=true`. Devuelve `schema_version`, `phase`, `territory`, `date`, `horizon_h`, `ignition`, `dominant_wind`, `savi_summary` (`mean`, `source`), `slope_summary` (`mean_deg`, `max_deg`, `dem_source`), `spread_summary` (`head_ros_m_min`, `length_to_breadth`), `data_sources` y `timings_s`.
+- **Respuesta de `/api/v1/spread-export`:**
+  - Con motor completo: ejecuta la simulación, exporta los 5 archivos en `data/processed/spread_outputs/` y devuelve el mismo esquema con `outputs` y `timings_s` detallados (`total_export_s`, `total_s`, etc.).
+  - En runtime liviano sin dependencias GIS/video: responde `503 EXPORT_LIBS_UNAVAILABLE` (las descargas precalculadas en `/api/v1/spread-outputs/{filename}` siguen disponibles).
+
+### 10.4 `GET /api/v1/spread-outputs/{filename}`
+
+Sirve desde `SPREAD_OUTPUTS_DIR` (`data/processed/spread_outputs/`) únicamente los 5 archivos permitidos:
+
+| `filename` | `Content-Type` | Contenido |
+|---|---|---|
+| `simulacion_48h.gif` | `image/gif` | Animación horaria (48 frames) |
+| `pronostico_48h.mp4` | `video/mp4` | Video MP4 (H.264) 48 h |
+| `mchanaq_propagacion_48h_qgis.zip` | `application/zip` | Shapefiles ESRI WGS84 para QGIS |
+| `infografia_impacto_48h.png` | `image/png` | Infografía ejecutiva 300 DPI |
+| `panel_modelo_48h.png` | `image/png` | Panel comparativo SAVI + Pendiente/Viento + Simulación |
+
+Si `filename` no pertenece a la lista o no existe en disco, responde `404 NOT_FOUND`.
 
 Referencia metodológica completa: `docs/Fase2_Simulacion_Espacial_Propagacion_48h.md`.
