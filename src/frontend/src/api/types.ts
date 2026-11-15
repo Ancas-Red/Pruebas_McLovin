@@ -338,6 +338,14 @@ export interface Metadata {
   available_periods_by_sensor: Partial<Record<Sensor, string[]>>;
   /** Lista explícita opcional de fechas diarias útiles (`YYYY-MM-DD`) por sensor. */
   available_useful_dates_by_sensor?: Partial<Record<Sensor, string[]>>;
+  /**
+   * Piso histórico (`YYYY-MM-DD`) desde el que una fecha fuera de la tabla diaria local
+   * todavía se puede complementar con una consulta en vivo a NASA FIRMS (más lenta la
+   * primera vez, luego en caché). No es un "día útil" validado como los dos campos de
+   * arriba — solo evita bloquear el selector de fecha. Ausente/vacío si el backend no
+   * tiene FIRMS_MAP_KEY configurada.
+   */
+  firms_live_available_since_by_sensor?: Partial<Record<Sensor, string>>;
   common_environmental_dates: DateRange[];
   common_environmental_periods: string[];
   common_analysis_dates: DateRange[];

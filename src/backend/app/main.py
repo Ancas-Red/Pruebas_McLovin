@@ -31,6 +31,23 @@ CORS_ORIGIN_REGEX = os.getenv("MCHANAQ_CORS_ORIGIN_REGEX", "").strip() or None
 
 TYPES = {"province", "hydro_unit"}
 SENSORS = {"MODIS_TERRA", "MODIS_AQUA", "VIIRS_SNPP"}
+
+# Piso histórico documentado por sensor (docs/.../v1.7 y run_pipeline.py build_metadata):
+# MODIS Terra 2000-02, MODIS Aqua 2002-07, VIIRS S-NPP 2012-01. Antes de esto el sensor
+# directamente no existía/no tenía cobertura, ni siquiera vía NASA FIRMS.
+_SENSOR_HISTORICAL_SINCE = {
+    "MODIS_TERRA": "2000-02-24",
+    "MODIS_AQUA": "2002-07-04",
+    "VIIRS_SNPP": "2012-01-19",
+}
+# NASA FIRMS Area API expone MODIS Terra/Aqua bajo una sola fuente "MODIS_SP" (Standard
+# Processing, histórico completo) distinguida por la columna satellite=Terra|Aqua; VIIRS
+# S-NPP tiene su propia fuente histórica.
+_FIRMS_HIST_SOURCE_BY_SENSOR = {
+    "MODIS_TERRA": ("MODIS_SP", "Terra"),
+    "MODIS_AQUA": ("MODIS_SP", "Aqua"),
+    "VIIRS_SNPP": ("VIIRS_SNPP_SP", None),
+}
 ACTIVITY_METRICS = {
     "activity_rate",
     "fire_pixels_nominal_high",
@@ -147,6 +164,16 @@ def _reconcile_metadata_with_daily(meta: dict, daily: list[dict]) -> dict:
 
 
 META = _reconcile_metadata_with_daily(META, DAILY)
+
+# Piso histórico "en vivo" (NASA FIRMS Area API, Standard Processing): separado a
+# propósito de available_periods_by_sensor/available_date_ranges_by_sensor, que deben
+# seguir reflejando únicamente días útiles validados offline (ver AGENTS.md, "Integridad
+# científica"). Este campo solo existe para que el frontend sepa que una fecha fuera de la
+# tabla diaria local todavía se puede consultar (más lento la primera vez, luego en caché)
+# en vez de bloquearla. Vacío si no hay FIRMS_MAP_KEY configurada.
+if os.getenv("FIRMS_MAP_KEY", "").strip():
+    META = dict(META)
+    META["firms_live_available_since_by_sensor"] = dict(_SENSOR_HISTORICAL_SINCE)
 
 
 class ApiError(Exception):
@@ -265,9 +292,18 @@ def check_date(
         if sensor:
             ranges_map = META.get("available_date_ranges_by_sensor", {})
             if sensor in ranges_map:
-                ok &= _date_in_ranges(d, ranges_map[sensor])
+                sensor_ok = _date_in_ranges(d, ranges_map[sensor])
             else:
-                ok &= resolved_period in META.get("available_periods_by_sensor", {}).get(sensor, [])
+                sensor_ok = resolved_period in META.get("available_periods_by_sensor", {}).get(sensor, [])
+            # Fuera de la tabla diaria local pero dentro del piso histórico documentado del
+            # sensor: no es un "día útil" validado (eso solo lo da run_pipeline.py offline),
+            # pero sí se puede complementar con una consulta en vivo a NASA FIRMS si hay
+            # FIRMS_MAP_KEY configurada. Sin esto, cualquier fecha anterior a la tabla local
+            # (p. ej. 2012-2021) quedaba bloqueada con 422 aunque el complemento en vivo
+            # pudiera responderla.
+            if not sensor_ok and _date_has_live_firms_fallback(sensor, d):
+                sensor_ok = True
+            ok &= sensor_ok
         env_dates = META.get("common_environmental_dates")
         env_periods = META.get("common_environmental_periods")
         has_env_window = bool(env_dates) or bool(env_periods)
@@ -458,6 +494,146 @@ def pick(items: list[dict], **keys) -> dict | None:
     return next((i for i in items if all(str(i.get(k)) == str(v) for k, v in keys.items())), None)
 
 
+def _territory_bbox(t_type: str, t_id: str) -> tuple[float, float, float, float] | None:
+    """west, south, east, north de la geometría del territorio (para acotar la consulta
+    histórica a FIRMS a su área real, no a todo el país)."""
+    for feat in TERR.get("features", []):
+        props = feat.get("properties", {})
+        if props.get("territory_type") == t_type and str(props.get("territory_id")) == t_id:
+            geom = feat.get("geometry") or {}
+            coords = geom.get("coordinates")
+            if not coords:
+                return None
+            lons: list[float] = []
+            lats: list[float] = []
+
+            def _walk(c):
+                if not c:
+                    return
+                if isinstance(c[0], (int, float)):
+                    lons.append(c[0])
+                    lats.append(c[1])
+                else:
+                    for cc in c:
+                        _walk(cc)
+
+            _walk(coords)
+            if not lons or not lats:
+                return None
+            return (min(lons), min(lats), max(lons), max(lats))
+    return None
+
+
+# Consulta histórica (Standard Processing) a NASA FIRMS Area API para territorios/fechas
+# fuera de la tabla diaria local (activity_daily.json). Cacheada por (territorio, sensor,
+# fecha): un día pasado no cambia, así que una vez consultado queda servido de memoria.
+_FIRMS_HIST_CACHE_TTL_S = 6 * 3600.0
+_FIRMS_HIST_CACHE_MAX = 2000
+_FIRMS_HIST_CACHE: dict[tuple, tuple[float, dict | None]] = {}
+_FIRMS_HIST_CACHE_LOCK = threading.Lock()
+
+
+def _date_has_live_firms_fallback(sensor: str, date: str) -> bool:
+    """True si esta fecha, fuera de la tabla diaria local, se puede complementar con una
+    consulta en vivo a NASA FIRMS (requiere FIRMS_MAP_KEY y estar dentro del piso histórico
+    documentado del sensor, nunca en el futuro)."""
+    if not os.getenv("FIRMS_MAP_KEY", "").strip():
+        return False
+    since = _SENSOR_HISTORICAL_SINCE.get(sensor)
+    if not since or date < since:
+        return False
+    return date <= dt_date.today().isoformat()
+
+
+def _fetch_firms_historical_day(t_type: str, t_id: str, sensor: str, date: str) -> dict | None:
+    """Focos activos de un día/territorio/sensor fuera de la cobertura local, vía la Area
+    API histórica (Standard Processing) de NASA FIRMS. Nunca inventa valid_land_pixels,
+    observation_coverage ni activity_rate (eso exige el ráster completo que calcula
+    run_pipeline.py offline): solo cuenta detecciones reales de fuego, marcado como tal
+    (source_product). Si no hay FIRMS_MAP_KEY o el sensor/fecha no tiene cobertura
+    documentada, devuelve None (el llamador cae de vuelta a "sin dato")."""
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    since = _SENSOR_HISTORICAL_SINCE.get(sensor)
+    src = _FIRMS_HIST_SOURCE_BY_SENSOR.get(sensor)
+    if not firms_key or not since or not src or date < since:
+        return None
+    bbox = _territory_bbox(t_type, t_id)
+    if not bbox:
+        return None
+    firms_source, sat_filter = src
+
+    key = (t_type, t_id, sensor, date)
+    now = time.monotonic()
+    with _FIRMS_HIST_CACHE_LOCK:
+        hit = _FIRMS_HIST_CACHE.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+
+    west, south, east, north = bbox
+    bbox_str = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/{firms_source}/{bbox_str}/1/{date}"
+    result: dict | None
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            text = resp.text.strip()
+        if not text or text.lower().startswith("invalid"):
+            result = None
+        else:
+            rows = _parse_firms_csv_tuples(text)
+            if sat_filter:
+                rows = [r for r in rows if r[6] == sat_filter]
+
+            def _is_low_confidence(raw: str | None) -> bool:
+                # Mismo criterio que src/analytics/firms_to_daily_activity.py
+                # (_confidence_bucket): VIIRS usa letras l/n/h, MODIS usa 0-100.
+                raw_s = (raw or "").strip().lower()
+                if sensor == "VIIRS_SNPP":
+                    return raw_s in {"l", "low"}
+                try:
+                    return float(raw_s) < 50
+                except ValueError:
+                    return False
+
+            fire_low = sum(1 for r in rows if _is_low_confidence(r[4]))
+            # fire_pixels_nominal_high es acumulado (low + nominal/high), igual que en
+            # firms_to_daily_activity.py, para que el resto de la app lo lea como siempre.
+            result = {
+                "date": date,
+                "territory_type": t_type,
+                "territory_id": t_id,
+                "sensor": sensor,
+                "fire_pixels_low": fire_low,
+                "fire_pixels_nominal_high": len(rows),
+                "valid_land_pixels": None,
+                "expected_land_pixels_per_day": None,
+                "observation_coverage": None,
+                "cloud_ok_lt30pct": None,
+                "activity_rate": None,
+                "t_amb_c": None,
+                "relative_humidity_2m_pct": None,
+                "t_suelo_c": None,
+                "lst_valid_pixel_pct": None,
+                "wind_dir_deg": None,
+                "wind_speed_10m_ms": None,
+                "elevation_m": None,
+                "dem_source": None,
+                "source_product": "FIRMS_SP_live_query",
+                "processing_version": META.get("processing_version"),
+                "data_origin": "firms_live_historical",
+            }
+    except Exception:
+        result = None
+
+    with _FIRMS_HIST_CACHE_LOCK:
+        if len(_FIRMS_HIST_CACHE) >= _FIRMS_HIST_CACHE_MAX and key not in _FIRMS_HIST_CACHE:
+            oldest_key = next(iter(_FIRMS_HIST_CACHE))
+            _FIRMS_HIST_CACHE.pop(oldest_key, None)
+        _FIRMS_HIST_CACHE[key] = (now + _FIRMS_HIST_CACHE_TTL_S, result)
+    return result
+
+
 @app.get("/")
 def root_probe():
     """Sonda liviana en '/' para warm-up / health checks por defecto en Azure App Service."""
@@ -572,6 +748,12 @@ def territory_summary(
     terr = find_territory(type, id)
 
     daily_row = pick(DAILY, territory_type=type, territory_id=id, sensor=sensor, date=date) if date else None
+    if daily_row is None and date and _date_has_live_firms_fallback(sensor, date):
+        # Sin fila en la tabla diaria local (p. ej. años antes de 2022-01-01, ver
+        # AGENTS.md): se complementa con una consulta en vivo a NASA FIRMS. Nunca es
+        # equivalente al dato validado offline (sin cobertura/ratio de observación), por
+        # eso queda marcado con data_origin="firms_live_historical".
+        daily_row = _fetch_firms_historical_day(type, id, sensor, date)
     summary_row = pick(SUMMARY, territory_type=type, territory_id=id, sensor=sensor, period_id=resolved_period) or {}
     assess_row = pick(ASSESS, territory_type=type, territory_id=id, period_id=resolved_period) or {}
 
@@ -1245,6 +1427,14 @@ _FIRMS_PUBLIC_CACHE: dict[str, tuple[float, list[tuple[float, float, str | None,
 _FIRMS_PUBLIC_CACHE_LOCK = threading.Lock()
 _FIRMS_MAX_RETURNED_FEATURES = 2500
 
+# Caché TTL para la Area API autenticada (FIRMS_MAP_KEY): sin esto, cada consulta de
+# /realtime/area vuelve a pedir el bbox completo a FIRMS aunque nadie haya movido el mapa
+# (medido en producción: ~6-9 s en frío). Se cachea por (fuente, bbox redondeado, days).
+_FIRMS_AREA_API_CACHE_TTL_S = 600.0
+_FIRMS_AREA_API_CACHE_MAX = 32
+_FIRMS_AREA_API_CACHE: dict[tuple, tuple[float, list[dict], str | None]] = {}
+_FIRMS_AREA_API_CACHE_LOCK = threading.Lock()
+
 
 def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
     """Consulta clima y viento actual en Open-Meteo para el centro del área."""
@@ -1429,6 +1619,48 @@ def _fetch_firms_source(
         return features, None
     except Exception as exc:
         return [], str(exc)
+
+
+def _fetch_firms_source_cached(
+    client: httpx.Client,
+    map_key: str,
+    firms_source: str,
+    sensor_label: str,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    days: int,
+) -> tuple[list[dict], str | None]:
+    """Igual que _fetch_firms_source pero con caché TTL por bbox: sin esto, cada carga de
+    /realtime/area volvía a pedirle a FIRMS el área completa aunque nadie moviera el mapa
+    (~6-9 s medidos en producción incluso con FIRMS_MAP_KEY configurada)."""
+    key = (firms_source, round(west, 2), round(south, 2), round(east, 2), round(north, 2), days)
+    now = time.monotonic()
+    with _FIRMS_AREA_API_CACHE_LOCK:
+        hit = _FIRMS_AREA_API_CACHE.get(key)
+        if hit and hit[0] > now:
+            return hit[1], hit[2]
+    features, err = _fetch_firms_source(
+        client=client,
+        map_key=map_key,
+        firms_source=firms_source,
+        sensor_label=sensor_label,
+        west=west,
+        south=south,
+        east=east,
+        north=north,
+        days=days,
+    )
+    # Solo cachear resultados utilizables: un error transitorio (clave inválida momentánea,
+    # timeout) no debe quedar pegado por 10 minutos.
+    if err is None:
+        with _FIRMS_AREA_API_CACHE_LOCK:
+            if len(_FIRMS_AREA_API_CACHE) >= _FIRMS_AREA_API_CACHE_MAX and key not in _FIRMS_AREA_API_CACHE:
+                oldest_key = next(iter(_FIRMS_AREA_API_CACHE))
+                _FIRMS_AREA_API_CACHE.pop(oldest_key, None)
+            _FIRMS_AREA_API_CACHE[key] = (now + _FIRMS_AREA_API_CACHE_TTL_S, features, err)
+    return features, err
 
 
 def _fetch_firms_public_source(
@@ -1727,7 +1959,7 @@ def realtime_area(
 
     def _run_area_firms(firms_source: str, sensor_label: str) -> tuple[list[dict], str | None]:
         with httpx.Client(timeout=12.0) as client:
-            return _fetch_firms_source(
+            return _fetch_firms_source_cached(
                 client=client,
                 map_key=firms_key,
                 firms_source=firms_source,

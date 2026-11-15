@@ -640,9 +640,19 @@ export function isDateAvailable(date: string, sensor: Sensor, meta: Metadata | n
     : periods?.length
       ? periods.includes(periodOf(date))
       : Boolean(useful?.length);
-  if (!inPublished) return false;
-  if (Array.isArray(useful)) return useful.includes(date);
-  return true;
+  if (inPublished) {
+    if (Array.isArray(useful)) return useful.includes(date);
+    return true;
+  }
+  // Fuera de la tabla diaria local (p. ej. años anteriores a 2022): no es un "día útil"
+  // validado, pero si el backend tiene FIRMS_MAP_KEY configurada, /summary lo complementa
+  // con una consulta en vivo a NASA FIRMS. Se deja seleccionar en vez de bloquear.
+  const liveSince = meta.firms_live_available_since_by_sensor?.[sensor];
+  if (liveSince && date >= liveSince) {
+    const today = new Date().toISOString().slice(0, 10);
+    return date <= today;
+  }
+  return false;
 }
 
 /** ¿El período `YYYY-MM` está publicado para ese sensor? */
@@ -683,9 +693,20 @@ export function isSummaryDateAvailable(date: string, sensor: Sensor, meta: Metad
   // siquiera preguntarle al backend). El backend devuelve lo que tenga.
   if (!meta) return false;
   const rng = meta.available_date_ranges_by_sensor?.[sensor];
-  if (rng?.length) return inRanges(date, rng);
   const periods = meta.available_periods_by_sensor?.[sensor];
-  if (periods?.length) return periods.includes(periodOf(date));
+  const inPublished = rng?.length
+    ? inRanges(date, rng)
+    : periods?.length
+      ? periods.includes(periodOf(date))
+      : false;
+  if (inPublished) return true;
+  // Igual que isDateAvailable: fuera de la tabla diaria local pero dentro del piso
+  // histórico "en vivo" (NASA FIRMS), si el backend tiene FIRMS_MAP_KEY configurada.
+  const liveSince = meta.firms_live_available_since_by_sensor?.[sensor];
+  if (liveSince && date >= liveSince) {
+    const today = new Date().toISOString().slice(0, 10);
+    return date <= today;
+  }
   return isDateAvailable(date, sensor, meta);
 }
 
@@ -751,6 +772,16 @@ export function availablePeriodsForSensor(sensor: Sensor, meta: Metadata | null)
       for (const [y, m] of monthsBetween(b.from, b.to)) {
         set.add(`${y}-${pad2(m)}`);
       }
+    }
+  }
+  // Piso histórico "en vivo" (NASA FIRMS): se suma como meses seleccionables además de
+  // la tabla diaria local, para no bloquear años como 2012-2021 si el backend puede
+  // complementarlos con una consulta en vivo (ver firms_live_available_since_by_sensor).
+  const liveSince = meta.firms_live_available_since_by_sensor?.[sensor];
+  if (liveSince) {
+    const today = new Date().toISOString().slice(0, 10);
+    for (const [y, m] of monthsBetween(liveSince, today)) {
+      set.add(`${y}-${pad2(m)}`);
     }
   }
   return set;
