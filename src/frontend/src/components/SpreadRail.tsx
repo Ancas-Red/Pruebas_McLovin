@@ -44,6 +44,8 @@ interface Props {
   hasEnv: boolean;
   /** Centro del territorio activo; orienta al usuario al dibujar el recorte. */
   center: LatLon | null;
+  /** Fecha activa del calendario Fase 1 (opcional). */
+  dateIso?: string;
 }
 
 export function SpreadRail(p: Props) {
@@ -51,6 +53,7 @@ export function SpreadRail(p: Props) {
   const set = <K extends keyof SpreadParams>(k: K, value: SpreadParams[K]) =>
     p.onParams({ ...v, [k]: value });
   const ready = p.ring !== null && p.ignition !== null;
+  const [forecastDate, setForecastDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [exporting, setExporting] = useState(false);
   const [exportInfo, setExportInfo] = useState<string | null>(null);
 
@@ -65,6 +68,7 @@ export function SpreadRail(p: Props) {
         body: JSON.stringify({
           lat: pt[0],
           lon: pt[1],
+          date: forecastDate,
           horizon_h: Math.max(6, Math.min(48, Math.round(v.horizonHours))),
           wind_speed_10m_ms: v.windSpeedMs,
           wind_dir_deg: v.windDirDeg,
@@ -79,8 +83,9 @@ export function SpreadRail(p: Props) {
       const t = data?.timings_s?.total_s;
       const ws = data?.data_sources?.wind_source ?? "local";
       const ds = data?.slope_summary?.dem_source ?? "DEM";
+      const ss = data?.savi_summary?.source ?? "SAVI";
       setExportInfo(
-        `Paquete ${data?.horizon_h ?? 48}h generado${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds}).`
+        `Paquete ${data?.horizon_h ?? 48}h (${forecastDate}) generado${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds} · ${ss}).`
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de red";
@@ -112,6 +117,38 @@ export function SpreadRail(p: Props) {
             <dt>Centro del territorio</dt>
             <dd data-null={!p.center}>{p.center ? formatLatLon(p.center, 3) : "Sin definir"}</dd>
           </dl>
+          <div className="field" style={{ marginTop: 12 }}>
+            <label className="field__label" htmlFor="sp-date">
+              Fecha de inicio (48 h) <span className="field__value">{forecastDate}</span>
+            </label>
+            <input
+              id="sp-date"
+              type="date"
+              value={forecastDate}
+              onChange={(e) => {
+                if (e.target.value) setForecastDate(e.target.value);
+              }}
+              style={{ width: "100%" }}
+            />
+            <div className="btn-row" style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setForecastDate(new Date().toISOString().slice(0, 10))}
+              >
+                Próximas 48 h (hoy)
+              </button>
+              {p.dateIso && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setForecastDate(p.dateIso!)}
+                >
+                  Usar fecha del calendario
+                </button>
+              )}
+            </div>
+          </div>
           <div className="btn-row" style={{ marginTop: 11 }}>
             <button className="btn" onClick={p.onPickIgnition}>Situar ignición</button>
             <button

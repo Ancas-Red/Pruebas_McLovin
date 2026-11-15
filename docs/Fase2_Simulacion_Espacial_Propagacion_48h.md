@@ -90,11 +90,12 @@ El módulo funciona de manera autónoma con los datos territoriales de McHanaq (
 
 Para evaluar propagación desde **cualquier coordenada del mundo** sin bloquear la interfaz web ni agotar el servidor (Plan Free F1), el flujo separa el cálculo interactivo de la exportación multimedia pesada:
 
-1. **Integración global por APIs (`use_open_meteo=true` y `/api/v1/realtime/area`):**
-   * **Meteorología horaria 48 h:** Open-Meteo Forecast/Archive API (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `relative_humidity_2m`).
+1. **Integración global por APIs (`use_open_meteo=true`, `use_global_savi` y `/api/v1/realtime/area`):**
+   * **Vegetación / Combustible global (SAVI real):** Sentinel-2 L2A vía **Microsoft Planetary Computer STAC API** (`sentinel-2-l2a`, bandas `B04` RED y `B08` NIR con firma SAS pública sin API key; `savi_source = SENTINEL2_L2A_PLANETARY_COMPUTER`) cuando `use_global_savi=true` (activo por defecto si `use_open_meteo=true` y no se pasa `--savi-tif`).
+   * **Meteorología horaria 48 h:** Open-Meteo Forecast/Archive API (`wind_speed_10m`, `wind_direction_10m`, `temperature_2m`, `relative_humidity_2m`), seleccionando libremente cualquier fecha desde la interfaz (**selector de fecha**, botón **"Próximas 48 h (hoy)"** o **"Usar fecha del calendario"**).
    * **Topografía global (DEM):** Open-Meteo Elevation API (`https://api.open-meteo.com/v1/elevation`, fuente `COPERNICUS_DEM_GLO90_OPEN_METEO`) muestreada en grilla `8×8` sobre el dominio de `11×11 km` e interpolada bilinealmente a `120×120` celdas.
    * **Focos activos globales NRT:** `GET /api/v1/realtime/area` consulta NASA FIRMS Area API (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT` sin mezclar sensores) cuando se configura `FIRMS_MAP_KEY`.
-   * *Nota:* Si no hay conectividad externa, el motor degrada deterministamente a `COPERNICUS_DEM_GLO30_PARAMETRIC` y `era5_daily_diurnal_profile`.
+   * *Nota:* Si no hay conectividad externa o no existe escena Sentinel-2 con nubosidad `< 35 %`, el motor degrada deterministamente a `COPERNICUS_DEM_GLO30_PARAMETRIC`, `era5_daily_diurnal_profile` y `SAVI_HUETE1988_VEG_CALIBRATED`.
 2. **Paso 1 — Simulación interactiva instantánea (`POST/GET /api/v1/spread-simulate`):**
    * Ejecuta `simulate_spread_48h` y devuelve el JSON/GeoJSON con isócronas (`+6h..+48h`), métricas (`SAVI`, pendiente, `ROS`, `L/B`), `data_sources` y `timings_s` para pintar la evolución en el mapa al instante.
 3. **Paso 2 — Exportación completa bajo demanda (`POST/GET /api/v1/spread-export` → `GET /api/v1/spread-outputs/{filename}`):**

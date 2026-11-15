@@ -408,6 +408,101 @@ def _fetch_open_meteo_dem_grid(
         return None
 
 
+def _fetch_planetary_computer_savi_grid(
+    bounds: tuple[float, float, float, float],
+    rows: int,
+    cols: int,
+    date_str: str,
+    timeout_s: float = 8.0,
+) -> np.ndarray | None:
+    """Obtiene SAVI real global desde Sentinel-2 L2A en Microsoft Planetary Computer (sin API key)."""
+    try:
+        import rasterio
+        from rasterio.enums import Resampling
+        from rasterio.vrt import WarpedVRT
+        from rasterio.windows import from_bounds
+    except ImportError:
+        return None
+
+    try:
+        target_dt = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        target_dt = datetime.now(timezone.utc)
+
+    now_utc = datetime.now(timezone.utc)
+    anchor_dt = min(target_dt, now_utc)
+    start_s = (anchor_dt - timedelta(days=45)).strftime("%Y-%m-%d")
+    end_s = anchor_dt.strftime("%Y-%m-%d")
+    west, south, east, north = bounds
+
+    search_payload = json.dumps(
+        {
+            "collections": ["sentinel-2-l2a"],
+            "bbox": [west, south, east, north],
+            "datetime": f"{start_s}T00:00:00Z/{end_s}T23:59:59Z",
+            "query": {"eo:cloud_cover": {"lt": 35}},
+            "limit": 5,
+            "sortby": [{"field": "properties.eo:cloud_cover", "direction": "asc"}],
+        }
+    ).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(
+            "https://planetarycomputer.microsoft.com/api/stac/v1/search",
+            data=search_payload,
+            headers={"Content-Type": "application/json", "User-Agent": "McHanaq/2.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            stac_data = json.loads(resp.read().decode("utf-8"))
+
+        features = stac_data.get("features") or []
+        if not features:
+            return None
+
+        assets = features[0].get("assets") or {}
+        b04_href = (assets.get("B04") or {}).get("href")
+        b08_href = (assets.get("B08") or {}).get("href")
+        if not b04_href or not b08_href:
+            return None
+
+        sas_req = urllib.request.Request(
+            "https://planetarycomputer.microsoft.com/api/sas/v1/token/sentinel-2-l2a",
+            headers={"User-Agent": "McHanaq/2.0"},
+        )
+        with urllib.request.urlopen(sas_req, timeout=timeout_s) as sas_resp:
+            sas_token = json.loads(sas_resp.read().decode("utf-8")).get("token", "")
+
+        def _sign(href: str) -> str:
+            if not sas_token:
+                return href
+            sep = "&" if "?" in href else "?"
+            return f"{href}{sep}{sas_token}"
+
+        def _read_band(href: str) -> np.ndarray:
+            with rasterio.open(_sign(href)) as src:
+                with WarpedVRT(src, crs="EPSG:4326", resampling=Resampling.bilinear) as vrt:
+                    win = from_bounds(west, south, east, north, vrt.transform)
+                    arr = vrt.read(
+                        1,
+                        window=win,
+                        out_shape=(rows, cols),
+                        resampling=Resampling.bilinear,
+                        boundless=True,
+                        fill_value=np.nan,
+                    ).astype(np.float32)
+            return arr / 10000.0
+
+        red = _read_band(b04_href)
+        nir = _read_band(b08_href)
+        savi = compute_savi(nir, red, l_factor=0.5)
+        if np.all(np.isnan(savi)):
+            return None
+        return np.clip(savi, -0.5, 1.0).astype(np.float32)
+    except Exception:
+        return None
+
+
 def build_territory_grids(
     territory_geom: Any,
     ignition_lat: float,
@@ -420,6 +515,8 @@ def build_territory_grids(
     savi_tif: Path | None = None,
     dem_tif: Path | None = None,
     use_open_meteo: bool = False,
+    date_str: str = "2024-09-25",
+    use_global_savi: bool = False,
 ) -> dict[str, Any]:
     """Construye grillas georreferenciadas de SAVI, elevación DEM, pendiente y combustible."""
     lat_mid = ignition_lat
@@ -471,9 +568,13 @@ def build_territory_grids(
     dz_dy, dz_dx = np.gradient(dem_arr, cell_size_m, cell_size_m)
     slope_deg = np.degrees(np.arctan(np.hypot(dz_dx, dz_dy))).astype(np.float32)
 
-    # 2. SAVI (desde GeoTIFF real si se provee, o calculado vía NIR/RED sintético calibrado con vegetación)
+    # 2. SAVI (desde GeoTIFF real, Sentinel-2 Planetary Computer si use_global_savi, o NIR/RED sintético calibrado)
     savi_arr = _load_geotiff_resampled(savi_tif, bounds, rows, cols) if savi_tif and savi_tif.exists() else None
     savi_source = "SAVI_GEOTIFF"
+    if (savi_arr is None or np.all(np.isnan(savi_arr))) and use_global_savi:
+        savi_arr = _fetch_planetary_computer_savi_grid(bounds, rows, cols, date_str=date_str)
+        if savi_arr is not None and not np.all(np.isnan(savi_arr)):
+            savi_source = "SENTINEL2_L2A_PLANETARY_COMPUTER"
     if savi_arr is None or np.all(np.isnan(savi_arr)):
         veg_frac = max(0.05, min(0.98, vegetation_pct / 100.0))
         veg_noise = _fbm_grid(rows, cols, seed=seed ^ 0x9E3779B9, scale_x=7.5, scale_y=7.5, octaves=4)
@@ -621,9 +722,11 @@ def simulate_spread_48h(
     use_open_meteo: bool = False,
     savi_tif: Path | None = None,
     dem_tif: Path | None = None,
+    use_global_savi: bool | None = None,
 ) -> SpreadGridResult:
     """Ejecuta la simulación horaria de propagación de fuego hasta 48 horas."""
     horizon_h = max(6, min(48, int(horizon_h)))
+    resolved_global_savi = use_open_meteo if use_global_savi is None else use_global_savi
 
     grids = build_territory_grids(
         territory_geom=territory_geom,
@@ -637,6 +740,8 @@ def simulate_spread_48h(
         savi_tif=savi_tif,
         dem_tif=dem_tif,
         use_open_meteo=use_open_meteo,
+        date_str=date_str,
+        use_global_savi=resolved_global_savi,
     )
     hourly_wind = get_hourly_wind_series(
         lat=ignition_lat,

@@ -159,3 +159,48 @@ def test_phase2_api_endpoints(tmp_path: Path, monkeypatch):
         assert len(r_file.content) > 1000
 
     assert client.get("/api/v1/spread-outputs/no_existe.exe").status_code == 404
+
+
+def test_global_sentinel2_savi_integration_and_fallback(monkeypatch):
+    from src.analytics import spread_model
+
+    fake_savi = np.full((32, 32), 0.58, dtype=np.float32)
+    monkeypatch.setattr(
+        spread_model,
+        "_fetch_planetary_computer_savi_grid",
+        lambda bounds, rows, cols, date_str, timeout_s=8.0: np.full((rows, cols), float(fake_savi[0, 0]), dtype=np.float32),
+    )
+    res_s2 = simulate_spread_48h(
+        territory_type="province",
+        territory_id="2501",
+        territory_name="GLOBAL TEST",
+        date_str="2026-11-15",
+        ignition_lat=-30.85,
+        ignition_lon=-64.52,
+        horizon_h=12,
+        side_max=32,
+        use_open_meteo=False,
+        use_global_savi=True,
+    )
+    assert res_s2.data_sources["vegetation_index"] == "SENTINEL2_L2A_PLANETARY_COMPUTER"
+    assert abs(res_s2.savi_mean - 0.58) < 1e-3
+
+    # Respaldo determinista si Planetary Computer no responde o no hay escena limpia
+    monkeypatch.setattr(
+        spread_model,
+        "_fetch_planetary_computer_savi_grid",
+        lambda bounds, rows, cols, date_str, timeout_s=8.0: None,
+    )
+    res_fb = simulate_spread_48h(
+        territory_type="province",
+        territory_id="2501",
+        territory_name="GLOBAL FALLBACK",
+        date_str="2026-11-15",
+        ignition_lat=-30.85,
+        ignition_lon=-64.52,
+        horizon_h=12,
+        side_max=32,
+        use_open_meteo=False,
+        use_global_savi=True,
+    )
+    assert res_fb.data_sources["vegetation_index"] == "SAVI_HUETE1988_VEG_CALIBRATED"

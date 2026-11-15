@@ -1297,6 +1297,7 @@ export function MapTool({
               onApplyEnv={applyEnvToSpread}
               hasEnv={Boolean(summary)}
               center={territoryCenter}
+              dateIso={dateIso}
             />
           )}
         </div>
