@@ -458,7 +458,11 @@ export function MapTool({ tab, onBackend }: Props) {
 
     if (usefulDays.length > 0) {
       if (!usefulDays.includes(day)) {
-        setDay(usefulDays[usefulDays.length - 1]);
+        const activeDays = daily
+          .filter((r) => (r.fire_pixels_nominal_high ?? 0) > 0)
+          .map((r) => Number(r.date.slice(8)))
+          .filter((d) => usefulDays.includes(d));
+        setDay(activeDays.length > 0 ? activeDays[activeDays.length - 1] : usefulDays[usefulDays.length - 1]);
       }
       return;
     }
@@ -825,6 +829,7 @@ export function MapTool({ tab, onBackend }: Props) {
             spreadTime={spreadTime}
             spreadHorizon={spreadParams.horizonHours}
             baseLayer={baseLayer}
+            onBaseLayer={setBaseLayer}
             windDirDeg={dayRow?.wind_dir_deg ?? null}
             windSpeedMs={dayRow?.wind_speed_10m_ms ?? null}
             showWind={tab === "simulacion"}

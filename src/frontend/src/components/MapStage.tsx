@@ -9,7 +9,6 @@ import type {
 } from "../api/types";
 import { CLASSIFICATION_LABELS, METRIC_LABELS, SENSOR_META } from "../api/types";
 import {
-  PERU_BOUNDS,
   PERU_CENTER,
   formatLatLon,
   rectRing,
@@ -49,6 +48,7 @@ interface Props {
   spreadTime: number;
   spreadHorizon: number;
   baseLayer: "dark" | "relief" | "satellite";
+  onBaseLayer: (b: "dark" | "relief" | "satellite") => void;
   /** Dirección del viento del día, 0–360°, desde dónde sopla. */
   windDirDeg: number | null;
   windSpeedMs: number | null;
@@ -114,6 +114,7 @@ export function MapStage(props: Props) {
     spreadTime,
     spreadHorizon,
     baseLayer,
+    onBaseLayer,
     windDirDeg,
     windSpeedMs,
     showWind,
@@ -149,18 +150,10 @@ export function MapStage(props: Props) {
       attributionControl: true,
       zoomSnap: 0.25,
       wheelPxPerZoomLevel: 110,
-      minZoom: 4,
+      minZoom: 2,
       maxZoom: 18,
-      worldCopyJump: false,
+      worldCopyJump: true,
     });
-
-    // El trabajo es sobre el Peru: se acota el paneo con un margen generoso.
-    map.setMaxBounds(
-      L.latLngBounds(
-        L.latLng(PERU_BOUNDS.south - 6, PERU_BOUNDS.west - 8),
-        L.latLng(PERU_BOUNDS.north + 6, PERU_BOUNDS.east + 8)
-      )
-    );
 
     L.control.scale({ imperial: false, position: "bottomright", maxWidth: 160 }).addTo(map);
 
@@ -356,7 +349,11 @@ export function MapStage(props: Props) {
             direction: "top",
             opacity: 0.95,
           })
-          .on("click", () => onSelectTerritory(id))
+          .on("click", (e: L.LeafletMouseEvent) => {
+            if (handlers.current.mode !== "pan") return;
+            L.DomEvent.stopPropagation(e as unknown as Event);
+            onSelectTerritory(id);
+          })
           .addTo(layer);
       }
     }
@@ -388,13 +385,15 @@ export function MapStage(props: Props) {
       L.circleMarker([lat, lon], {
         renderer: rendererRef.current ?? undefined,
         radius,
-        stroke: false,
-        fillColor: SENSOR_META[pr.sensor]?.color ?? "#f8850c",
-        fillOpacity: low ? 0.32 : high ? 0.95 : 0.7,
-        interactive: zoom >= 8,
+        stroke: true,
+        color: "#0b0d10",
+        weight: 0.9,
+        fillColor: SENSOR_META[pr.sensor]?.color ?? "#ff9f1c",
+        fillOpacity: low ? 0.45 : high ? 0.95 : 0.78,
+        interactive: true,
       })
         .bindTooltip(
-          `<b>${SENSOR_META[pr.sensor]?.short ?? pr.sensor}</b> · ${pr.date}<br/>` +
+          `<b>${SENSOR_META[pr.sensor]?.long ?? pr.sensor}</b> (${SENSOR_META[pr.sensor]?.product ?? ""}) · ${pr.date}<br/>` +
             `${pr.frp_mw !== null && pr.frp_mw !== undefined ? `FRP ${pr.frp_mw} MW · ` : ""}` +
             `confianza ${conf ?? "—"}<br/>${lat.toFixed(4)}, ${lon.toFixed(4)}`,
           { direction: "top", opacity: 0.95 }
@@ -416,6 +415,7 @@ export function MapStage(props: Props) {
         fillColor: "#d8ff33",
         fillOpacity: 0.045,
         dashArray: "5 4",
+        interactive: false,
       }).addTo(layer);
       for (const v of ring) {
         L.circleMarker(v, {
@@ -614,6 +614,29 @@ export function MapStage(props: Props) {
             title="Borrar el area y la ignicion"
           >
             Limpiar
+          </button>
+        </div>
+        <div className="toolbar" role="group" aria-label="Mapa base" style={{ marginTop: 6 }}>
+          <button
+            className={`btn${baseLayer === "dark" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("dark")}
+            title="Mapa oscuro (OpenStreetMap)"
+          >
+            Oscuro
+          </button>
+          <button
+            className={`btn${baseLayer === "relief" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("relief")}
+            title="Relieve e hidrología (OpenTopoMap)"
+          >
+            Relieve
+          </button>
+          <button
+            className={`btn${baseLayer === "satellite" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("satellite")}
+            title="Imagen satelital (Esri World Imagery)"
+          >
+            Satélite
           </button>
         </div>
       </div>

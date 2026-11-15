@@ -398,7 +398,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2000,
     overpass: "~10:30",
-    color: "#f8850c",
+    color: "#ff9f1c",
   },
   MODIS_AQUA: {
     label: "MODIS Aqua",
@@ -408,7 +408,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2002,
     overpass: "~13:30",
-    color: "#e65c2f",
+    color: "#ff3b30",
   },
   VIIRS_SNPP: {
     label: "VIIRS Suomi-NPP",
@@ -418,7 +418,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2012,
     overpass: "~13:30",
-    color: "#d8ff33",
+    color: "#00e5ff",
   },
 };
 
