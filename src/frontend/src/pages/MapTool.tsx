@@ -5,7 +5,9 @@ import { CalendarStrip } from "../components/CalendarStrip";
 import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
 import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/SpreadRail";
 import { DockBar } from "../components/DockBar";
-import type { ToolTab } from "../components/SiteNav";
+import { GuidedTour, isTourDismissed, setTourDismissed, type TourPhase } from "../components/GuidedTour";
+import { OrbitalLoader } from "../components/OrbitalLoader";
+import type { NavContext, ToolTab } from "../components/SiteNav";
 import {
   ApiError,
   availablePeriodsForSensor,
@@ -42,6 +44,7 @@ import {
   type Origin,
 } from "../api/source";
 import {
+  SENSOR_META,
   type DailyRow,
   type HotspotFeature,
   type Metadata,
@@ -69,6 +72,69 @@ const MONTHS_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
+const MONTHS_SHORT_ES = [
+  "ene", "feb", "mar", "abr", "may", "jun",
+  "jul", "ago", "sep", "oct", "nov", "dic",
+];
+
+const DEPT_BY_UBIGEO: Record<string, string> = {
+  "01": "Amazonas",
+  "02": "Áncash",
+  "03": "Apurímac",
+  "04": "Arequipa",
+  "05": "Ayacucho",
+  "06": "Cajamarca",
+  "07": "Callao",
+  "08": "Cusco",
+  "09": "Huancavelica",
+  "10": "Huánuco",
+  "11": "Ica",
+  "12": "Junín",
+  "13": "La Libertad",
+  "14": "Lambayeque",
+  "15": "Lima",
+  "16": "Loreto",
+  "17": "Madre de Dios",
+  "18": "Moquegua",
+  "19": "Pasco",
+  "20": "Piura",
+  "21": "Puno",
+  "22": "San Martín",
+  "23": "Tacna",
+  "24": "Tumbes",
+  "25": "Ucayali",
+};
+
+function resolveDepartment(
+  territories: TerritoryCollection | null,
+  territoryType: TerritoryType,
+  territoryId: string,
+  territoryName: string
+): string | null {
+  const feats = territories?.features ?? [];
+  const feat = feats.find((x) => x.properties.territory_id === territoryId);
+  const src = feat?.properties.source ?? "";
+  if (/ucayali/i.test(src)) return "Ucayali";
+  const paren = src.match(/\(([^)]+)\)/);
+  if (paren?.[1] && !/^\d+$/.test(paren[1].trim())) {
+    return paren[1].trim();
+  }
+  if (territoryType === "province") {
+    const byUbigeo = DEPT_BY_UBIGEO[territoryId.slice(0, 2)];
+    if (byUbigeo) return byUbigeo;
+  }
+  const allSources = feats.map((f) => f.properties.source ?? "");
+  if (allSources.some((s) => /ucayali/i.test(s)) && allSources.every((s) => !s || /ucayali/i.test(s))) {
+    return "Ucayali";
+  }
+  if (/ucayali/i.test(territoryName)) return "Ucayali";
+  if (/madre de dios/i.test(territoryName)) return "Madre de Dios";
+  if (/r[ií]mac/i.test(territoryName)) return "Lima";
+  if (/chira/i.test(territoryName)) return "Piura";
+  if (/mara[ñn]on/i.test(territoryName)) return "Loreto";
+  return null;
+}
+
 const MONTHLY_METRICS = new Set<MetricId>([
   "fire_pixel_days_8_9",
   "active_days",
@@ -78,9 +144,20 @@ const MONTHLY_METRICS = new Set<MetricId>([
 interface Props {
   tab: ToolTab;
   onBackend: (s: BackendState) => void;
+  onContextChange?: (ctx: NavContext) => void;
+  suspendLoader?: boolean;
+  suspendTour?: boolean;
+  tourTrigger?: number;
 }
 
-export function MapTool({ tab, onBackend }: Props) {
+export function MapTool({
+  tab,
+  onBackend,
+  onContextChange,
+  suspendLoader = false,
+  suspendTour = false,
+  tourTrigger = 0,
+}: Props) {
   /* ------------------------------------------------------------- estado -- */
 
   /**
@@ -160,8 +237,30 @@ export function MapTool({ tab, onBackend }: Props) {
   const [playing, setPlaying] = useState(false);
   const [envApplied, setEnvApplied] = useState(false);
 
-  // Al cambiar de pestaña, el cajón derecho ya no corresponde.
-  useEffect(() => setRightOpen(null), [tab]);
+  const [tourPhase, setTourPhase] = useState<TourPhase>(() =>
+    isTourDismissed() ? "closed" : "prompt"
+  );
+  const [dismissedHighKey, setDismissedHighKey] = useState<string | null>(null);
+  const [tabTransition, setTabTransition] = useState<string | null>(null);
+  const prevTabRef = useRef<ToolTab>(tab);
+
+  useEffect(() => {
+    if (tourTrigger > 0) {
+      setShowCalendar(true);
+      setTourPhase("tour");
+    }
+  }, [tourTrigger]);
+
+  // Al cambiar de pestaña, el cajón derecho ya no corresponde y el visor cambia de modo.
+  useEffect(() => {
+    setRightOpen(null);
+    if (prevTabRef.current === tab) return;
+    prevTabRef.current = tab;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setTabTransition(tab === "simulacion" ? "Cambiando a simulación…" : "Modo calendario térmico…");
+    const timer = window.setTimeout(() => setTabTransition(null), 420);
+    return () => window.clearTimeout(timer);
+  }, [tab]);
 
   /* ----------------------------------------------------- sondeo backend -- */
   useEffect(() => {
@@ -636,6 +735,26 @@ export function MapTool({ tab, onBackend }: Props) {
     return f?.properties.territory_name ?? territoryId;
   }, [territories, territoryId]);
 
+  const departmentName = useMemo(
+    () => resolveDepartment(territories, territoryType, territoryId, territoryName),
+    [territories, territoryType, territoryId, territoryName]
+  );
+
+  const periodLabel = `${MONTHS_ES[month - 1]} ${year}`;
+  const navDateLabel =
+    granularity === "day"
+      ? `${day} ${MONTHS_SHORT_ES[month - 1]} ${year}`
+      : periodLabel;
+
+  useEffect(() => {
+    onContextChange?.({
+      department: departmentName,
+      territoryName,
+      territoryType,
+      dateLabel: navDateLabel,
+      dateIso: `${year}-${pad2(month)}-${pad2(day)}`,
+    });
+  }, [onContextChange, departmentName, territoryName, territoryType, navDateLabel, year, month, day]);
   /** Centro del territorio: lo usa la simulación cuando no hay recorte. */
   const territoryCenter = useMemo<LatLon | null>(() => {
     const f = territories?.features.find((x) => x.properties.territory_id === territoryId);
@@ -645,8 +764,6 @@ export function MapTool({ tab, onBackend }: Props) {
       : (f.geometry.coordinates as number[][][][])[0];
     return polygonCentroid(rings[0] as [number, number][]);
   }, [territories, territoryId]);
-
-  const periodLabel = `${MONTHS_ES[month - 1]} ${year}`;
 
   const csvHref = useMemo(
     () =>
@@ -740,7 +857,19 @@ export function MapTool({ tab, onBackend }: Props) {
   }, [summary, dayRow]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
-  const rightItems = tab === "calendario" ? ANALYSIS_ITEMS : SPREAD_ITEMS;
+  const isHighSusceptibility =
+    summary?.environmental_conditions?.classification === "high";
+  const highAlertKey = `${territoryType}|${territoryId}|${period}`;
+  const showHighAlert = isHighSusceptibility && dismissedHighKey !== highAlertKey;
+
+  const rightItems =
+    tab === "calendario"
+      ? ANALYSIS_ITEMS.map((it) =>
+          it.id === "arbol" && isHighSusceptibility
+            ? { ...it, badge: "!", badgeTone: "ember" as const }
+            : it
+        )
+      : SPREAD_ITEMS;
 
   const leftItems = LEFT_ITEMS.map((it) =>
     it.id === "area" ? { ...it, badge: territoryType === "province" ? "Prov" : "Cuen" } : it
@@ -829,9 +958,54 @@ export function MapTool({ tab, onBackend }: Props) {
             windSpeedMs={dayRow?.wind_speed_10m_ms ?? null}
             showWind={tab === "simulacion"}
             relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
-          />
+          >
+            <OrbitalLoader
+              scope="stage"
+              active={!suspendLoader && (!ready || spreadRunning || Boolean(tabTransition))}
+              label={
+                !ready
+                  ? "Cargando territorios y sensores…"
+                  : spreadRunning
+                  ? "Calculando frente de propagación…"
+                  : tabTransition ?? undefined
+              }
+              blocking={!ready || spreadRunning}
+            />
 
-          {showCalendar && (
+            {showHighAlert && (
+              <div className="susc-alert" role="alert" aria-live="polite">
+                <div className="susc-alert__head">
+                  <span className="susc-alert__dot" aria-hidden="true" />
+                  <strong>Susceptibilidad alta en {territoryName}</strong>
+                </div>
+                <p className="susc-alert__body">
+                  El árbol de decisión marca condiciones muy favorables para extensión del fuego en{" "}
+                  {periodLabel}. Conviene revisar la evidencia y comparar sensores.
+                </p>
+                <div className="susc-alert__actions">
+                  <button
+                    type="button"
+                    className="btn btn--ember"
+                    onClick={() => {
+                      setRightOpen("arbol");
+                      setDismissedHighKey(highAlertKey);
+                    }}
+                  >
+                    Revisar árbol →
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setDismissedHighKey(highAlertKey)}
+                  >
+                    Ocultar
+                  </button>
+                </div>
+              </div>
+            )}
+          </MapStage>
+
+          {showCalendar ? (
             <CalendarStrip
               calendar={calendar}
               sensor={sensor}
@@ -850,6 +1024,18 @@ export function MapTool({ tab, onBackend }: Props) {
                 setGranularity("day");
               }}
             />
+          ) : (
+            <button
+              type="button"
+              className="calbar-restore"
+              onClick={() => setShowCalendar(true)}
+              aria-label="Mostrar el calendario de actividad térmica"
+              data-tour="calendar-strip"
+            >
+              <span className="panel__idx">06</span>
+              <span className="calbar-restore__title">Calendario de actividad térmica</span>
+              <span className="calbar-restore__cta">▲ Mostrar panel</span>
+            </button>
           )}
         </main>
 
@@ -902,16 +1088,12 @@ export function MapTool({ tab, onBackend }: Props) {
       </div>
 
       <footer className="status">
-        <span className="status__prompt">root@mchanaq ~ %</span>
-        <span>
-          <b>{granularity === "day" ? "día" : "mes"}</b>{" "}
-          {granularity === "day" ? dateIso : periodLabel}
+        <span title={SENSOR_META[sensor].product}>
+          <b>Sensor</b> {SENSOR_META[sensor].label}
         </span>
-        <span>
-          <b>{territoryType === "province" ? "provincia" : "cuenca"}</b> {territoryName}
+        <span title="Píxeles con detección de confianza nominal o alta (clases FireMask 8–9; excluye baja confianza clase 7)">
+          <b>Detecciones (conf. nominal/alta)</b> {nominalHigh.toLocaleString("es-PE")}
         </span>
-        <span><b>focos 8–9</b> {nominalHigh.toLocaleString("es-PE")}</span>
-        <span><b>sensor</b> {sensor}</span>
         <span className="status__spacer" />
         {unavailable && <span className="chip chip--warn">{unavailable}</span>}
         {origin === "fixture" ? (
@@ -924,8 +1106,22 @@ export function MapTool({ tab, onBackend }: Props) {
         {origin === "api" && hotspotsOrigin === "fixture" && (
           <span className="chip chip--warn">Focos de muestra · el backend no publica /hotspots</span>
         )}
-        <span className="status__src">{span.from === span.to ? span.from : `${span.from} → ${span.to}`}</span>
+        {span.from !== span.to && (
+          <span className="status__src">{`${span.from} → ${span.to}`}</span>
+        )}
       </footer>
+
+      <GuidedTour
+        phase={suspendTour ? "closed" : tourPhase}
+        onStart={() => {
+          setShowCalendar(true);
+          setTourPhase("tour");
+        }}
+        onDismiss={(dontShowAgain) => {
+          if (dontShowAgain) setTourDismissed(true);
+          setTourPhase("closed");
+        }}
+      />
     </>
   );
 }

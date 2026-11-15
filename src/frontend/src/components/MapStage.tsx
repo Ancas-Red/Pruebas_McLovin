@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import L from "leaflet";
 import type {
   Classification,
@@ -56,6 +56,7 @@ interface Props {
   showWind: boolean;
   /** Cambia cuando el ancho disponible cambia; obliga a Leaflet a reencuadrar. */
   relayoutKey: string;
+  children?: ReactNode;
 }
 
 /** Punto de cierre del poligono: tolerancia en pixeles sobre el primer vertice. */
@@ -118,6 +119,7 @@ export function MapStage(props: Props) {
     windSpeedMs,
     showWind,
     relayoutKey,
+    children,
   } = props;
 
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -561,7 +563,7 @@ export function MapStage(props: Props) {
       />
 
       <div className="ov ov--tl">
-        <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa">
+        <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa" data-tour="map-toolbar">
           <button
             className={`btn${mode === "pan" ? " btn--on" : ""}`}
             onClick={() => {
@@ -690,6 +692,8 @@ export function MapStage(props: Props) {
           </div>
         </div>
       </div>
+
+      {children}
     </div>
   );
 }

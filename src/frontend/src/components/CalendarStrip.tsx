@@ -71,7 +71,7 @@ export function CalendarStrip(p: Props) {
   const tone = (v: number) => Math.sqrt(v / max);
 
   return (
-    <section className="calstrip">
+    <section className="calstrip" data-tour="calendar-strip">
       <header className="panel__head">
         <span className="panel__idx">06</span>
         <h2 className="panel__title">Calendario de actividad térmica</h2>
@@ -89,8 +89,14 @@ export function CalendarStrip(p: Props) {
             </button>
           ))}
         </div>
-        <button className="calstrip__hide" onClick={p.onHide} aria-label="Ocultar el calendario">
-          ×
+        <button
+          type="button"
+          className="calstrip__hide"
+          onClick={p.onHide}
+          aria-label="Minimizar el calendario"
+          title="Minimizar el calendario (puedes volver a abrirlo desde la barra inferior)"
+        >
+          ▼ Minimizar
         </button>
       </header>
 

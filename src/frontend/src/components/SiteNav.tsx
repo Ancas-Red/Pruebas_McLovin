@@ -1,8 +1,17 @@
 import { Logo } from "./Logo";
 import type { BackendState } from "../api/client";
+import type { TerritoryType } from "../api/types";
 import type { Route } from "../lib/router";
 
 export type ToolTab = "calendario" | "simulacion";
+
+export interface NavContext {
+  department: string | null;
+  territoryName: string;
+  territoryType: TerritoryType;
+  dateLabel: string;
+  dateIso: string;
+}
 
 interface Props {
   route: Route;
@@ -11,6 +20,8 @@ interface Props {
   tab?: ToolTab;
   onTab?: (t: ToolTab) => void;
   backend?: BackendState;
+  navContext?: NavContext | null;
+  onStartTour?: () => void;
 }
 
 const STATE: Record<BackendState, { dot: string; text: string; title: string }> = {
@@ -23,19 +34,29 @@ const STATE: Record<BackendState, { dot: string; text: string; title: string }> 
   },
 };
 
-export function SiteNav({ route, onRoute, tab, onTab, backend }: Props) {
+export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onStartTour }: Props) {
   const s = backend ? STATE[backend] : null;
+  const dept = navContext?.department?.trim() || null;
+  const territory = navContext?.territoryName?.trim() || "";
+  const showTerritory =
+    Boolean(territory) && (!dept || territory.toLowerCase() !== dept.toLowerCase());
+  const placeTitle = [
+    dept ? `Departamento: ${dept}` : null,
+    territory ? `${navContext?.territoryType === "hydro_unit" ? "Cuenca" : "Provincia"}: ${territory}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <header className={`hdr${route === "inicio" ? " hdr--over" : ""}`}>
+    <header className={`hdr${route !== "mapa" ? " hdr--over" : ""}`}>
       <button className="brand" onClick={() => onRoute("inicio")} title="Ir al inicio">
-        {/* Blanco: las dos pantallas tienen cabecera oscura, y la marca
+        {/* Blanco: las pantallas comparten cabecera oscura, y la marca
             monocroma se lee mejor sobre negro que cualquier versión con
             color. `tone="dark"` queda disponible para fondos claros. */}
         <Logo size={36} tone="light" />
         <span className="brand__text">
           <span className="brand__name">McHanaq</span>
-          <span className="brand__tag">Actividad térmica · Perú</span>
+          <span className="brand__tag">Actividad térmica</span>
         </span>
       </button>
 
@@ -45,6 +66,13 @@ export function SiteNav({ route, onRoute, tab, onTab, backend }: Props) {
         </button>
         <button className="tab" aria-selected={route === "mapa"} onClick={() => onRoute("mapa")}>
           Mapa
+        </button>
+        <button
+          className="tab"
+          aria-selected={route === "tecnologia"}
+          onClick={() => onRoute("tecnologia")}
+        >
+          Tecnología
         </button>
       </nav>
 
@@ -74,17 +102,44 @@ export function SiteNav({ route, onRoute, tab, onTab, backend }: Props) {
 
       <div className="hdr__spacer" />
 
-      {route === "inicio" ? (
-        <button className="btn btn--primary" onClick={() => onRoute("mapa")}>
-          Abrir el mapa →
-        </button>
-      ) : (
-        s && (
-          <div className="hdr__conn" title={s.title}>
-            <i className={s.dot} />
-            <span>{s.text}</span>
-          </div>
-        )
+      {route === "mapa" && navContext && (
+        <div
+          className="hdr__ctx"
+          aria-label="Departamento, región y fecha seleccionados"
+          title={`${placeTitle} · Fecha: ${navContext.dateIso}`}
+        >
+          <span className="hdr__ctx-loc">
+            <strong className="hdr__ctx-dept">{dept ?? territory}</strong>
+            {dept && showTerritory && (
+              <span className="hdr__ctx-sub">· {territory}</span>
+            )}
+          </span>
+          <span className="hdr__ctx-sep" aria-hidden="true" />
+          <span className="hdr__ctx-date">
+            <time dateTime={navContext.dateIso}>{navContext.dateLabel}</time>
+          </span>
+        </div>
+      )}
+
+      {route === "mapa" && (
+        <div className="hdr__right">
+          {onStartTour && (
+            <button
+              type="button"
+              className="btn hdr__tour-btn"
+              onClick={onStartTour}
+              title="Abrir guía visual interactiva de la herramienta"
+            >
+              ? Guía
+            </button>
+          )}
+          {s && (
+            <div className="hdr__conn" title={s.title}>
+              <i className={s.dot} />
+              <span>{s.text}</span>
+            </div>
+          )}
+        </div>
       )}
     </header>
   );

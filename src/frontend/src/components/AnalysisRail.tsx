@@ -341,6 +341,14 @@ export function AnalysisRail(p: Props) {
             {CLASSIFICATION_LABELS[cond.classification]}
           </span>
 
+          {cond.classification === "high" && (
+            <div className="note note--ember" role="alert" style={{ marginTop: 12 }}>
+              <b>Aviso de revisión prioritaria.</b> Esta zona poligonal (<code>{p.areaLabel}</code>)
+              registra condiciones ambientales muy favorables en el árbol de decisión. Verifica la
+              evidencia del período y compara los sensores antes de concluir.
+            </div>
+          )}
+
           <ol className="tree" style={{ marginTop: 13 }}>
             {cond.decision_path.map((node) => (
               <li key={node} className="tree__node">

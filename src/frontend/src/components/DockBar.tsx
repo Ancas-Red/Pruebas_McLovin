@@ -11,6 +11,7 @@ export interface DockItem {
   icon: IconName;
   /** Cifra pequeña sobre el icono, por ejemplo cuántos sensores están activos. */
   badge?: string;
+  badgeTone?: "default" | "ember";
 }
 
 interface Props {
@@ -22,7 +23,11 @@ interface Props {
 
 export function DockBar({ items, open, onOpen, side }: Props) {
   return (
-    <nav className={`dockbar dockbar--${side}`} aria-label="Paneles">
+    <nav
+      className={`dockbar dockbar--${side}`}
+      aria-label="Paneles"
+      data-tour={`${side}-dock`}
+    >
       {items.map((it) => {
         const isOpen = open === it.id;
         return (
@@ -32,10 +37,17 @@ export function DockBar({ items, open, onOpen, side }: Props) {
             aria-pressed={isOpen}
             aria-label={it.label}
             title={it.label}
+            data-tour={`dock-${it.id}`}
             onClick={() => onOpen(isOpen ? null : it.id)}
           >
             <Icon name={it.icon} />
-            {it.badge && <span className="dockbar__badge">{it.badge}</span>}
+            {it.badge && (
+              <span
+                className={`dockbar__badge${it.badgeTone === "ember" ? " dockbar__badge--ember" : ""}`}
+              >
+                {it.badge}
+              </span>
+            )}
             <span className="dockbar__tip">{it.label}</span>
           </button>
         );
