@@ -749,6 +749,8 @@ function formatTempRh(tempC?: number | null, rhPct?: number | null): string {
 function formatFirmsStatus(status: string, total?: number): string {
   if (status === "ok") return `${(total ?? 0).toLocaleString("es-PE")} focos NRT`;
   if (status === "partial") return `${(total ?? 0).toLocaleString("es-PE")} focos (parcial)`;
+  if (status === "realtime_disabled") return "Tiempo real desactivado";
+  if (status === "unavailable") return "FIRMS NRT no disponible";
   if (status === "firms_map_key_required") return "Requiere FIRMS_MAP_KEY";
   return status;
 }

@@ -5,8 +5,10 @@ import io
 import json
 import math
 import os
+import threading
 import time
-from datetime import date as dt_date
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date as dt_date, datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -873,18 +875,22 @@ def _run_lightweight_global_spread(
     slp: float,
     fm: float,
     use_open_meteo: bool,
+    live_wind: bool = True,
 ) -> dict:
     """Fallback sin geopandas/numpy: obtiene Copernicus GLO-90 DEM + viento Open-Meteo reales vía httpx."""
-    slope_mean, slope_max, dem_source = _fetch_open_meteo_dem_slope_py(lat, lon)
+    if _realtime_enabled():
+        slope_mean, slope_max, dem_source = _fetch_open_meteo_dem_slope_py(lat, lon)
+    else:
+        slope_mean, slope_max, dem_source = None, None, "COPERNICUS_DEM_GLO30_PARAMETRIC"
     eff_slope = slope_mean if slope_mean is not None else round(float(slp), 2)
     eff_max_slope = slope_max if slope_max is not None else round(eff_slope * 1.8, 2)
 
     wind_source = "era5_daily_diurnal_profile"
     eff_ws, eff_wd = float(ws), float(wd)
-    if use_open_meteo:
-        live = _fetch_open_meteo_current(lat, lon)
+    if use_open_meteo and live_wind and _realtime_enabled():
+        live = _fetch_open_meteo_wind_for_date(lat, lon, date_str)
         if live.get("status") == "ok":
-            wind_source = "Open-Meteo"
+            wind_source = str(live.get("source") or "Open-Meteo")
             if isinstance(live.get("wind_speed_10m_ms"), (int, float)):
                 eff_ws = float(live["wind_speed_10m_ms"])
             if isinstance(live.get("wind_dir_deg"), (int, float)):
@@ -931,6 +937,7 @@ def _run_phase2_simulation(
     fuel_moisture_pct: float | None = None,
     use_open_meteo: bool = False,
     export_products: bool = False,
+    live_wind: bool = True,
 ) -> dict:
     daily_match = next(
         (
@@ -1007,6 +1014,7 @@ def _run_phase2_simulation(
             slp=slp,
             fm=fm,
             use_open_meteo=use_open_meteo,
+            live_wind=live_wind,
         )
 
     res = simulate_spread_48h(
@@ -1024,6 +1032,7 @@ def _run_phase2_simulation(
         base_wind_ms=ws,
         base_wind_dir_deg=wd,
         use_open_meteo=use_open_meteo,
+        use_open_meteo_wind=use_open_meteo and live_wind,
     )
     sim_s = round(time.perf_counter() - t0, 3)
     timings: dict[str, float] = {"simulation_s": sim_s, "total_s": sim_s}
@@ -1035,11 +1044,10 @@ def _run_phase2_simulation(
 
 
 def _realtime_enabled() -> bool:
-    """AGENTS.md: el backend oficial no consulta almacenamiento/APIs externas por
-    petición HTTP salvo la excepción explícita de Fase 2. Estos endpoints de
-    tiempo real quedan apagados por defecto y solo se activan a propósito con
-    MCHANAQ_ENABLE_REALTIME=1 (por ejemplo, para una demo en vivo)."""
-    return os.getenv("MCHANAQ_ENABLE_REALTIME", "").strip().lower() in {"1", "true", "yes"}
+    """Excepción explícita de Fase 2 opcional: habilita /realtime/area, /reverse-geocode
+    y spread-simulate?use_open_meteo=true por defecto; configurar MCHANAQ_ENABLE_REALTIME=0
+    para modo estrictamente offline sin consultas HTTP externas."""
+    return os.getenv("MCHANAQ_ENABLE_REALTIME", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def _dispatch_spread_request(
@@ -1094,6 +1102,7 @@ def _dispatch_spread_request(
         fuel_moisture_pct=float(body["fuel_moisture_pct"]) if "fuel_moisture_pct" in body else fuel_moisture_pct,
         use_open_meteo=r_open_meteo,
         export_products=export_products,
+        live_wind=bool(body["live_wind"]) if "live_wind" in body else True,
     )
 
 
@@ -1224,6 +1233,18 @@ _FIRMS_SOURCES = (
     ("VIIRS_NOAA20_NRT", "VIIRS_NOAA20"),
 )
 
+# Feeds públicos regionales/globales de NASA FIRMS NRT (no requieren FIRMS_MAP_KEY).
+_FIRMS_PUBLIC_FEED_TEMPLATES = (
+    ("MODIS", "MODIS_NRT_PUBLIC", "https://firms.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/csv/MODIS_C6_1_{region}_{win}.csv"),
+    ("VIIRS_SNPP", "VIIRS_SNPP_NRT_PUBLIC", "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_{region}_{win}.csv"),
+    ("VIIRS_NOAA20", "VIIRS_NOAA20_NRT_PUBLIC", "https://firms.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/csv/J1_VIIRS_C2_{region}_{win}.csv"),
+)
+_FIRMS_PUBLIC_CACHE_TTL_S = 600.0
+_FIRMS_PUBLIC_CACHE_MAX = 6
+_FIRMS_PUBLIC_CACHE: dict[str, tuple[float, list[tuple[float, float, str | None, str | None, str | None, float | None, str | None, str | None]]]] = {}
+_FIRMS_PUBLIC_CACHE_LOCK = threading.Lock()
+_FIRMS_MAX_RETURNED_FEATURES = 2500
+
 
 def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
     """Consulta clima y viento actual en Open-Meteo para el centro del área."""
@@ -1235,7 +1256,7 @@ def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
         "wind_speed_unit": "ms",
     }
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=8.0) as client:
             resp = client.get(url, params=params)
             resp.raise_for_status()
             payload = resp.json()
@@ -1258,6 +1279,118 @@ def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
         }
 
 
+def _fetch_open_meteo_wind_for_date(lat: float, lon: float, date_str: str) -> dict:
+    """Obtiene viento de Open-Meteo Forecast (fechas recientes) o Archive (fechas históricas)."""
+    try:
+        target_d = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return _fetch_open_meteo_current(lat, lon)
+
+    today = datetime.now(timezone.utc).date()
+    if target_d >= today - timedelta(days=2):
+        return _fetch_open_meteo_current(lat, lon)
+
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            resp = client.get(
+                "https://archive-api.open-meteo.com/v1/archive",
+                params={
+                    "latitude": f"{lat:.4f}",
+                    "longitude": f"{lon:.4f}",
+                    "start_date": target_d.strftime("%Y-%m-%d"),
+                    "end_date": target_d.strftime("%Y-%m-%d"),
+                    "hourly": "wind_speed_10m,wind_direction_10m",
+                    "wind_speed_unit": "ms",
+                    "timezone": "UTC",
+                },
+            )
+            resp.raise_for_status()
+            hourly = resp.json().get("hourly") or {}
+        ws_vals = [float(v) for v in (hourly.get("wind_speed_10m") or []) if v is not None]
+        wd_vals = [float(v) for v in (hourly.get("wind_direction_10m") or []) if v is not None]
+        if not ws_vals or not wd_vals:
+            return _fetch_open_meteo_current(lat, lon)
+        sin_m = sum(math.sin(math.radians(d)) for d in wd_vals) / len(wd_vals)
+        cos_m = sum(math.cos(math.radians(d)) for d in wd_vals) / len(wd_vals)
+        wd_mean = (math.degrees(math.atan2(sin_m, cos_m)) + 360.0) % 360.0
+        return {
+            "status": "ok",
+            "source": "Open-Meteo Archive",
+            "wind_speed_10m_ms": round(sum(ws_vals) / len(ws_vals), 2),
+            "wind_dir_deg": round(wd_mean, 1),
+        }
+    except Exception:
+        return _fetch_open_meteo_current(lat, lon)
+
+
+def _firms_row_to_feature(
+    *,
+    lat_v: float,
+    lon_v: float,
+    acq_date: str | None,
+    acq_time: str | None,
+    confidence: str | None,
+    frp_val: float | None,
+    satellite: str | None,
+    daynight: str | None,
+    sensor_label: str,
+    firms_source: str,
+) -> dict:
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
+        "properties": {
+            "sensor": sensor_label,
+            "firms_source": firms_source,
+            "acq_date": acq_date,
+            "acq_time": acq_time,
+            "confidence": confidence,
+            "frp_mw": frp_val,
+            "satellite": satellite,
+            "daynight": daynight,
+        },
+    }
+
+
+def _parse_firms_csv_tuples(
+    text: str,
+) -> list[tuple[float, float, str | None, str | None, str | None, float | None, str | None, str | None]]:
+    """Convierte filas CSV de FIRMS en tuplas compactas descartando coordenadas inválidas."""
+    rows: list[tuple[float, float, str | None, str | None, str | None, float | None, str | None, str | None]] = []
+    for row in csv.DictReader(io.StringIO(text)):
+        try:
+            lat_v = float(row["latitude"])
+            lon_v = float(row["longitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        frp_raw = row.get("frp")
+        try:
+            frp_val = float(frp_raw) if frp_raw not in (None, "") else None
+        except ValueError:
+            frp_val = None
+        rows.append((
+            lat_v,
+            lon_v,
+            row.get("acq_date"),
+            row.get("acq_time"),
+            row.get("confidence"),
+            frp_val,
+            row.get("satellite"),
+            row.get("daynight"),
+        ))
+    return rows
+
+
+def _select_firms_public_region(south: float, west: float, north: float, east: float) -> str:
+    if south >= -60.0 and north <= 16.0 and west >= -85.0 and east <= -32.0:
+        return "South_America"
+    if south >= 18.0 and north <= 52.0 and west >= -130.0 and east <= -65.0:
+        return "USA_contiguous_and_Hawaii"
+    if south >= 34.0 and north <= 72.0 and west >= -12.0 and east <= 45.0:
+        return "Europe"
+    return "Global"
+
+
 def _fetch_firms_source(
     client: httpx.Client,
     map_key: str,
@@ -1278,38 +1411,77 @@ def _fetch_firms_source(
         text = resp.text.strip()
         if not text or text.lower().startswith("invalid"):
             return [], text or "empty_response"
-        reader = csv.DictReader(io.StringIO(text))
-        features: list[dict] = []
-        for row in reader:
-            try:
-                lat_v = float(row["latitude"])
-                lon_v = float(row["longitude"])
-            except (KeyError, TypeError, ValueError):
-                continue
-            frp_raw = row.get("frp")
-            try:
-                frp_val = float(frp_raw) if frp_raw not in (None, "") else None
-            except ValueError:
-                frp_val = None
-            features.append(
-                {
-                    "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
-                    "properties": {
-                        "sensor": sensor_label,
-                        "firms_source": firms_source,
-                        "acq_date": row.get("acq_date"),
-                        "acq_time": row.get("acq_time"),
-                        "confidence": row.get("confidence"),
-                        "frp_mw": frp_val,
-                        "satellite": row.get("satellite"),
-                        "daynight": row.get("daynight"),
-                    },
-                }
+        features = [
+            _firms_row_to_feature(
+                lat_v=lat_v,
+                lon_v=lon_v,
+                acq_date=acq_d,
+                acq_time=acq_t,
+                confidence=conf,
+                frp_val=frp_v,
+                satellite=sat,
+                daynight=dn,
+                sensor_label=sensor_label,
+                firms_source=firms_source,
             )
+            for lat_v, lon_v, acq_d, acq_t, conf, frp_v, sat, dn in _parse_firms_csv_tuples(text)
+        ]
         return features, None
     except Exception as exc:
         return [], str(exc)
+
+
+def _fetch_firms_public_source(
+    url: str,
+    firms_source: str,
+    sensor_label: str,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+) -> tuple[list[dict], str | None]:
+    """Consulta el feed CSV público oficial de NASA FIRMS NRT (sin MAP_KEY) con caché TTL en memoria."""
+    now = time.monotonic()
+    cached_rows = None
+    with _FIRMS_PUBLIC_CACHE_LOCK:
+        hit = _FIRMS_PUBLIC_CACHE.get(url)
+        if hit and hit[0] > now:
+            cached_rows = hit[1]
+
+    if cached_rows is None:
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                resp = client.get(url)
+                resp.raise_for_status()
+                text = resp.text.strip()
+            if not text or not text.lower().startswith("latitude"):
+                return [], "invalid_public_csv"
+            cached_rows = _parse_firms_csv_tuples(text)
+            with _FIRMS_PUBLIC_CACHE_LOCK:
+                if len(_FIRMS_PUBLIC_CACHE) >= _FIRMS_PUBLIC_CACHE_MAX and url not in _FIRMS_PUBLIC_CACHE:
+                    oldest_key = next(iter(_FIRMS_PUBLIC_CACHE))
+                    _FIRMS_PUBLIC_CACHE.pop(oldest_key, None)
+                _FIRMS_PUBLIC_CACHE[url] = (time.monotonic() + _FIRMS_PUBLIC_CACHE_TTL_S, cached_rows)
+        except Exception as exc:
+            return [], str(exc)
+
+    features = [
+        _firms_row_to_feature(
+            lat_v=lat_v,
+            lon_v=lon_v,
+            acq_date=acq_d,
+            acq_time=acq_t,
+            confidence=conf,
+            frp_val=frp_v,
+            satellite=sat,
+            daynight=dn,
+            sensor_label=sensor_label,
+            firms_source=firms_source,
+        )
+        for lat_v, lon_v, acq_d, acq_t, conf, frp_v, sat, dn in cached_rows
+        if south <= lat_v <= north and west <= lon_v <= east
+    ]
+    return features, None
 
 
 _REVERSE_GEOCODE_CACHE: dict[tuple[float, float], dict] = {}
@@ -1478,6 +1650,44 @@ def reverse_geocode(
     }
 
 
+def _collect_firms_public_area(
+    region: str,
+    win: str,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+) -> tuple[list[dict], dict[str, int], dict[str, str]]:
+    """Consulta en paralelo los feeds públicos MODIS/VIIRS de NASA FIRMS para un bbox."""
+    all_features: list[dict] = []
+    counts_by_sensor: dict[str, int] = {}
+    errors_by_sensor: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=len(_FIRMS_PUBLIC_FEED_TEMPLATES)) as pool:
+        futs = [
+            (
+                sensor_label,
+                pool.submit(
+                    _fetch_firms_public_source,
+                    tmpl.format(region=region, win=win),
+                    firms_source,
+                    sensor_label,
+                    west,
+                    south,
+                    east,
+                    north,
+                ),
+            )
+            for sensor_label, firms_source, tmpl in _FIRMS_PUBLIC_FEED_TEMPLATES
+        ]
+        for sensor_label, fut in futs:
+            feats, err = fut.result()
+            counts_by_sensor[sensor_label] = len(feats)
+            if err:
+                errors_by_sensor[sensor_label] = err
+            all_features.extend(feats)
+    return all_features, counts_by_sensor, errors_by_sensor
+
+
 @app.get("/api/v1/realtime/area")
 def realtime_area(
     south: float = Query(..., ge=-90.0, le=90.0),
@@ -1506,34 +1716,18 @@ def realtime_area(
 
     center_lat = (south + north) / 2.0
     center_lon = (west + east) / 2.0
-    weather = _fetch_open_meteo_current(center_lat, center_lon)
-    location = _reverse_geocode_coords(center_lat, center_lon)
-
     firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
-    if not firms_key:
-        return {
-            "schema_version": "1.0",
-            "bbox": {"south": south, "west": west, "north": north, "east": east},
-            "days": days,
-            "location": location,
-            "weather": weather,
-            "hotspots_status": "firms_map_key_required",
-            "counts_by_sensor": {},
-            "hotspots": {"type": "FeatureCollection", "features": []},
-            "firms_setup": {
-                "env_var": "FIRMS_MAP_KEY",
-                "register_url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
-                "note": "Configura FIRMS_MAP_KEY en el servidor para habilitar MODIS_NRT, VIIRS_SNPP_NRT y VIIRS_NOAA20_NRT en tiempo real.",
-            },
-        }
+    region = _select_firms_public_region(south, west, north, east)
+    win = "48h" if days >= 2 else "24h"
 
     all_features: list[dict] = []
     counts_by_sensor: dict[str, int] = {}
     errors_by_sensor: dict[str, str] = {}
+    firms_mode = "area_api" if firms_key else "public_nrt_csv"
 
-    with httpx.Client(timeout=15.0) as client:
-        for firms_source, sensor_label in _FIRMS_SOURCES:
-            feats, err = _fetch_firms_source(
+    def _run_area_firms(firms_source: str, sensor_label: str) -> tuple[list[dict], str | None]:
+        with httpx.Client(timeout=12.0) as client:
+            return _fetch_firms_source(
                 client=client,
                 map_key=firms_key,
                 firms_source=firms_source,
@@ -1544,18 +1738,58 @@ def realtime_area(
                 north=north,
                 days=days,
             )
-            counts_by_sensor[sensor_label] = len(feats)
-            if err:
-                errors_by_sensor[sensor_label] = err
-            all_features.extend(feats)
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        f_weather = pool.submit(_fetch_open_meteo_current, center_lat, center_lon)
+        f_location = pool.submit(_reverse_geocode_coords, center_lat, center_lon)
+        if firms_key:
+            f_sensors = [
+                (sensor_label, pool.submit(_run_area_firms, firms_source, sensor_label))
+                for firms_source, sensor_label in _FIRMS_SOURCES
+            ]
+        else:
+            f_pub = pool.submit(_collect_firms_public_area, region, win, west, south, east, north)
+
+        weather = f_weather.result()
+        location = f_location.result()
+        if firms_key:
+            for sensor_label, fut in f_sensors:
+                feats, err = fut.result()
+                counts_by_sensor[sensor_label] = len(feats)
+                if err:
+                    errors_by_sensor[sensor_label] = err
+                all_features.extend(feats)
+        else:
+            all_features, counts_by_sensor, errors_by_sensor = f_pub.result()
+
+    # Si Area API falló completamente por clave inválida, respaldar con el feed público oficial.
+    if firms_key and len(errors_by_sensor) == len(_FIRMS_SOURCES) and not all_features:
+        firms_mode = "public_nrt_csv"
+        all_features, counts_by_sensor, errors_by_sensor = _collect_firms_public_area(
+            region, win, west, south, east, north
+        )
+
+    truncated = len(all_features) > _FIRMS_MAX_RETURNED_FEATURES
+    if truncated:
+        step = max(1, len(all_features) // _FIRMS_MAX_RETURNED_FEATURES)
+        all_features = all_features[::step][:_FIRMS_MAX_RETURNED_FEATURES]
+
+    if len(errors_by_sensor) == len(_FIRMS_SOURCES) and not all_features:
+        hotspots_status = "unavailable"
+    elif errors_by_sensor:
+        hotspots_status = "partial"
+    else:
+        hotspots_status = "ok"
 
     return {
         "schema_version": "1.0",
         "bbox": {"south": south, "west": west, "north": north, "east": east},
         "days": days,
+        "firms_mode": firms_mode,
+        "truncated": truncated,
         "location": location,
         "weather": weather,
-        "hotspots_status": "ok" if not errors_by_sensor else "partial",
+        "hotspots_status": hotspots_status,
         "counts_by_sensor": counts_by_sensor,
         "errors_by_sensor": errors_by_sensor or None,
         "hotspots": {"type": "FeatureCollection", "features": all_features},

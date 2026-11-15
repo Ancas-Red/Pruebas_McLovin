@@ -297,3 +297,136 @@ def test_reverse_geocode_normalizes_country_region_province_city(monkeypatch):
     assert body["city"] == "Paradise"
     assert body["header_primary"] == "Estados Unidos"
     assert body["header_sub"] == "Paradise · Butte County"
+
+
+def test_realtime_area_public_firms_fallback_and_disable_flag(monkeypatch):
+    main._FIRMS_PUBLIC_CACHE.clear()
+    main._REVERSE_GEOCODE_CACHE.clear()
+    monkeypatch.delenv("FIRMS_MAP_KEY", raising=False)
+    monkeypatch.delenv("MCHANAQ_ENABLE_REALTIME", raising=False)
+
+    modis_csv = (
+        "latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,confidence,version,bright_t31,frp,daynight\n"
+        "-8.25,-75.15,318.2,1.0,1.0,2026-11-14,1510,T,85,6.1NRT,290.1,42.5,D\n"
+        "-30.00,-60.00,310.0,1.0,1.0,2026-11-14,1510,T,70,6.1NRT,288.0,12.0,D\n"
+    )
+    noaa_csv = (
+        "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight\n"
+        "-8.40,-75.05,342.0,0.4,0.6,2026-11-14,1800,N20,high,2.0NRT,285.0,18.3,D\n"
+    )
+    snpp_csv = (
+        "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight\n"
+    )
+
+    class _FakeResp:
+        def __init__(self, *, text="", json_data=None):
+            self.text = text
+            self._json = json_data
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._json
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, params=None, **kwargs):
+            if "open-meteo.com" in url:
+                return _FakeResp(
+                    json_data={
+                        "current": {
+                            "time": "2026-11-15T17:00",
+                            "temperature_2m": 28.4,
+                            "relative_humidity_2m": 64,
+                            "wind_speed_10m": 3.2,
+                            "wind_direction_10m": 120,
+                        }
+                    }
+                )
+            if "nominatim.openstreetmap.org" in url:
+                return _FakeResp(
+                    json_data={
+                        "address": {
+                            "country": "Perú",
+                            "country_code": "pe",
+                            "state": "Ucayali",
+                            "province": "Coronel Portillo",
+                            "city": "Pucallpa",
+                        }
+                    }
+                )
+            if "MODIS_C6_1" in url:
+                return _FakeResp(text=modis_csv)
+            if "J1_VIIRS_C2" in url:
+                return _FakeResp(text=noaa_csv)
+            return _FakeResp(text=snpp_csv)
+
+    monkeypatch.setattr(main.httpx, "Client", _FakeClient)
+    r = client.get("/api/v1/realtime/area?south=-9.5&west=-76.0&north=-7.5&east=-74.0&days=3")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["hotspots_status"] == "ok"
+    assert body["firms_mode"] == "public_nrt_csv"
+    assert body["counts_by_sensor"] == {"MODIS": 1, "VIIRS_SNPP": 0, "VIIRS_NOAA20": 1}
+    assert len(body["hotspots"]["features"]) == 2
+    assert body["weather"]["status"] == "ok"
+    assert body["location"]["country"] == "Perú"
+
+    # Modo offline explícito con MCHANAQ_ENABLE_REALTIME=0
+    monkeypatch.setenv("MCHANAQ_ENABLE_REALTIME", "0")
+    r_off = client.get("/api/v1/realtime/area?south=-9.5&west=-76.0&north=-7.5&east=-74.0&days=3")
+    assert r_off.status_code == 200
+    assert r_off.json()["hotspots_status"] == "realtime_disabled"
+
+
+def test_spread_simulate_uses_live_wind_unless_user_fixes_it(monkeypatch):
+    import importlib.util
+
+    import pytest
+
+    if importlib.util.find_spec("geopandas") is not None:
+        pytest.skip("camino liviano (sin geopandas) no aplica en este entorno")
+
+    monkeypatch.delenv("MCHANAQ_ENABLE_REALTIME", raising=False)
+    monkeypatch.setattr(
+        main,
+        "_fetch_open_meteo_wind_for_date",
+        lambda lat, lon, date_str: {
+            "status": "ok",
+            "source": "Open-Meteo Archive",
+            "wind_speed_10m_ms": 7.25,
+            "wind_dir_deg": 222.0,
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "_fetch_open_meteo_dem_slope_py",
+        lambda lat, lon: (3.4, 6.1, "COPERNICUS_DEM_GLO90_OPEN_METEO"),
+    )
+
+    base = {"lat": -8.25, "lon": -75.15, "date": "2026-11-10", "horizon_h": 48, "use_open_meteo": True}
+
+    r_live = client.post("/api/v1/spread-simulate", json=base)
+    assert r_live.status_code == 200
+    live = r_live.json()
+    assert live["data_sources"]["wind_source"] == "Open-Meteo Archive"
+    assert live["dominant_wind"] == {"wind_dir_deg": 222.0, "wind_speed_10m_ms": 7.25}
+    assert live["slope_summary"]["dem_source"] == "COPERNICUS_DEM_GLO90_OPEN_METEO"
+
+    r_fixed = client.post(
+        "/api/v1/spread-simulate",
+        json={**base, "wind_speed_10m_ms": 2.5, "wind_dir_deg": 45.0, "live_wind": False},
+    )
+    assert r_fixed.status_code == 200
+    fixed = r_fixed.json()
+    assert fixed["data_sources"]["wind_source"] == "era5_daily_diurnal_profile"
+    assert fixed["dominant_wind"] == {"wind_dir_deg": 45.0, "wind_speed_10m_ms": 2.5}

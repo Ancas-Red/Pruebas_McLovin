@@ -105,8 +105,8 @@ export const TECH_ITEMS: TechItem[] = [
       "Contexto meteorológico y topográfico para Fase 1 (ERA5-Land + GLO-30) y consulta global en vivo (Open-Meteo + Sentinel-2 SAVI) en Fase 2.",
     uses: [
       "Temperatura a 2 m (t_amb_c), humedad relativa y viento vectorial a 10 m en ERA5-Land",
-      "Topografía Copernicus DEM (GLO-30 en GEE y GLO-90 global vía Open-Meteo Elevation)",
-      "Viento horario Open-Meteo e índice SAVI Sentinel-2 L2A (Planetary Computer) en Fase 2",
+      "Topografía Copernicus DEM (GLO-30 en GEE y GLO-90 global vía Open-Meteo Elevation, malla 10×10)",
+      "Viento y humedad horarios Open-Meteo (Forecast para fechas recientes, Archive para históricas) e índice SAVI Sentinel-2 L2A (Planetary Computer) en Fase 2",
     ],
     href: "https://cds.climate.copernicus.eu/",
     icon: "climate",
@@ -132,25 +132,25 @@ export const TECH_ITEMS: TechItem[] = [
     category: "backend",
     categoryLabel: "API REST",
     summary:
-      "API en src/backend/: Fase 1 estrictamente de solo lectura sobre JSON/GeoJSON y endpoints globales opcionales de Fase 2 desacoplados.",
+      "API en src/backend/: Fase 1 estrictamente de solo lectura sobre JSON/GeoJSON y endpoints globales opcionales de Fase 2 desacoplados que consultan fuentes externas en vivo.",
     uses: [
       "Endpoints diarios de Fase 1 (date=YYYY-MM-DD, from/to) y preservación estricta de null",
-      "Rutas globales opcionales: /reverse-geocode (OSM Nominatim), /realtime/area y /spread-simulate",
-      "Fallback liviano en Python puro (httpx + Open-Meteo DEM) para Azure F1 y pruebas pytest",
+      "Rutas globales opcionales de Fase 2, activas por defecto (MCHANAQ_ENABLE_REALTIME=0 las apaga): /reverse-geocode (OSM Nominatim), /realtime/area (Open-Meteo + focos NASA FIRMS NRT) y /spread-simulate",
+      "Focos NRT con FIRMS_MAP_KEY o, si falta, con los feeds CSV públicos de NASA FIRMS (caché de 10 min); respaldo liviano en Python puro (httpx + Open-Meteo DEM) si no hay geopandas/numpy",
     ],
     href: "https://fastapi.tiangolo.com/",
     icon: "api",
   },
   {
     id: "azure-cloudflare",
-    name: "Microsoft Azure Free Tier & Cloudflare",
+    name: "Cloudflare R2, Azure App Service & Cloudflare Pages",
     category: "backend",
     categoryLabel: "Infraestructura",
     summary:
-      "Arquitectura de despliegue sin costos operativos con puente de datos en Azure Blob Storage, API Linux en App Service y frontend estático.",
+      "Snapshots procesados en Cloudflare R2, API Linux en Azure App Service (Premium v3, 8 GB RAM por el snapshot nacional de 427 territorios) y frontend estático en Cloudflare Pages.",
     uses: [
-      "Sincronización de snapshots procesados vía azure_sync.py hacia Azure Blob Storage",
-      "Arranque en Azure App Service (Plan Free F1, Python 3.11) con infra/azure/startup.sh",
+      "Subida del snapshot de data/processed/ a Cloudflare R2 con r2_sync.py (boto3 solo en la máquina de quien sube)",
+      "Arranque en Azure App Service (Python 3.11) con infra/azure/startup.sh, que descarga el snapshot desde R2 si faltan archivos",
       "Distribución SPA en Cloudflare Pages / Azure SWA apuntando a VITE_API_BASE",
     ],
     href: "https://azure.microsoft.com/",
@@ -180,8 +180,8 @@ export const TECH_ITEMS: TechItem[] = [
       "Visor geográfico interactivo basado en mapas base abiertos sin claves de pago, con polígonos oficiales simplificados preservando topología.",
     uses: [
       "Capas base libres: OpenStreetMap, OpenTopoMap (relieve/hidrología) y Esri Imagery",
-      "Polígonos territoriales de 4 provincias y 20 cuencas ANA (< 1 MB GeoJSON)",
-      "Simulación global 1 clic (Open-Meteo + DEM + SAVI) y etiqueta administrativa OSM Nominatim",
+      "Polígonos territoriales nacionales: 196 provincias INEI y 231 cuencas ANA nivel 4 (427 en total, < 1 MB GeoJSON)",
+      "Simulación global 1 clic (Open-Meteo + DEM + SAVI), focos NASA FIRMS NRT en vivo y etiqueta administrativa OSM Nominatim",
     ],
     href: "https://leafletjs.com/",
     icon: "map",
@@ -209,8 +209,8 @@ export const PIPELINE_STAGES: PipelineStage[] = [
     step: "03",
     title: "Puente Nube y API",
     layer: "infra/azure/ · src/backend/",
-    input: "Snapshot procesado sincronizado en Azure Blob Storage",
-    process: "FastAPI en modo solo lectura (0 consultas a GEE en tiempo de petición HTTP).",
+    input: "Snapshot procesado publicado en Cloudflare R2",
+    process: "FastAPI en modo solo lectura para Fase 1 (0 consultas a GEE por petición HTTP); la Fase 2 opcional consulta Open-Meteo, Planetary Computer y NASA FIRMS NRT en vivo.",
     output: "Contrato REST diario /api/v1 y modelo opcional Fase 2",
   },
   {
@@ -227,7 +227,7 @@ export const TECH_SPECS: TechSpec[] = [
   {
     label: "Ventana común verificada",
     value: "2012-01-19 → 2026-11-02",
-    detail: "~14.8 años continuos donde coinciden Terra, Aqua, VIIRS S-NPP y ERA5-Land.",
+    detail: "~14.8 años donde coinciden Terra, Aqua, VIIRS S-NPP y ERA5-Land. El snapshot publicado llega hasta 2025-12; lo posterior se ve como focos NRT en vivo (NASA FIRMS), sin mezclarlo con la serie histórica.",
   },
   {
     label: "Umbral de nubosidad",
@@ -342,23 +342,37 @@ export interface PhasePhysicalStep {
 
 export const PHASE2_SPREAD_STEPS: PhasePhysicalStep[] = [
   {
+    code: "VIENTO",
+    title: "Viento y humedad en vivo",
+    source: "Open-Meteo Forecast / Archive",
+    detail:
+      "Viento horario a 10 m (velocidad y dirección) y humedad relativa de la fecha y el punto elegidos: ya no son valores fijos de la interfaz. Solo se respeta el viento si el usuario lo fija a mano; sin conexión se usa un perfil diurno ERA5 y la fuente queda etiquetada.",
+  },
+  {
     code: "SAVI",
     title: "Combustible (Huete, 1988)",
-    source: "Sentinel-2 L2A · L = 0.5",
+    source: "Sentinel-2 L2A · Planetary Computer · L = 0.5",
     detail:
-      "((NIR − RED) / (NIR + RED + 0.5)) × 1.5 normalizado a carga combustible [0, 1] por celda.",
+      "((NIR − RED) / (NIR + RED + 0.5)) × 1.5 sobre la mejor escena con < 35 % de nubes de los 45 días previos, normalizado a carga combustible [0, 1] por celda. Sin escena disponible se usa un SAVI calibrado por cobertura y la fuente lo indica.",
+  },
+  {
+    code: "DEM",
+    title: "Relieve (Copernicus GLO-90)",
+    source: "Open-Meteo Elevation · malla 10 × 10",
+    detail:
+      "Elevación remuestreada y suavizada a la grilla de la simulación; la pendiente media y máxima se derivan de ella y se muestran en el panel de resultados.",
   },
   {
     code: "ROS",
     title: "Velocidad base y humedad (Rothermel)",
     source: "Humedad de combustible (ext. 30 %)",
     detail:
-      "Tasa head_ros_m_min amortiguada cuadráticamente por humedad (1 − M / 30 %)² y cobertura.",
+      "Tasa head_ros_m_min amortiguada cuadráticamente por humedad (1 − M / 30 %)² y cobertura; la humedad del combustible se estima desde la humedad relativa en vivo si no se fija.",
   },
   {
     code: "L/B",
     title: "Elipse y relieve (Anderson · DEM)",
-    source: "Open-Meteo 10 m · Copernicus DEM",
+    source: "Viento 10 m · Copernicus DEM",
     detail:
       "Relación largo/ancho L/B ∈ [1.0, 8.0] acoplada a exp(0.0693 · pendiente°): ×2 cada +10° cuesta arriba.",
   },

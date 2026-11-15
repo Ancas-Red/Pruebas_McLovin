@@ -128,7 +128,8 @@ export function PhaseEngines({ onOpenMap }: Props) {
           <h3 className="phase-card__title">Simulador espacial de propagación (48 h)</h3>
           <p className="phase-card__lead">
             Ante una ignición hipotética puntual, proyecta isócronas horarias hasta 48 h integrando
-            combustible SAVI, relieve Copernicus DEM y viento horario de Open-Meteo.
+            combustible SAVI (Sentinel-2), relieve Copernicus DEM y viento y humedad en vivo de
+            Open-Meteo; los focos NRT de NASA FIRMS completan lo posterior al snapshot histórico.
           </p>
         </div>
 

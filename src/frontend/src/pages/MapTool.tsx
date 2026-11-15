@@ -380,6 +380,9 @@ export function MapTool({
   const [simLocation, setSimLocation] = useState<ReverseGeocodeLocation | null>(null);
   const geoCacheRef = useRef<Map<string, ReverseGeocodeLocation>>(new Map());
   const slopeEditedRef = useRef(false);
+  /** Parámetros que el usuario fijó a mano: solo esos se envían tal cual; el resto
+   *  lo resuelven las APIs externas (viento/humedad Open-Meteo, DEM, SAVI). */
+  const userSetParamsRef = useRef<Set<keyof SpreadParams>>(new Set());
   const spreadSeqRef = useRef(0);
   const envSeqRef = useRef(0);
 
@@ -734,7 +737,11 @@ export function MapTool({
 
   /* --------------------------------------------------------- hotspots ---- */
   useEffect(() => {
-    if (!ready || liveFirms) return;
+    if (liveFirms) return;
+    if (!ready) {
+      setHotspots([]);
+      return;
+    }
     const ctrl = new AbortController();
     getHotspots(
       { type: territoryType, id: territoryId, date: dateIso, sensor },
@@ -1270,10 +1277,10 @@ export function MapTool({
       return;
     }
     const ctrl = new AbortController();
-    let south = -10.5;
-    let north = -6.5;
-    let west = -76.5;
-    let east = -72.5;
+    let south = -18.5;
+    let north = 0.0;
+    let west = -81.5;
+    let east = -68.5;
     if (ring && ring.length >= 3) {
       const lats = ring.map((pt) => pt[0]);
       const lons = ring.map((pt) => pt[1]);
@@ -1293,6 +1300,18 @@ export function MapTool({
         if (ctrl.signal.aborted) return;
         if (!res) {
           setFirmsSummary("No se pudo consultar /realtime/area.");
+          return;
+        }
+        if (res.hotspots_status === "realtime_disabled") {
+          setFirmsSummary("Modo tiempo real desactivado en el servidor.");
+          return;
+        }
+        if (res.hotspots_status === "firms_map_key_required") {
+          setFirmsSummary("Falta FIRMS_MAP_KEY en el backend.");
+          return;
+        }
+        if (res.hotspots_status === "unavailable") {
+          setFirmsSummary("Feed NASA FIRMS NRT temporalmente no disponible.");
           return;
         }
         const mapped: HotspotFeature[] = (res.hotspots?.features ?? []).map((f) => {
@@ -1316,14 +1335,16 @@ export function MapTool({
         });
         setHotspots(mapped);
         setHotspotsOrigin("api");
-        if (res.hotspots_status === "firms_map_key_required") {
-          setFirmsSummary("Falta FIRMS_MAP_KEY en el backend.");
-        } else {
-          const c = res.counts_by_sensor ?? {};
-          setFirmsSummary(
-            `NRT (3 días): MODIS ${c.MODIS ?? 0} · VIIRS S-NPP ${c.VIIRS_SNPP ?? 0} · NOAA-20 ${c.VIIRS_NOAA20 ?? 0}`
-          );
-        }
+        const c = res.counts_by_sensor ?? {};
+        const winLabel = res.firms_mode === "public_nrt_csv" ? "48 h" : `${res.days ?? 3} d`;
+        const dates = (res.hotspots?.features ?? [])
+          .map((f) => f.properties.acq_date)
+          .filter((d): d is string => Boolean(d))
+          .sort();
+        const latestDate = dates.length > 0 ? ` · ${dates[dates.length - 1]}` : "";
+        setFirmsSummary(
+          `NRT (${winLabel}${latestDate}): MODIS ${c.MODIS ?? 0} · VIIRS S-NPP ${c.VIIRS_SNPP ?? 0} · NOAA-20 ${c.VIIRS_NOAA20 ?? 0}`
+        );
       })
       .catch((e) => {
         if (!isAbort(e)) setFirmsSummary("No se pudo consultar /realtime/area.");
@@ -1352,17 +1373,23 @@ export function MapTool({
       setSpreadRunning(true);
       setPlaying(false);
       try {
+        const userSet = userSetParamsRef.current;
+        const windFixed = userSet.has("windSpeedMs") || userSet.has("windDirDeg");
         const simPayload: Record<string, unknown> = {
           lat: ignPt[0],
           lon: ignPt[1],
           date: dateIso,
           horizon_h: Math.max(6, Math.min(48, Math.round(baseParams.horizonHours))),
-          wind_speed_10m_ms: baseParams.windSpeedMs,
-          wind_dir_deg: baseParams.windDirDeg,
-          vegetation_pct: baseParams.vegetationPct,
-          fuel_moisture_pct: baseParams.fuelMoisturePct,
           use_open_meteo: true,
+          // Si el usuario fijó el viento, el servidor lo respeta; si no, lo trae de Open-Meteo.
+          live_wind: !windFixed,
         };
+        // Solo se envían los valores que el usuario fijó a mano; el resto NO se hardcodea
+        // desde los valores por defecto de la interfaz: lo resuelven Open-Meteo / DEM / SAVI.
+        if (userSet.has("windSpeedMs")) simPayload.wind_speed_10m_ms = baseParams.windSpeedMs;
+        if (userSet.has("windDirDeg")) simPayload.wind_dir_deg = baseParams.windDirDeg;
+        if (userSet.has("vegetationPct")) simPayload.vegetation_pct = baseParams.vegetationPct;
+        if (userSet.has("fuelMoisturePct")) simPayload.fuel_moisture_pct = baseParams.fuelMoisturePct;
         if (slopeEditedRef.current) {
           simPayload.slope_mean_deg = baseParams.slopeMeanDeg;
         }
@@ -1376,10 +1403,48 @@ export function MapTool({
           typeof remoteSlope === "number" &&
           Number.isFinite(remoteSlope);
 
+        // Viento y humedad del combustible: lo que devolvió Open-Meteo reemplaza el valor
+        // por defecto de la interfaz, salvo que el usuario lo haya fijado.
+        const liveWindSources = new Set(["Open-Meteo", "Open-Meteo Archive", "open_meteo_hourly"]);
+        const liveWindOk =
+          !windFixed && liveWindSources.has(remote?.data_sources?.wind_source ?? "");
+        const dom = remote?.dominant_wind;
+        const rhVals = (remote?.hourly_wind ?? [])
+          .slice(0, 24)
+          .map((h) => h.rh_pct)
+          .filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+        const rhMean =
+          rhVals.length > 0 && remote?.hourly_wind?.[0]?.source === "open_meteo_hourly"
+            ? rhVals.reduce((a, b) => a + b, 0) / rhVals.length
+            : null;
+
         const effectiveParams: SpreadParams = {
           ...baseParams,
           slopeMeanDeg: hasRemoteSlope ? remoteSlope : baseParams.slopeMeanDeg,
         };
+        if (liveWindOk && !windFixed && dom) {
+          if (Number.isFinite(dom.wind_speed_10m_ms)) {
+            effectiveParams.windSpeedMs = Math.max(0, Math.min(18, Number(dom.wind_speed_10m_ms.toFixed(1))));
+          }
+          if (Number.isFinite(dom.wind_dir_deg)) {
+            effectiveParams.windDirDeg = Math.round(((dom.wind_dir_deg % 360) + 360) % 360);
+          }
+        }
+        if (rhMean !== null && !userSet.has("fuelMoisturePct")) {
+          effectiveParams.fuelMoisturePct = Math.max(4, Math.min(18, Math.round(4 + rhMean * 0.18)));
+        }
+        if (
+          effectiveParams.windSpeedMs !== baseParams.windSpeedMs ||
+          effectiveParams.windDirDeg !== baseParams.windDirDeg ||
+          effectiveParams.fuelMoisturePct !== baseParams.fuelMoisturePct
+        ) {
+          setSpreadParams((prev) => ({
+            ...prev,
+            windSpeedMs: effectiveParams.windSpeedMs,
+            windDirDeg: effectiveParams.windDirDeg,
+            fuelMoisturePct: effectiveParams.fuelMoisturePct,
+          }));
+        }
 
         if (hasRemoteSlope) {
           const roundedSlope = Math.min(35, Math.max(0, Math.round(remoteSlope)));
@@ -1471,6 +1536,7 @@ export function MapTool({
       const ignPt: LatLon = [lat, lon];
 
       slopeEditedRef.current = false;
+      userSetParamsRef.current = new Set();
       setMode("pan");
       setRing(demoRing);
       setIgnition(ignPt);
@@ -1554,6 +1620,7 @@ export function MapTool({
    */
   const applyEnvToSpread = useCallback(async () => {
     const seq = ++envSeqRef.current;
+    userSetParamsRef.current = new Set();
     setEnvLoading(true);
     try {
       const activeCoord: LatLon | null =
@@ -2095,6 +2162,15 @@ export function MapTool({
               onParams={(p) => {
                 if (p.slopeMeanDeg !== spreadParams.slopeMeanDeg) {
                   slopeEditedRef.current = true;
+                }
+                // Registra qué controles tocó el usuario: solo esos se envían al servidor.
+                for (const k of [
+                  "windSpeedMs",
+                  "windDirDeg",
+                  "vegetationPct",
+                  "fuelMoisturePct",
+                ] as const) {
+                  if (p[k] !== spreadParams[k]) userSetParamsRef.current.add(k);
                 }
                 setSpreadParams(p);
                 setEnvApplied(false);

@@ -253,7 +253,7 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
             </div>
             <p className="block__lead" data-reveal>
               Cada herramienta cumple un rol acotado y trazable dentro de la ruta de datos, desde la
-              decodificación de píxeles térmicos hasta el despliegue sin costo operativo.
+              decodificación de píxeles térmicos hasta el despliegue en la nube.
             </p>
           </div>
 

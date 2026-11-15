@@ -443,6 +443,9 @@ export interface ReverseGeocodeLocation {
 }
 
 export interface RealtimeAreaResponse {
+  days?: number;
+  firms_mode?: string;
+  truncated?: boolean;
   location?: ReverseGeocodeLocation;
   weather: {
     status?: string;
@@ -479,14 +482,22 @@ export interface SpreadSimulateResponse {
   date?: string;
   horizon_h?: number;
   dominant_wind?: { wind_dir_deg: number; wind_speed_10m_ms: number };
+  hourly_wind?: Array<{
+    hour: number;
+    wind_speed_ms?: number;
+    wind_dir_deg?: number;
+    temp_c?: number | null;
+    rh_pct?: number | null;
+    source?: string;
+  }>;
   slope_summary?: { mean_deg?: number; max_deg?: number; dem_source?: string };
   savi_summary?: { mean?: number; p90?: number; source?: string };
   data_sources?: { wind_source?: string; dem_source?: string; vegetation_index?: string };
   timings_s?: Record<string, number>;
 }
 
-const PHASE2_REALTIME_TIMEOUT_MS = 6000;
-const PHASE2_SIMULATE_TIMEOUT_MS = 6500;
+const PHASE2_REALTIME_TIMEOUT_MS = 12000;
+const PHASE2_SIMULATE_TIMEOUT_MS = 10000;
 
 const PHASE2_GEOCODE_TIMEOUT_MS = 5000;
 
