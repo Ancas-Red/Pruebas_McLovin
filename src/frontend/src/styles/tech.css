@@ -7,7 +7,7 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #000;
+  background: var(--bg);
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -17,7 +17,7 @@
   inset: var(--h-header) 0 0 0;
   pointer-events: none;
   z-index: 0;
-  background: #000;
+  background: var(--bg);
 }
 
 .starfield {
@@ -78,7 +78,7 @@
 
 .tech-hero__lead {
   max-width: 56ch;
-  background: rgba(6, 6, 6, 0.9);
+  background: rgba(7, 16, 11, 0.92);
   border: 1px solid var(--line);
   border-left: 2px solid var(--acid);
   padding: 14px 16px;
@@ -86,7 +86,7 @@
 
 .tech .eyebrow {
   display: inline-block;
-  background: rgba(6, 6, 6, 0.9);
+  background: rgba(7, 16, 11, 0.92);
   border: 1px solid rgba(216, 255, 51, 0.18);
   padding: 4px 9px;
 }
@@ -220,7 +220,7 @@
 
 .tech-facts {
   margin-top: 34px;
-  background: rgba(6, 6, 6, 0.92);
+  background: rgba(7, 16, 11, 0.92);
   border: 1px solid var(--line);
   padding: 18px 20px;
 }
@@ -248,7 +248,7 @@
 }
 
 .tech-head .block__lead {
-  background: rgba(6, 6, 6, 0.9);
+  background: rgba(7, 16, 11, 0.92);
   border: 1px solid var(--line);
   padding: 14px 16px;
 }
@@ -294,7 +294,7 @@
 .tech-filter[aria-selected="true"] {
   background: var(--acid);
   border-color: var(--acid);
-  color: #000;
+  color: #040806;
   font-weight: 600;
 }
 
@@ -574,18 +574,18 @@
   padding: 64px 0 42px;
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.28) 0,
-    rgba(0, 0, 0, 0.28) 18px,
-    rgba(0, 0, 0, 0.68) 18px,
-    rgba(0, 0, 0, 0.68) 36px,
-    #000 36px
+    rgba(4, 8, 6, 0.28) 0,
+    rgba(4, 8, 6, 0.28) 18px,
+    rgba(4, 8, 6, 0.68) 18px,
+    rgba(4, 8, 6, 0.68) 36px,
+    var(--bg) 36px
   );
 }
 
 .tech-foot-band .site-foot {
   margin-top: 0;
   padding-top: 26px;
-  background: #000;
+  background: var(--bg);
 }
 
 .specs {

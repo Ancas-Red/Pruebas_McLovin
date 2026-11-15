@@ -62,6 +62,61 @@ export const MAP_TOUR_STEPS: TourStep[] = [
       "Abre aquí los indicadores normalizados, la comparación multisensor y el árbol de decisión ambiental. Si una zona poligonal presenta susceptibilidad alta, verás un aviso prioritario en pantalla.",
     placement: "left",
   },
+  {
+    id: "simulacion-tab",
+    selector: '[data-tour="tab-simulacion"]',
+    title: "Simulación exploratoria · Fase 2 global",
+    body:
+      "Cambia a Simulación para modelar extensión hipotética del fuego (hasta 48 h) en Ucayali o cualquier coordenada del mundo con viento Open-Meteo, DEM Copernicus GLO-90 y salidas GIF/MP4/QGIS. Al abrirla, pulsa ? Guía para ver su recorrido específico.",
+    placement: "bottom",
+  },
+];
+
+export const SPREAD_TOUR_STEPS: TourStep[] = [
+  {
+    id: "spread-quick",
+    selector: '[data-tour="spread-quick"]',
+    fallbackSelector: '[data-tour="right-dock"]',
+    title: "Simulación global en 1 clic",
+    body:
+      "Elige Ucayali, California, Grecia o escribe cualquier latitud/longitud del planeta y pulsa «Simular extensión aquí»: traza el dominio, sitúa la ignición, consulta clima/DEM reales y anima el frente sobre el mapa.",
+    placement: "left",
+  },
+  {
+    id: "spread-env",
+    selector: '[data-tour="spread-env"]',
+    fallbackSelector: '[data-tour="right-dock"]',
+    title: "Ignición y clima en vivo (Open-Meteo + FIRMS)",
+    body:
+      "También puedes colocar manualmente la ignición en cualquier punto e importar temperatura, humedad relativa, viento a 10 m y focos NRT mediante /api/v1/realtime/area.",
+    placement: "left",
+  },
+  {
+    id: "spread-poly",
+    selector: '[data-tour="map-toolbar"]',
+    title: "Área libre y Condiciones físicas",
+    body:
+      "Usa POLIGONO o RECT para delimitar un recorte exacto sobre el mapa y ajusta viento, humedad del combustible, vegetación SAVI, pendiente y horizonte (hasta 48 h) en el cajón Condiciones.",
+    placement: "bottom",
+  },
+  {
+    id: "spread-exports",
+    selector: '[data-tour="spread-exports"]',
+    fallbackSelector: '[data-tour="right-dock"]',
+    title: "Visualización y salidas 48 h (GIF, MP4, QGIS)",
+    body:
+      "Previsualiza aquí el GIF animado 48 h, infografía ejecutiva o panel SAVI+DEM, genera nuevos paquetes bajo demanda con el backend Python o descarga los Shapefiles para QGIS.",
+    placement: "left",
+  },
+  {
+    id: "spread-result",
+    selector: '[data-tour="dock-resultado"]',
+    fallbackSelector: '[data-tour="right-dock"]',
+    title: "Reproducción temporal e isócronas",
+    body:
+      "En Resultado y reproducción puedes animar hora por hora la mancha Inferno sobre el mapa e inspeccionar hectáreas alcanzadas, ROS (m/min) y fuentes reales empleadas.",
+    placement: "left",
+  },
 ];
 
 export type TourPhase = "closed" | "prompt" | "tour";
@@ -94,7 +149,7 @@ function computePopoverGeometry(
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const cardW = Math.min(370, vw - 24);
-  const estH = 265;
+  const estH = 345;
   const gap = 16;
 
   if (!rect) {
@@ -193,7 +248,7 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
     if (phase !== "closed") {
       setDontShow(isTourDismissed());
     }
-  }, [phase]);
+  }, [phase, steps]);
 
   const measure = useCallback(() => {
     if (phase !== "tour" || !step) {
@@ -207,6 +262,7 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
       setMeasureState({ key: activeKey, spot: null });
       return;
     }
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
     const r = el.getBoundingClientRect();
     const pad = 6;
     setMeasureState({

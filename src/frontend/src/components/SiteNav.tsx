@@ -96,6 +96,7 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
               className="tab tab--sub"
               aria-selected={tab === "simulacion"}
               onClick={() => onTab("simulacion")}
+              data-tour="tab-simulacion"
             >
               Simulación
             </button>

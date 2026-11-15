@@ -14,6 +14,19 @@ export interface SpreadParams {
   horizonHours: number;
 }
 
+export interface GlobalTelemetry {
+  locationLabel?: string;
+  weatherSource?: string;
+  demSource?: string;
+  windInfo?: string;
+  slopeDeg?: number;
+  tempC?: number | null;
+  rhPct?: number | null;
+  firmsStatus?: string;
+  firmsTotal?: number;
+  coordsLabel?: string;
+}
+
 export const SPREAD_ITEMS: DockItem[] = [
   { id: "escenario", label: "Escenario · Fase 2", icon: "flame" },
   { id: "condiciones", label: "Condiciones", icon: "sliders" },
@@ -36,17 +49,31 @@ interface Props {
   time: number;
   onTime: (t: number) => void;
   onRun: () => void;
+  /** Traza un dominio de 12x12 km en (lat, lon), fija la ignición, consulta clima/DEM y simula en 1 clic. */
+  onQuickSimulate: (lat: number, lon: number) => void;
   onPlayPause: () => void;
   playing: boolean;
   envApplied: boolean;
   onApplyEnv: () => void;
-  /** ¿Llegó la ficha del territorio? Sin ella no hay clima que aplicar. */
+  /** ¿Hay entorno aplicable (área/ignición global o ficha de Ucayali)? */
   hasEnv: boolean;
+  /** Consulta en vuelo a Open-Meteo / FIRMS. */
+  envLoading?: boolean;
+  /** Telemetría global real (Open-Meteo, Copernicus GLO-90 DEM, FIRMS NRT). */
+  globalTelemetry?: GlobalTelemetry | null;
   /** Centro del territorio activo; orienta al usuario al dibujar el recorte. */
   center: LatLon | null;
   /** Fecha activa del calendario Fase 1 (opcional). */
   dateIso?: string;
 }
+
+type PreviewAsset = "simulacion_48h.gif" | "infografia_impacto_48h.png" | "panel_modelo_48h.png" | null;
+
+const GLOBAL_PRESETS: Array<{ label: string; lat: number; lon: number }> = [
+  { label: "Ucayali", lat: -8.198, lon: -75.267 },
+  { label: "California", lat: 39.76, lon: -121.62 },
+  { label: "Grecia", lat: 37.98, lon: 23.73 },
+];
 
 export function SpreadRail(p: Props) {
   const v = p.params;
@@ -56,6 +83,11 @@ export function SpreadRail(p: Props) {
   const [forecastDate, setForecastDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [exporting, setExporting] = useState(false);
   const [exportInfo, setExportInfo] = useState<string | null>(null);
+  const [previewAsset, setPreviewAsset] = useState<PreviewAsset>(null);
+  const [previewRev, setPreviewRev] = useState(0);
+  const defaultPt = p.ignition ?? p.center ?? [-8.198, -75.267];
+  const [quickLat, setQuickLat] = useState(() => defaultPt[0].toFixed(3));
+  const [quickLon, setQuickLon] = useState(() => defaultPt[1].toFixed(3));
 
   async function handleServerExport() {
     setExporting(true);
@@ -84,6 +116,7 @@ export function SpreadRail(p: Props) {
       const ws = data?.data_sources?.wind_source ?? "local";
       const ds = data?.slope_summary?.dem_source ?? "DEM";
       const ss = data?.savi_summary?.source ?? "SAVI";
+      setPreviewRev((n) => n + 1);
       setExportInfo(
         `Paquete ${data?.horizon_h ?? 48}h (${forecastDate}) generado${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds} · ${ss}).`
       );
@@ -94,6 +127,90 @@ export function SpreadRail(p: Props) {
       setExporting(false);
     }
   }
+
+  const parsedLat = Number(quickLat);
+  const parsedLon = Number(quickLon);
+  const quickValid =
+    Number.isFinite(parsedLat) &&
+    Number.isFinite(parsedLon) &&
+    parsedLat >= -90 &&
+    parsedLat <= 90 &&
+    parsedLon >= -180 &&
+    parsedLon <= 180;
+
+  const exportsBlock = (
+    <div data-tour="spread-exports">
+      <div className="legend__title" style={{ marginTop: 14 }}>
+        Visualización y salidas 48 h · Python / GIS
+      </div>
+      <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 5 }}>
+        <button
+          type="button"
+          className={`btn${previewAsset === "simulacion_48h.gif" ? " btn--on" : ""}`}
+          onClick={() =>
+            setPreviewAsset((cur) => (cur === "simulacion_48h.gif" ? null : "simulacion_48h.gif"))
+          }
+        >
+          Ver GIF 48h
+        </button>
+        <button
+          type="button"
+          className={`btn${previewAsset === "infografia_impacto_48h.png" ? " btn--on" : ""}`}
+          onClick={() =>
+            setPreviewAsset((cur) =>
+              cur === "infografia_impacto_48h.png" ? null : "infografia_impacto_48h.png"
+            )
+          }
+        >
+          Ver infografía
+        </button>
+        <button
+          type="button"
+          className={`btn${previewAsset === "panel_modelo_48h.png" ? " btn--on" : ""}`}
+          onClick={() =>
+            setPreviewAsset((cur) => (cur === "panel_modelo_48h.png" ? null : "panel_modelo_48h.png"))
+          }
+        >
+          Panel SAVI+DEM
+        </button>
+      </div>
+      {previewAsset && (
+        <div
+          style={{
+            marginTop: 8,
+            border: "1px solid var(--line-strong)",
+            background: "var(--surface-1)",
+            padding: 6,
+          }}
+        >
+          <img
+            src={`${API_BASE}/spread-outputs/${previewAsset}${previewRev ? `?r=${previewRev}` : ""}`}
+            alt={`Vista previa ${previewAsset}`}
+            style={{ display: "block", width: "100%", height: "auto" }}
+          />
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn btn--block"
+        disabled={exporting}
+        onClick={handleServerExport}
+        style={{ marginTop: 8 }}
+      >
+        {exporting ? "Generando GIF, MP4, SHP e infografías…" : "Generar reporte 48 h (API)"}
+      </button>
+      {exportInfo && (
+        <p className="mono-sm" style={{ marginTop: 6 }}>{exportInfo}</p>
+      )}
+      <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
+        <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif`} target="_blank" rel="noreferrer">GIF 48h</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} target="_blank" rel="noreferrer">MP4 48h</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png`} target="_blank" rel="noreferrer">Infografía</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png`} target="_blank" rel="noreferrer">Panel 48h</a>
+      </div>
+    </div>
+  );
 
   switch (p.section) {
     case "escenario":
@@ -149,34 +266,154 @@ export function SpreadRail(p: Props) {
               )}
             </div>
           </div>
-          <div className="btn-row" style={{ marginTop: 11 }}>
+          <div className="btn-row" style={{ marginTop: 11 }} data-tour="spread-env">
             <button className="btn" onClick={p.onPickIgnition}>Situar ignición</button>
             <button
               className="btn"
               onClick={p.onApplyEnv}
-              disabled={p.envApplied || !p.hasEnv}
+              disabled={p.envApplied || !p.hasEnv || Boolean(p.envLoading)}
               title={
                 p.hasEnv
-                  ? "Toma el viento del día y los factores del árbol de decisión"
-                  : "Aún no llegó la ficha del territorio"
+                  ? "Consulta viento e higrometría global en vivo (Open-Meteo) + factores locales si el área está en Ucayali"
+                  : "Define un área/ignición o espera la ficha del territorio"
               }
             >
-              {p.envApplied ? "Clima aplicado" : "Usar clima del día"}
+              {p.envLoading
+                ? "Consultando Open-Meteo…"
+                : p.envApplied
+                  ? "Clima aplicado"
+                  : p.ring || p.ignition
+                    ? "Usar clima global"
+                    : "Usar clima del día"}
             </button>
           </div>
-          {!p.ring && (
-            <div className="note note--warn" style={{ marginTop: 11 }}>
-              Dibuja primero un área en el mapa: define el dominio de la simulación.
+          {p.globalTelemetry && (
+            <div className="note" style={{ marginTop: 10 }}>
+              <dl className="kv">
+                {(p.globalTelemetry.locationLabel || p.globalTelemetry.coordsLabel) && (
+                  <>
+                    <dt>Región detectada</dt>
+                    <dd>{p.globalTelemetry.locationLabel ?? "—"}</dd>
+                    <dt>Ubicación</dt>
+                    <dd>{p.globalTelemetry.coordsLabel ?? "—"}</dd>
+                  </>
+                )}
+                <dt>Clima / viento</dt>
+                <dd data-null={!p.globalTelemetry.weatherSource}>
+                  {p.globalTelemetry.weatherSource
+                    ? `${p.globalTelemetry.weatherSource}${p.globalTelemetry.windInfo ? ` (${p.globalTelemetry.windInfo})` : ""}`
+                    : "Sin dato en vivo"}
+                </dd>
+                <dt>T° / HR</dt>
+                <dd
+                  data-null={
+                    p.globalTelemetry.tempC == null && p.globalTelemetry.rhPct == null
+                  }
+                >
+                  {formatTempRh(p.globalTelemetry.tempC, p.globalTelemetry.rhPct)}
+                </dd>
+                {p.globalTelemetry.demSource && (
+                  <>
+                    <dt>Relieve DEM</dt>
+                    <dd>
+                      {p.globalTelemetry.demSource}
+                      {typeof p.globalTelemetry.slopeDeg === "number"
+                        ? ` (${p.globalTelemetry.slopeDeg.toFixed(1)}°)`
+                        : ""}
+                    </dd>
+                  </>
+                )}
+                {p.globalTelemetry.firmsStatus && (
+                  <>
+                    <dt>FIRMS NRT</dt>
+                    <dd>
+                      {formatFirmsStatus(
+                        p.globalTelemetry.firmsStatus,
+                        p.globalTelemetry.firmsTotal
+                      )}
+                    </dd>
+                  </>
+                )}
+              </dl>
             </div>
           )}
-          <button
-            className="btn btn--ember btn--block"
-            disabled={!ready || p.running}
-            onClick={p.onRun}
-            style={{ marginTop: 13 }}
+          {!p.ring && (
+            <div className="note note--warn" style={{ marginTop: 11 }}>
+              Dibuja un polígono/rectángulo en el mapa, o usa la simulación rápida global abajo.
+            </div>
+          )}
+
+          <div
+            className="note"
+            style={{ marginTop: 12, borderColor: "var(--line-strong)" }}
+            data-tour="spread-quick"
           >
-            {p.running ? "Calculando…" : "Ejecutar simulación"}
-          </button>
+            <div className="legend__title" style={{ marginBottom: 6 }}>
+              Simulación rápida global · 1 clic (Open-Meteo + DEM)
+            </div>
+            <div className="btn-row" style={{ flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+              {GLOBAL_PRESETS.map((pr) => (
+                <button
+                  key={pr.label}
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setQuickLat(pr.lat.toFixed(3));
+                    setQuickLon(pr.lon.toFixed(3));
+                    p.onQuickSimulate(pr.lat, pr.lon);
+                  }}
+                  disabled={p.running}
+                >
+                  {pr.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 6, marginBottom: 8 }}>
+              <label className="mono-sm" style={{ minWidth: 0, display: "grid", gap: 4 }}>
+                Latitud
+                <input
+                  id="sp-quick-lat"
+                  type="text"
+                  inputMode="decimal"
+                  className="select"
+                  value={quickLat}
+                  onChange={(e) => setQuickLat(e.target.value)}
+                />
+              </label>
+              <label className="mono-sm" style={{ minWidth: 0, display: "grid", gap: 4 }}>
+                Longitud
+                <input
+                  id="sp-quick-lon"
+                  type="text"
+                  inputMode="decimal"
+                  className="select"
+                  value={quickLon}
+                  onChange={(e) => setQuickLon(e.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              className="btn btn--ember btn--block"
+              disabled={!quickValid || p.running}
+              onClick={() => p.onQuickSimulate(parsedLat, parsedLon)}
+            >
+              {p.running ? "Calculando extensión de fuego…" : "Simular extensión aquí (1 clic)"}
+            </button>
+          </div>
+
+          {ready && (
+            <button
+              className="btn btn--ember btn--block"
+              disabled={p.running}
+              onClick={p.onRun}
+              style={{ marginTop: 11 }}
+            >
+              {p.running ? "Calculando…" : "Recalcular con área actual"}
+            </button>
+          )}
+
+          {exportsBlock}
         </Drawer>
       );
 
@@ -308,32 +545,31 @@ export function SpreadRail(p: Props) {
 
           <hr className="hr" />
           <dl className="kv">
-            <dt>SAVI medio (Huete 1988)</dt><dd>{p.result.saviMean.toFixed(2)}</dd>
-            <dt>Relación largo/ancho</dt><dd>{p.result.lengthToBreadth.toFixed(2)} : 1</dd>
-            <dt>Resolución de celda</dt><dd>{Math.round(p.result.cellSizeM)} m</dd>
+            {p.globalTelemetry?.locationLabel && (
+              <>
+                <dt>Región</dt>
+                <dd>{p.globalTelemetry.locationLabel}</dd>
+              </>
+            )}
+            <dt>Viento / Clima</dt>
+            <dd>
+              {p.globalTelemetry?.weatherSource
+                ? `${p.globalTelemetry.weatherSource}${p.globalTelemetry.windInfo ? ` (${p.globalTelemetry.windInfo})` : ""}`
+                : "Parámetros locales / manuales"}
+            </dd>
+            <dt>Relieve DEM</dt>
+            <dd>
+              {p.globalTelemetry?.demSource
+                ? `${p.globalTelemetry.demSource}${typeof p.globalTelemetry.slopeDeg === "number" ? ` (${p.globalTelemetry.slopeDeg.toFixed(1)}°)` : ""}`
+                : "Relieve sintético local"}
+            </dd>
+            <dt>SAVI medio</dt><dd>{p.result.saviMean.toFixed(2)}</dd>
+            <dt>Largo / ancho</dt><dd>{p.result.lengthToBreadth.toFixed(2)} : 1</dd>
+            <dt>Resolución</dt><dd>{Math.round(p.result.cellSizeM)} m</dd>
             <dt>Grilla</dt><dd>{p.result.cols} × {p.result.rows}</dd>
           </dl>
 
-          <div className="legend__title" style={{ marginTop: 14 }}>Productos GIS · 48 h (Python)</div>
-          <button
-            type="button"
-            className="btn btn--block"
-            disabled={exporting}
-            onClick={handleServerExport}
-            style={{ marginTop: 6 }}
-          >
-            {exporting ? "Generando GIF, MP4, SHP e infografías…" : "Generar reporte 48 h (Python / API)"}
-          </button>
-          {exportInfo && (
-            <p className="mono-sm" style={{ marginTop: 6 }}>{exportInfo}</p>
-          )}
-          <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
-            <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif`} target="_blank" rel="noreferrer">GIF 48h</a>
-            <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} target="_blank" rel="noreferrer">MP4 48h</a>
-            <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
-            <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png`} target="_blank" rel="noreferrer">Infografía</a>
-            <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png`} target="_blank" rel="noreferrer">Panel 48h</a>
-          </div>
+          {exportsBlock}
 
           <div className="legend__title" style={{ marginTop: 14 }}>Supuestos activos</div>
           <ul className="assume">
@@ -364,4 +600,18 @@ function areaAt(r: SpreadResult, t: number): number {
   let n = 0;
   for (let i = 0; i < r.arrival.length; i++) if (r.arrival[i] <= t) n++;
   return Math.round(n * cellHa);
+}
+
+function formatTempRh(tempC?: number | null, rhPct?: number | null): string {
+  const parts: string[] = [];
+  if (typeof tempC === "number" && Number.isFinite(tempC)) parts.push(`${tempC.toFixed(1)} °C`);
+  if (typeof rhPct === "number" && Number.isFinite(rhPct)) parts.push(`HR ${Math.round(rhPct)} %`);
+  return parts.length ? parts.join(" · ") : "Sin dato";
+}
+
+function formatFirmsStatus(status: string, total?: number): string {
+  if (status === "ok") return `${(total ?? 0).toLocaleString("es-PE")} focos NRT`;
+  if (status === "partial") return `${(total ?? 0).toLocaleString("es-PE")} focos (parcial)`;
+  if (status === "firms_map_key_required") return "Requiere FIRMS_MAP_KEY";
+  return status;
 }

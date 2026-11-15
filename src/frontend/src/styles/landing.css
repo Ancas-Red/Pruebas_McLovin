@@ -7,7 +7,7 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #000;
+  background: var(--bg);
 
   /* Sin ajuste por bloques y sin `scroll-behavior: smooth` en el contenedor.
      Las dos cosas peleaban con el gesto: el ajuste por proximidad volvía a
@@ -31,7 +31,7 @@
   position: fixed;
   inset: var(--h-header) 0 0 0;
   z-index: 0;
-  background: #000;
+  background: var(--bg);
 }
 
 .globe {
@@ -58,11 +58,11 @@
   transition: opacity 0.45s ease;
   background: linear-gradient(
     95deg,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0) 34%,
-    rgba(0, 0, 0, 0.55) 46%,
-    rgba(0, 0, 0, 0.88) 58%,
-    rgba(0, 0, 0, 0.94) 100%
+    rgba(4, 8, 6, 0) 0%,
+    rgba(4, 8, 6, 0) 34%,
+    rgba(4, 8, 6, 0.55) 46%,
+    rgba(4, 8, 6, 0.88) 58%,
+    rgba(4, 8, 6, 0.94) 100%
   );
 }
 
@@ -147,9 +147,9 @@
   .landing__bg::after {
     background: linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.1) 0%,
-      rgba(0, 0, 0, 0.86) 38%,
-      rgba(0, 0, 0, 0.9) 64%
+      rgba(4, 8, 6, 0.1) 0%,
+      rgba(4, 8, 6, 0.86) 38%,
+      rgba(4, 8, 6, 0.9) 64%
     );
   }
   .landing__bg[data-planet-lights="off"]::after {
@@ -182,17 +182,17 @@
     padding: 140px 0 28px;
     background: linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.22) 0,
-      rgba(0, 0, 0, 0.22) 48px,
-      rgba(0, 0, 0, 0.4) 48px,
-      rgba(0, 0, 0, 0.4) 96px,
-      rgba(0, 0, 0, 0.58) 96px,
-      rgba(0, 0, 0, 0.58) 144px,
-      rgba(0, 0, 0, 0.74) 144px,
-      rgba(0, 0, 0, 0.74) 192px,
-      rgba(0, 0, 0, 0.86) 192px,
-      rgba(0, 0, 0, 0.86) 240px,
-      rgba(0, 0, 0, 0.9) 240px
+      rgba(4, 8, 6, 0.22) 0,
+      rgba(4, 8, 6, 0.22) 48px,
+      rgba(4, 8, 6, 0.4) 48px,
+      rgba(4, 8, 6, 0.4) 96px,
+      rgba(4, 8, 6, 0.58) 96px,
+      rgba(4, 8, 6, 0.58) 144px,
+      rgba(4, 8, 6, 0.74) 144px,
+      rgba(4, 8, 6, 0.74) 192px,
+      rgba(4, 8, 6, 0.86) 192px,
+      rgba(4, 8, 6, 0.86) 240px,
+      rgba(4, 8, 6, 0.9) 240px
     );
   }
 }
@@ -532,7 +532,7 @@
   }
 }
 .scope__col {
-  background: rgba(5, 5, 5, 0.9);
+  background: rgba(7, 16, 11, 0.92);
   padding: 18px 18px 20px;
 }
 .scope__col h3 {
@@ -585,17 +585,17 @@
   justify-content: flex-start;
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.22) 0,
-    rgba(0, 0, 0, 0.22) 56px,
-    rgba(0, 0, 0, 0.4) 56px,
-    rgba(0, 0, 0, 0.4) 112px,
-    rgba(0, 0, 0, 0.58) 112px,
-    rgba(0, 0, 0, 0.58) 168px,
-    rgba(0, 0, 0, 0.74) 168px,
-    rgba(0, 0, 0, 0.74) 224px,
-    rgba(0, 0, 0, 0.86) 224px,
-    rgba(0, 0, 0, 0.86) 280px,
-    rgba(0, 0, 0, 0.9) 280px
+    rgba(4, 8, 6, 0.22) 0,
+    rgba(4, 8, 6, 0.22) 56px,
+    rgba(4, 8, 6, 0.4) 56px,
+    rgba(4, 8, 6, 0.4) 112px,
+    rgba(4, 8, 6, 0.58) 112px,
+    rgba(4, 8, 6, 0.58) 168px,
+    rgba(4, 8, 6, 0.74) 168px,
+    rgba(4, 8, 6, 0.74) 224px,
+    rgba(4, 8, 6, 0.86) 224px,
+    rgba(4, 8, 6, 0.86) 280px,
+    rgba(4, 8, 6, 0.9) 280px
   );
 }
 
@@ -677,7 +677,7 @@
 }
 
 .member {
-  background: rgba(6, 6, 6, 0.91);
+  background: rgba(7, 16, 11, 0.92);
   border: 1px solid var(--line);
   padding: 18px 16px 16px;
   display: flex;
@@ -686,7 +686,7 @@
   transition: background 0.2s, border-color 0.2s;
 }
 .member:hover {
-  background: #121212;
+  background: var(--surface-1);
   border-color: var(--line-strong);
 }
 
@@ -718,7 +718,7 @@
   font-weight: 800;
   font-size: 22px;
   letter-spacing: -0.02em;
-  color: #4f4f4f;
+  color: var(--fg-faint);
 }
 .member__ring {
   position: absolute;

@@ -3,9 +3,21 @@ import { ControlRail, LEFT_ITEMS } from "../components/ControlRail";
 import { MapStage, type DrawMode, type HoverCard } from "../components/MapStage";
 import { CalendarStrip } from "../components/CalendarStrip";
 import { AnalysisRail, ANALYSIS_ITEMS } from "../components/AnalysisRail";
-import { SpreadRail, SPREAD_ITEMS, type SpreadParams } from "../components/SpreadRail";
+import {
+  SpreadRail,
+  SPREAD_ITEMS,
+  type GlobalTelemetry,
+  type SpreadParams,
+} from "../components/SpreadRail";
 import { DockBar } from "../components/DockBar";
-import { GuidedTour, isTourDismissed, setTourDismissed, type TourPhase } from "../components/GuidedTour";
+import {
+  GuidedTour,
+  isTourDismissed,
+  MAP_TOUR_STEPS,
+  setTourDismissed,
+  SPREAD_TOUR_STEPS,
+  type TourPhase,
+} from "../components/GuidedTour";
 import { OrbitalLoader } from "../components/OrbitalLoader";
 import type { NavContext, ToolTab } from "../components/SiteNav";
 import {
@@ -13,7 +25,10 @@ import {
   availablePeriodsForSensor,
   exportCsvUrl,
   fetchCalendar,
+  fetchRealtimeArea,
+  fetchReverseGeocode,
   getBackendState,
+  type ReverseGeocodeLocation,
   isAbort,
   isAnalysisDateAvailable,
   isDateAvailable,
@@ -26,12 +41,14 @@ import {
   monthClampedSpan,
   monthRange,
   pad2,
+  postSpreadSimulate,
   probeBackend,
   publishedDaysInMonth,
   rangeBounds,
   splitIso,
   usefulDaysFromRows,
   type BackendState,
+  type RealtimeAreaResponse,
 } from "../api/client";
 import {
   getActivity,
@@ -68,7 +85,7 @@ import {
   mergeAnomaly,
   type MonthCell,
 } from "../lib/calendar";
-import { polygonCentroid, type LatLon } from "../lib/geo";
+import { formatLatLon, polygonCentroid, ringBounds, ringCentroid, type LatLon } from "../lib/geo";
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
 const MONTHS_ES = [
@@ -302,6 +319,49 @@ export function MapTool({
   const [spreadTime, setSpreadTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [envApplied, setEnvApplied] = useState(false);
+  const [envLoading, setEnvLoading] = useState(false);
+  const [globalTelemetry, setGlobalTelemetry] = useState<GlobalTelemetry | null>(null);
+  const [simLocation, setSimLocation] = useState<ReverseGeocodeLocation | null>(null);
+  const geoCacheRef = useRef<Map<string, ReverseGeocodeLocation>>(new Map());
+  const slopeEditedRef = useRef(false);
+  const spreadSeqRef = useRef(0);
+  const envSeqRef = useRef(0);
+
+  useEffect(() => {
+    setGlobalTelemetry(null);
+    setEnvApplied(false);
+    slopeEditedRef.current = false;
+  }, [ring, ignition]);
+
+  const activeSimPoint: LatLon | null = useMemo(() => {
+    if (ignition) return ignition;
+    if (!ring || ring.length === 0) return null;
+    const latAvg = ring.reduce((acc, p) => acc + p[0], 0) / ring.length;
+    const lonAvg = ring.reduce((acc, p) => acc + p[1], 0) / ring.length;
+    return [latAvg, lonAvg];
+  }, [ignition, ring]);
+
+  useEffect(() => {
+    if (tab !== "simulacion" || !activeSimPoint) {
+      if (!activeSimPoint) setSimLocation(null);
+      return;
+    }
+    const key = `${activeSimPoint[0].toFixed(3)},${activeSimPoint[1].toFixed(3)}`;
+    const cached = geoCacheRef.current.get(key);
+    if (cached) {
+      setSimLocation(cached);
+      return;
+    }
+    const ctrl = new AbortController();
+    fetchReverseGeocode(activeSimPoint[0], activeSimPoint[1], ctrl.signal).then((loc) => {
+      if (ctrl.signal.aborted || !loc) return;
+      if (loc.status === "ok") {
+        geoCacheRef.current.set(key, loc);
+      }
+      setSimLocation(loc);
+    });
+    return () => ctrl.abort();
+  }, [tab, activeSimPoint]);
 
   const [tourPhase, setTourPhase] = useState<TourPhase>(() =>
     isTourDismissed() ? "closed" : "prompt"
@@ -317,9 +377,10 @@ export function MapTool({
     }
   }, [tourTrigger]);
 
-  // Al cambiar de pestaña, el cajón derecho ya no corresponde y el visor cambia de modo.
+  // Al cambiar de pestaña: en Simulación abre de inmediato Escenario · Fase 2
+  // (con controles globales, clima en vivo y salidas 48 h); en Calendario cierra el cajón previo.
   useEffect(() => {
-    setRightOpen(null);
+    setRightOpen(tab === "simulacion" ? "escenario" : null);
     if (prevTabRef.current === tab) return;
     prevTabRef.current = tab;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -862,6 +923,38 @@ export function MapTool({
       : periodLabel;
 
   useEffect(() => {
+    const outsideUcayali =
+      activeSimPoint !== null &&
+      (activeSimPoint[0] < -11.6 ||
+        activeSimPoint[0] > -7.1 ||
+        activeSimPoint[1] < -76.2 ||
+        activeSimPoint[1] > -70.3);
+    const inGlobalSim =
+      tab === "simulacion" &&
+      activeSimPoint !== null &&
+      (outsideUcayali || Boolean(simLocation?.header_primary) || Boolean(globalTelemetry?.coordsLabel) || Boolean(spread));
+
+    if (inGlobalSim && activeSimPoint) {
+      const resolvedPrimary =
+        simLocation?.status === "ok" && simLocation.header_primary
+          ? simLocation.header_primary
+          : outsideUcayali
+            ? "GLOBAL · AOI"
+            : departmentName ?? "UCAYALI";
+      const resolvedSub =
+        simLocation?.status === "ok" && simLocation.header_sub
+          ? simLocation.header_sub
+          : globalTelemetry?.coordsLabel ?? formatLatLon(activeSimPoint, 2);
+      onContextChange?.({
+        department: resolvedPrimary,
+        territoryName: resolvedSub,
+        territoryType,
+        dateLabel: `${spreadParams.horizonHours} H · FASE 2`,
+        dateIso: `${year}-${pad2(month)}-${pad2(day)}`,
+      });
+      return;
+    }
+
     onContextChange?.({
       department: departmentName,
       territoryName,
@@ -869,7 +962,22 @@ export function MapTool({
       dateLabel: navDateLabel,
       dateIso: `${year}-${pad2(month)}-${pad2(day)}`,
     });
-  }, [onContextChange, departmentName, territoryName, territoryType, navDateLabel, year, month, day]);
+  }, [
+    onContextChange,
+    tab,
+    activeSimPoint,
+    simLocation,
+    globalTelemetry,
+    spread,
+    spreadParams.horizonHours,
+    departmentName,
+    territoryName,
+    territoryType,
+    navDateLabel,
+    year,
+    month,
+    day,
+  ]);
 
   /* --------------------------------------------------------- apuntar ---- */
 
@@ -994,23 +1102,181 @@ export function MapTool({
   );
 
   /* -------------------------------------------------------- simulacion --- */
-  const runSpread = useCallback(() => {
-    const area = ring;
-    if (!area || !ignition) return;
-    setSpreadRunning(true);
-    setPlaying(false);
-    requestAnimationFrame(() => {
+  const executeSpreadAt = useCallback(
+    async (area: LatLon[], ignPt: LatLon, baseParams: SpreadParams) => {
+      const seq = ++spreadSeqRef.current;
+      setSpreadRunning(true);
+      setPlaying(false);
       try {
-        const r = simulateSpread({ ring: area, ignition, ...spreadParams });
+        const simPayload: Record<string, unknown> = {
+          lat: ignPt[0],
+          lon: ignPt[1],
+          date: dateIso,
+          horizon_h: Math.max(6, Math.min(48, Math.round(baseParams.horizonHours))),
+          wind_speed_10m_ms: baseParams.windSpeedMs,
+          wind_dir_deg: baseParams.windDirDeg,
+          vegetation_pct: baseParams.vegetationPct,
+          fuel_moisture_pct: baseParams.fuelMoisturePct,
+          use_open_meteo: true,
+        };
+        if (slopeEditedRef.current) {
+          simPayload.slope_mean_deg = baseParams.slopeMeanDeg;
+        }
+
+        const remote = await postSpreadSimulate(simPayload);
+        if (seq !== spreadSeqRef.current) return;
+
+        const remoteSlope = remote?.slope_summary?.mean_deg;
+        const hasRemoteSlope =
+          !slopeEditedRef.current &&
+          typeof remoteSlope === "number" &&
+          Number.isFinite(remoteSlope);
+
+        const effectiveParams: SpreadParams = {
+          ...baseParams,
+          slopeMeanDeg: hasRemoteSlope ? remoteSlope : baseParams.slopeMeanDeg,
+        };
+
+        if (hasRemoteSlope) {
+          const roundedSlope = Math.min(35, Math.max(0, Math.round(remoteSlope)));
+          setSpreadParams((prev) =>
+            prev.slopeMeanDeg === roundedSlope ? prev : { ...prev, slopeMeanDeg: roundedSlope }
+          );
+        }
+
+        const r = simulateSpread({ ring: area, ignition: ignPt, ...effectiveParams });
+        const extraAssumptions: string[] = [];
+
+        if (remote) {
+          const demSource = remote.slope_summary?.dem_source ?? remote.data_sources?.dem_source;
+          const windSource = remote.data_sources?.wind_source;
+          if (demSource) {
+            extraAssumptions.push(
+              typeof remoteSlope === "number" && Number.isFinite(remoteSlope)
+                ? `${demSource} (pendiente ${remoteSlope.toFixed(1)}°)`
+                : demSource
+            );
+          }
+          if (windSource) {
+            extraAssumptions.push(
+              remote.dominant_wind
+                ? `Clima global: ${windSource} (${remote.dominant_wind.wind_speed_10m_ms.toFixed(1)} m/s · ${Math.round(remote.dominant_wind.wind_dir_deg)}°)`
+                : `Clima global: ${windSource}`
+            );
+          }
+          setGlobalTelemetry((prev) => ({
+            ...(prev ?? {}),
+            demSource: demSource ?? prev?.demSource,
+            slopeDeg:
+              typeof remoteSlope === "number" && Number.isFinite(remoteSlope)
+                ? remoteSlope
+                : prev?.slopeDeg,
+            weatherSource: windSource ?? prev?.weatherSource,
+            windInfo: remote.dominant_wind
+              ? `${remote.dominant_wind.wind_speed_10m_ms.toFixed(1)} m/s · ${Math.round(remote.dominant_wind.wind_dir_deg)}°`
+              : prev?.windInfo,
+            coordsLabel: formatLatLon(ignPt, 3),
+          }));
+        } else {
+          extraAssumptions.push(
+            "Modo offline local: relieve y combustible sintéticos (/api/v1/spread-simulate no disponible)."
+          );
+          setGlobalTelemetry((prev) => ({
+            ...(prev ?? {}),
+            demSource: prev?.demSource ?? "Relieve sintético local (offline)",
+            coordsLabel: formatLatLon(ignPt, 3),
+          }));
+        }
+
+        if (extraAssumptions.length > 0) {
+          r.assumptions = [...extraAssumptions, ...r.assumptions];
+        }
+
         setSpread(r);
-        setSpreadTime(spreadParams.horizonHours);
+        setSpreadTime(effectiveParams.horizonHours);
         setPlaying(true);
         setRightOpen("resultado");
       } finally {
-        setSpreadRunning(false);
+        if (seq === spreadSeqRef.current) setSpreadRunning(false);
       }
-    });
-  }, [ring, ignition, spreadParams]);
+    },
+    [dateIso]
+  );
+
+  const runSpread = useCallback(async () => {
+    if (!ring || !ignition) return;
+    await executeSpreadAt(ring, ignition, spreadParams);
+  }, [ring, ignition, spreadParams, executeSpreadAt]);
+
+  const quickSimulateAt = useCallback(
+    async (lat: number, lon: number) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const halfKm = 3.5;
+      const dLat = halfKm / 111;
+      const dLon = halfKm / (111.32 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+      const south = Math.max(-89.9, lat - dLat);
+      const north = Math.min(89.9, lat + dLat);
+      const west = Math.max(-179.9, lon - dLon);
+      const east = Math.min(179.9, lon + dLon);
+      const demoRing: LatLon[] = [
+        [south, west],
+        [south, east],
+        [north, east],
+        [north, west],
+      ];
+      const ignPt: LatLon = [lat, lon];
+
+      slopeEditedRef.current = false;
+      setMode("pan");
+      setRing(demoRing);
+      setIgnition(ignPt);
+
+      setEnvLoading(true);
+      let nextParams: SpreadParams = { ...spreadParams, horizonHours: 48 };
+      try {
+        const rt = await fetchRealtimeArea({ south, west, north, east }, 3);
+        const w = rt?.weather;
+        const weatherOk = w?.status === "ok";
+        if (weatherOk) {
+          if (typeof w?.wind_speed_10m_ms === "number" && Number.isFinite(w.wind_speed_10m_ms)) {
+            nextParams.windSpeedMs = Math.max(0, Math.min(18, Number(w.wind_speed_10m_ms.toFixed(1))));
+          }
+          if (typeof w?.wind_dir_deg === "number" && Number.isFinite(w.wind_dir_deg)) {
+            nextParams.windDirDeg = Math.round(((w.wind_dir_deg % 360) + 360) % 360);
+          }
+          if (typeof w?.relative_humidity_2m_pct === "number" && Number.isFinite(w.relative_humidity_2m_pct)) {
+            nextParams.fuelMoisturePct = Math.max(4, Math.min(18, Math.round(4 + w.relative_humidity_2m_pct * 0.18)));
+          }
+          setEnvApplied(true);
+        }
+        setSpreadParams(nextParams);
+        const firmsAvail = rt?.hotspots_status === "ok" || rt?.hotspots_status === "partial";
+        const firmsTotal = firmsAvail
+          ? Object.values(rt?.counts_by_sensor ?? {}).reduce((a, b) => a + b, 0)
+          : undefined;
+        if (rt?.location?.status === "ok") {
+          const geoKey = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+          geoCacheRef.current.set(geoKey, rt.location);
+          setSimLocation(rt.location);
+        }
+        setGlobalTelemetry({
+          locationLabel: rt?.location?.display_name ?? undefined,
+          weatherSource: weatherOk ? w?.source ?? "Open-Meteo" : undefined,
+          windInfo: `${nextParams.windSpeedMs.toFixed(1)} m/s · ${Math.round(nextParams.windDirDeg)}°`,
+          tempC: typeof w?.t_amb_c === "number" ? w.t_amb_c : null,
+          rhPct: typeof w?.relative_humidity_2m_pct === "number" ? w.relative_humidity_2m_pct : null,
+          firmsStatus: rt?.hotspots_status,
+          firmsTotal,
+          coordsLabel: formatLatLon(ignPt, 3),
+        });
+      } finally {
+        setEnvLoading(false);
+      }
+
+      await executeSpreadAt(demoRing, ignPt, nextParams);
+    },
+    [spreadParams, executeSpreadAt]
+  );
 
   const rafRef = useRef<number | null>(null);
   useEffect(() => {
@@ -1038,37 +1304,140 @@ export function MapTool({
   }, [playing, spread, spreadParams.horizonHours]);
 
   /**
-   * Lleva a la simulación el viento del día y los factores del árbol de
-   * decisión, que es lo que la arquitectura v1.2 §12.1 manda reutilizar en
-   * Fase 2 en vez de pedir variables nuevas.
+   * Lleva a la simulación clima global en vivo (Open-Meteo + FIRMS) y, si
+   * la coordenada cae dentro de Ucayali, combina vegetación/pendiente/lluvia
+   * del árbol de decisión de Fase 1 manteniendo desacoplados los contratos.
    */
-  const applyEnvToSpread = useCallback(() => {
-    const factors = summary?.environmental_conditions.factors ?? [];
-    const num = (name: string): number | null => {
-      const f = factors.find((x) => x.variable === name);
-      return typeof f?.value === "number" ? f.value : null;
-    };
+  const applyEnvToSpread = useCallback(async () => {
+    const seq = ++envSeqRef.current;
+    setEnvLoading(true);
+    try {
+      const activeCoord: LatLon | null =
+        ignition ?? (ring && ring.length >= 3 ? ringCentroid(ring) : territoryCenter);
 
-    setSpreadParams((p) => {
-      const veg = num("vegetation_area_pct") ?? num("effective_vegetation_area_pct");
-      const slopePct = num("slope_class_area_pct") ?? num("slope_pct");
-      const precip = num("precip_30d_mm");
-      return {
-        ...p,
-        windSpeedMs: dayRow?.wind_speed_10m_ms ?? p.windSpeedMs,
-        windDirDeg: dayRow?.wind_dir_deg ?? p.windDirDeg,
-        vegetationPct: veg ?? p.vegetationPct,
-        // El árbol informa pendiente en porcentaje; la simulación la usa en
-        // grados.
-        slopeMeanDeg: slopePct !== null ? Math.round((Math.atan(slopePct / 100) * 180) / Math.PI) : p.slopeMeanDeg,
-        // Sin humedad de combustible medida, se aproxima con la lluvia de los
-        // 30 días previos y se acota al rango útil del modelo.
-        fuelMoisturePct:
-          precip !== null ? Math.max(4, Math.min(28, Math.round(4 + precip * 0.18))) : p.fuelMoisturePct,
+      let rt: RealtimeAreaResponse | null = null;
+      if ((ring && ring.length >= 3) || ignition) {
+        const rawBbox =
+          ring && ring.length >= 3
+            ? ringBounds(ring)
+            : {
+                south: ignition![0] - 0.2,
+                west: ignition![1] - 0.2,
+                north: ignition![0] + 0.2,
+                east: ignition![1] + 0.2,
+              };
+        const pad = 0.05;
+        const south = Math.max(-89.9, rawBbox.south === rawBbox.north ? rawBbox.south - pad : rawBbox.south);
+        const north = Math.min(89.9, rawBbox.south === rawBbox.north ? rawBbox.north + pad : rawBbox.north);
+        const west = Math.max(-179.9, rawBbox.west === rawBbox.east ? rawBbox.west - pad : rawBbox.west);
+        const east = Math.min(179.9, rawBbox.west === rawBbox.east ? rawBbox.east + pad : rawBbox.east);
+        if (south < north && west < east) {
+          rt = await fetchRealtimeArea({ south, west, north, east }, 3);
+        }
+      }
+      if (seq !== envSeqRef.current) return;
+
+      const inUcayali = activeCoord
+        ? activeCoord[0] >= -11.8 &&
+          activeCoord[0] <= -7.0 &&
+          activeCoord[1] >= -76.2 &&
+          activeCoord[1] <= -70.3
+        : Boolean(summary || dayRow);
+
+      const factors = inUcayali ? summary?.environmental_conditions.factors ?? [] : [];
+      const num = (name: string): number | null => {
+        const f = factors.find((x) => x.variable === name);
+        return typeof f?.value === "number" ? f.value : null;
       };
-    });
-    setEnvApplied(true);
-  }, [summary, dayRow]);
+
+      const weatherOk = rt?.weather?.status === "ok";
+      const liveWindMs =
+        weatherOk && typeof rt?.weather.wind_speed_10m_ms === "number"
+          ? rt.weather.wind_speed_10m_ms
+          : null;
+      const liveWindDir =
+        weatherOk && typeof rt?.weather.wind_dir_deg === "number"
+          ? rt.weather.wind_dir_deg
+          : null;
+      const liveRh =
+        weatherOk && typeof rt?.weather.relative_humidity_2m_pct === "number"
+          ? rt.weather.relative_humidity_2m_pct
+          : null;
+      const liveTemp =
+        weatherOk && typeof rt?.weather.t_amb_c === "number" ? rt.weather.t_amb_c : null;
+
+      const veg = inUcayali
+        ? num("vegetation_area_pct") ?? num("effective_vegetation_area_pct")
+        : null;
+      const slopePct = inUcayali ? num("slope_class_area_pct") ?? num("slope_pct") : null;
+      const precip = inUcayali ? num("precip_30d_mm") : null;
+
+      const nextWindMs =
+        liveWindMs ??
+        (inUcayali ? dayRow?.wind_speed_10m_ms ?? spreadParams.windSpeedMs : spreadParams.windSpeedMs);
+      const nextWindDir =
+        liveWindDir ??
+        (inUcayali ? dayRow?.wind_dir_deg ?? spreadParams.windDirDeg : spreadParams.windDirDeg);
+
+      let nextFuelMoisture = spreadParams.fuelMoisturePct;
+      if (inUcayali && precip !== null) {
+        nextFuelMoisture = Math.max(4, Math.min(28, Math.round(4 + precip * 0.18)));
+      } else if (liveRh !== null) {
+        nextFuelMoisture = Math.max(4, Math.min(28, Math.round(4 + liveRh * 0.24)));
+      }
+
+      const nextSlope =
+        slopePct !== null
+          ? Math.round((Math.atan(slopePct / 100) * 180) / Math.PI)
+          : spreadParams.slopeMeanDeg;
+      if (slopePct !== null) {
+        slopeEditedRef.current = false;
+      }
+
+      setSpreadParams((p) => ({
+        ...p,
+        windSpeedMs: nextWindMs,
+        windDirDeg: nextWindDir,
+        vegetationPct: veg ?? p.vegetationPct,
+        slopeMeanDeg: slopePct !== null ? nextSlope : p.slopeMeanDeg,
+        fuelMoisturePct: nextFuelMoisture,
+      }));
+
+      const firmsAvailable =
+        rt?.hotspots_status === "ok" || rt?.hotspots_status === "partial";
+      const firmsTotal = firmsAvailable
+        ? Object.values(rt?.counts_by_sensor ?? {}).reduce((a, b) => a + b, 0)
+        : undefined;
+
+      setGlobalTelemetry((prev) => ({
+        ...(prev ?? {}),
+        weatherSource: weatherOk
+          ? rt?.weather.source ?? "Open-Meteo"
+          : inUcayali && (dayRow || summary)
+            ? "Ucayali / ERA5-Land (local)"
+            : undefined,
+        windInfo: `${nextWindMs.toFixed(1)} m/s · ${Math.round(nextWindDir)}°`,
+        tempC: liveTemp ?? (inUcayali ? dayRow?.t_amb_c ?? null : null),
+        rhPct: liveRh,
+        firmsStatus: rt?.hotspots_status,
+        firmsTotal,
+        coordsLabel: activeCoord ? formatLatLon(activeCoord, 3) : undefined,
+      }));
+      setEnvApplied(true);
+    } finally {
+      if (seq === envSeqRef.current) setEnvLoading(false);
+    }
+  }, [
+    ignition,
+    ring,
+    territoryCenter,
+    summary,
+    dayRow,
+    spreadParams.windSpeedMs,
+    spreadParams.windDirDeg,
+    spreadParams.fuelMoisturePct,
+    spreadParams.slopeMeanDeg,
+  ]);
 
   const visibleSpread = tab === "simulacion" ? spread : null;
   const isHighSusceptibility =
@@ -1171,8 +1540,8 @@ export function MapTool({
             spreadHorizon={spreadParams.horizonHours}
             baseLayer={baseLayer}
             onBaseLayer={setBaseLayer}
-            windDirDeg={dayRow?.wind_dir_deg ?? null}
-            windSpeedMs={dayRow?.wind_speed_10m_ms ?? null}
+            windDirDeg={envApplied ? spreadParams.windDirDeg : dayRow?.wind_dir_deg ?? null}
+            windSpeedMs={envApplied ? spreadParams.windSpeedMs : dayRow?.wind_speed_10m_ms ?? null}
             showWind={tab === "simulacion"}
             relayoutKey={`${leftOpen ?? ""}|${rightOpen ?? ""}|${showCalendar}`}
           >
@@ -1277,6 +1646,9 @@ export function MapTool({
               onClose={() => setRightOpen(null)}
               params={spreadParams}
               onParams={(p) => {
+                if (p.slopeMeanDeg !== spreadParams.slopeMeanDeg) {
+                  slopeEditedRef.current = true;
+                }
                 setSpreadParams(p);
                 setEnvApplied(false);
               }}
@@ -1291,11 +1663,24 @@ export function MapTool({
                 setSpreadTime(t);
               }}
               onRun={runSpread}
+              onQuickSimulate={quickSimulateAt}
               onPlayPause={() => setPlaying((v) => !v)}
               playing={playing}
               envApplied={envApplied}
               onApplyEnv={applyEnvToSpread}
-              hasEnv={Boolean(summary)}
+              hasEnv={Boolean(summary || ring || ignition)}
+              envLoading={envLoading}
+              globalTelemetry={
+                globalTelemetry || simLocation?.display_name
+                  ? {
+                      ...(globalTelemetry ?? {}),
+                      locationLabel: simLocation?.display_name ?? globalTelemetry?.locationLabel,
+                      coordsLabel:
+                        globalTelemetry?.coordsLabel ??
+                        (activeSimPoint ? formatLatLon(activeSimPoint, 3) : undefined),
+                    }
+                  : null
+              }
               center={territoryCenter}
               dateIso={dateIso}
             />
@@ -1331,8 +1716,10 @@ export function MapTool({
 
       <GuidedTour
         phase={suspendTour ? "closed" : tourPhase}
+        steps={tab === "simulacion" ? SPREAD_TOUR_STEPS : MAP_TOUR_STEPS}
         onStart={() => {
-          setShowCalendar(true);
+          if (tab === "simulacion") setRightOpen("escenario");
+          else setShowCalendar(true);
           setTourPhase("tour");
         }}
         onDismiss={(dontShowAgain) => {

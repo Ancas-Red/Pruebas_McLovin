@@ -99,9 +99,12 @@ export function isAbort(e: unknown): boolean {
 /* -------------------------------------------------------------------------- */
 
 /** Une el `signal` de quien llama con un plazo propio. */
-function withTimeout(signal?: AbortSignal): { signal: AbortSignal; done: () => void } {
+function withTimeout(
+  signal?: AbortSignal,
+  timeoutMs = TIMEOUT_MS
+): { signal: AbortSignal; done: () => void } {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const relay = () => ctrl.abort();
   if (signal) {
     if (signal.aborted) ctrl.abort();
@@ -418,6 +421,140 @@ export function fetchHotspots(
     { date: q.date, sensor: q.sensor },
     signal
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* 10 · Fase 2 / tiempo real global (desacoplado de Fase 1)                   */
+/* -------------------------------------------------------------------------- */
+
+export interface ReverseGeocodeLocation {
+  status: string;
+  source?: string;
+  country?: string | null;
+  country_code?: string | null;
+  region?: string | null;
+  province?: string | null;
+  city?: string | null;
+  district?: string | null;
+  hierarchy?: string[];
+  header_primary?: string | null;
+  header_sub?: string | null;
+  display_name?: string | null;
+}
+
+export interface RealtimeAreaResponse {
+  location?: ReverseGeocodeLocation;
+  weather: {
+    status?: string;
+    source?: string;
+    observed_at?: string;
+    t_amb_c?: number | null;
+    relative_humidity_2m_pct?: number | null;
+    wind_speed_10m_ms?: number | null;
+    wind_dir_deg?: number | null;
+  };
+  hotspots_status: string;
+  counts_by_sensor: Record<string, number>;
+}
+
+export interface SpreadSimulateResponse {
+  territory?: { type: string; id: string; name: string };
+  date?: string;
+  horizon_h?: number;
+  dominant_wind?: { wind_dir_deg: number; wind_speed_10m_ms: number };
+  slope_summary?: { mean_deg?: number; max_deg?: number; dem_source?: string };
+  savi_summary?: { mean?: number; p90?: number; source?: string };
+  data_sources?: { wind_source?: string; dem_source?: string; vegetation_index?: string };
+  timings_s?: Record<string, number>;
+}
+
+const PHASE2_REALTIME_TIMEOUT_MS = 6000;
+const PHASE2_SIMULATE_TIMEOUT_MS = 6500;
+
+const PHASE2_GEOCODE_TIMEOUT_MS = 5000;
+
+/**
+ * Resuelve país, región/estado, provincia/condado y ciudad/distrito vía OSM Nominatim.
+ */
+export async function fetchReverseGeocode(
+  lat: number,
+  lon: number,
+  signal?: AbortSignal
+): Promise<ReverseGeocodeLocation | null> {
+  const { signal: s, done } = withTimeout(signal, PHASE2_GEOCODE_TIMEOUT_MS);
+  try {
+    const res = await fetch(apiUrl("/reverse-geocode", { lat, lon }), {
+      signal: s,
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ReverseGeocodeLocation;
+  } catch {
+    return null;
+  } finally {
+    done();
+  }
+}
+
+/**
+ * Consulta clima global (Open-Meteo) y focos NRT (NASA FIRMS) para cualquier bbox.
+ * Nunca propaga excepciones ni bloquea la UI si el backend o red externa están caídos.
+ */
+export async function fetchRealtimeArea(
+  bbox: { south: number; west: number; north: number; east: number },
+  days = 3,
+  signal?: AbortSignal
+): Promise<RealtimeAreaResponse | null> {
+  const { signal: s, done } = withTimeout(signal, PHASE2_REALTIME_TIMEOUT_MS);
+  try {
+    const res = await fetch(
+      apiUrl("/realtime/area", {
+        south: bbox.south,
+        west: bbox.west,
+        north: bbox.north,
+        east: bbox.east,
+        days,
+      }),
+      {
+        signal: s,
+        headers: { Accept: "application/json" },
+      }
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as RealtimeAreaResponse;
+  } catch {
+    return null;
+  } finally {
+    done();
+  }
+}
+
+/**
+ * Simulación global Fase 2 vía `/api/v1/spread-simulate` (Open-Meteo + Copernicus GLO-90 DEM).
+ * Devuelve `null` ante error HTTP, timeout (~6.5 s) o caída de red para habilitar fallback local.
+ */
+export async function postSpreadSimulate(
+  body: Record<string, unknown>,
+  signal?: AbortSignal
+): Promise<SpreadSimulateResponse | null> {
+  const { signal: s, done } = withTimeout(signal, PHASE2_SIMULATE_TIMEOUT_MS);
+  try {
+    const res = await fetch(apiUrl("/spread-simulate"), {
+      method: "POST",
+      signal: s,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as SpreadSimulateResponse;
+  } catch {
+    return null;
+  } finally {
+    done();
+  }
 }
 
 /* -------------------------------------------------------------------------- */
