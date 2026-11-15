@@ -357,29 +357,6 @@
   }
 }
 
-/* --- Objetivo ------------------------------------------------------------- */
-
-.goal {
-  margin: 30px 0 0;
-  padding: 18px 20px 20px;
-  border-left: 2px solid var(--acid);
-  background: rgba(216, 255, 51, 0.045);
-}
-.goal__tag {
-  display: block;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--acid);
-  margin-bottom: 8px;
-}
-.goal p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.72;
-  color: var(--fg);
-}
-
 /* --- Alcance -------------------------------------------------------------- */
 
 .scope {

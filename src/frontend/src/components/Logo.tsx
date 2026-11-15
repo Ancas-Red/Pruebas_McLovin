@@ -20,9 +20,74 @@ interface Props {
   tone?: "light" | "dark" | "auto";
   /** Disco de contraste detrás, cuando el fondo es una imagen. */
   plate?: boolean;
+  /**
+   * Fuerza la versión reducida. Por defecto se decide por el tamaño: por
+   * debajo de 44 px la marca completa no cabe (ver `Compact`).
+   */
+  compact?: boolean;
 }
 
-export function Logo({ size = 34, tone = "light", plate = false }: Props) {
+export function Logo({ size = 34, tone = "light", plate = false, compact }: Props) {
+  const reduced = compact ?? size < 44;
+  if (reduced) return <Compact size={size} tone={tone} plate={plate} />;
+  return <Full size={size} tone={tone} plate={plate} />;
+}
+
+/**
+ * Versión reducida, para la cabecera y cualquier uso por debajo de ~44 px.
+ *
+ * A ese tamaño la marca completa se apelmaza: las dos órbitas, el satélite,
+ * los tres paralelos y los dos meridianos caen dentro de 30 px y el conjunto
+ * deja de leerse como un planeta; se ve como una mancha con rayas. Eso era lo
+ * que estaba feo en la cabecera.
+ *
+ * Aquí se conserva solo lo que sobrevive a ese tamaño —disco, un meridiano,
+ * tres paralelos y la brasa— con trazos proporcionalmente más gruesos. La
+ * brasa crece y se separa del borde, porque es el único elemento que dice de
+ * qué va la plataforma.
+ */
+function Compact({ size, tone, plate }: Required<Omit<Props, "compact">>) {
+  const color = tone === "light" ? "#fff" : tone === "dark" ? "#000" : "currentColor";
+  const plateFill = tone === "light" ? "#000" : "#fff";
+
+  return (
+    <svg
+      className={`logo logo--compact logo--${tone}`}
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      role="img"
+      aria-label="McHanaq"
+      fill="none"
+      style={{ color }}
+    >
+      {plate && <circle cx="32" cy="32" r="32" fill={plateFill} opacity="0.62" />}
+
+      <defs>
+        <clipPath id="mcq-mini">
+          <circle cx="32" cy="32" r="20" />
+        </clipPath>
+      </defs>
+
+      {/* Aro de aire: separa la marca del fondo sin añadir trazo. */}
+      <circle cx="32" cy="32" r="26" fill="currentColor" opacity="0.06" />
+
+      <g stroke="currentColor" fill="none" strokeLinecap="round">
+        <circle cx="32" cy="32" r="20" strokeWidth="3" />
+        <g clipPath="url(#mcq-mini)" strokeWidth="2.1" opacity="0.5">
+          <path d="M12 24h40M12 32h40M12 40h40" />
+        </g>
+        <ellipse cx="32" cy="32" rx="8.6" ry="20" strokeWidth="2.1" opacity="0.45" />
+      </g>
+
+      {/* La brasa, con su propio hueco para que no se funda con los paralelos. */}
+      <circle cx="40" cy="41.5" r="7.2" fill={plate ? plateFill : tone === "light" ? "#000" : "#fff"} />
+      <circle cx="40" cy="41.5" r="4.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function Full({ size, tone, plate }: Required<Omit<Props, "compact">>) {
   const color = tone === "light" ? "#fff" : tone === "dark" ? "#000" : "currentColor";
   const plateFill = tone === "light" ? "#000" : "#fff";
 

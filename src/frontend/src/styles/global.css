@@ -5,21 +5,33 @@
    ========================================================================== */
 
 :root {
-  /* Superficies */
-  --bg: #000000;
-  --surface-0: #070707;
-  --surface-1: #0d0d0d;
-  --surface-2: #141414;
-  --surface-3: #1b1b1b;
+  /* Superficies.
+
+     Verde muy oscuro y desaturado en vez de gris neutro. Dos razones, y
+     ninguna es decorativa: el tema del proyecto es fuego sobre vegetación, y
+     el acento ácido (#d8ff33) ya es un amarillo-verde, de modo que sobre una
+     base verde deja de parecer un color suelto. Además los escalones se
+     separan más entre sí que los grises de antes (#0d → #14 → #1b casi no se
+     distinguían), que es lo que hacía que los paneles superpuestos se
+     fundieran unos con otros.
+
+     El verde se queda en el armazón. El dato sigue usando Cividis e Inferno
+     sin tocar: son las rampas aptas para daltonismo que exige la
+     arquitectura, y teñirlas rompería la lectura. */
+  --bg: #040806;
+  --surface-0: #07100b;
+  --surface-1: #0c1810;
+  --surface-2: #1a2c20;
+  --surface-3: #27402e;
 
   /* Lineas */
-  --line: #232323;
-  --line-strong: #343434;
+  --line: #27402e;
+  --line-strong: #3e6249;
 
   /* Texto */
-  --fg: #ededed;
-  --fg-dim: #9a9a9a;
-  --fg-faint: #5e5e5e;
+  --fg: #eef3ec;
+  --fg-dim: #a2b3a6;
+  --fg-faint: #6c7d71;
 
   /* Acentos */
   --acid: #d8ff33;
@@ -28,6 +40,11 @@
   --ember-dim: #a32c12;
   --term: #39e08a;
   --warn: #ffb224;
+
+  /* Verdes de apoyo: fondos de realce, estados y el velo del mapa. */
+  --moss: #16301f;
+  --moss-strong: #275436;
+  --canopy: #0a1a10;
 
   /* Rampa secuencial perceptualmente uniforme (inferno).
      Segura para daltonismo y legible sobre fondo negro. */
@@ -820,6 +837,51 @@ input[type="range"]:focus-visible {
   font-size: 9.5px !important;
   border-radius: 0 !important;
 }
+
+/* Globos de Leaflet -------------------------------------------------------
+
+   Sin esto se quedan con el estilo de fábrica: caja blanca, texto negro y
+   punta blanca. Sobre el mapa satelital —que es claro— el globo se perdía
+   contra el fondo, y sobre el resto de la interfaz, que es oscura, aparecía
+   como un parche. Ese era el blanco que se superponía y no se distinguía.
+   Aquí pasan a la misma caja oscura que el resto de paneles. */
+.leaflet-tooltip {
+  background: rgba(7, 16, 11, 0.96) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6) !important;
+  color: var(--fg) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+  padding: 6px 9px !important;
+  white-space: nowrap;
+}
+.leaflet-tooltip b {
+  color: var(--acid);
+  font-weight: 600;
+}
+/* La punta hereda el color de la caja: una sola declaración por lado. */
+.leaflet-tooltip-top::before {
+  border-top-color: var(--line-strong) !important;
+}
+.leaflet-tooltip-bottom::before {
+  border-bottom-color: var(--line-strong) !important;
+}
+.leaflet-tooltip-left::before {
+  border-left-color: var(--line-strong) !important;
+}
+.leaflet-tooltip-right::before {
+  border-right-color: var(--line-strong) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgba(7, 16, 11, 0.97) !important;
+  color: var(--fg) !important;
+  border-radius: 0 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65) !important;
+}
 /* Tema oscuro a partir de teselas claras: invertir y desaturar.
    Evita depender de un proveedor que pida clave de API. */
 .tilePane--dark {
@@ -858,11 +920,18 @@ input[type="range"]:focus-visible {
 .ov--bl {
   bottom: 26px;
   left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Si se juntan muchas claves, la columna cede por arriba y no tapa la barra
+     de estado ni se sale del mapa. */
+  max-height: calc(100% - 80px);
+  overflow: hidden;
 }
 
 .toolbar {
   display: flex;
-  background: rgba(7, 7, 7, 0.93);
+  background: rgba(7, 16, 11, 0.94);
   border: 1px solid var(--line-strong);
   backdrop-filter: blur(7px);
 }
@@ -883,7 +952,7 @@ input[type="range"]:focus-visible {
 
 
 .hud {
-  background: rgba(7, 7, 7, 0.93);
+  background: rgba(7, 16, 11, 0.94);
   border: 1px solid var(--line-strong);
   backdrop-filter: blur(7px);
   padding: 9px 11px;
@@ -910,7 +979,7 @@ input[type="range"]:focus-visible {
 }
 
 .legend {
-  background: rgba(7, 7, 7, 0.93);
+  background: rgba(7, 16, 11, 0.94);
   border: 1px solid var(--line-strong);
   backdrop-filter: blur(7px);
   padding: 9px 11px;
@@ -956,6 +1025,131 @@ input[type="range"]:focus-visible {
   width: 11px;
   height: 11px;
   flex: none;
+}
+/* Las clases cualitativas van pegadas al título: no hay rampa que separar. */
+.legend__items--flush {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+/* «Sin datos» se separa del resto con una línea: no es un escalón más de la
+   rampa, es la ausencia de valor. */
+.legend__item--nodata {
+  margin-top: 7px;
+  border-top: 1px solid var(--line);
+  padding-top: 7px;
+  color: var(--fg-faint);
+}
+.legend--ramp .legend__title {
+  color: var(--fg-dim);
+}
+
+/* Ficha del puntero -------------------------------------------------------
+
+   Aparece al apuntar un territorio y muestra lo que respondió el backend
+   para ese territorio. Va por encima de las capas de Leaflet y no recibe el
+   puntero: si lo hiciera, se interpondría entre el ratón y el polígono que
+   la abrió, el mapa creería que el puntero salió y la ficha entraría en un
+   ciclo de abrir y cerrar. */
+.hovercard {
+  position: absolute;
+  z-index: 500;
+  width: 256px;
+  pointer-events: none;
+  background: rgba(7, 16, 11, 0.96);
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--acid);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.62);
+  padding: 9px 11px 8px;
+  animation: hovercard-in 0.13s ease-out;
+}
+@keyframes hovercard-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hovercard {
+    animation: none;
+  }
+}
+.hovercard--error {
+  border-left-color: var(--ember);
+}
+
+.hovercard__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin-bottom: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hovercard__rows {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+.hovercard__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hovercard__rows dt {
+  color: var(--fg-dim);
+  font-size: 10.5px;
+}
+.hovercard__rows dd {
+  margin: 0;
+  color: var(--fg);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.hovercard__wait {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  padding: 3px 0 4px;
+}
+.hovercard__wait--err {
+  color: var(--ember);
+}
+.hovercard__spark {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  background: var(--acid);
+  animation: spark 0.9s steps(2, end) infinite;
+}
+@keyframes spark {
+  50% {
+    opacity: 0.2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hovercard__spark {
+    animation: none;
+  }
+}
+
+.hovercard__foot {
+  margin-top: 7px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
 }
 
 /* Calendario ------------------------------------------------------------- */

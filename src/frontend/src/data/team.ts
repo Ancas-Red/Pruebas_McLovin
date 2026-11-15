@@ -27,8 +27,7 @@ export const TEAM: Member[] = [
     slug: "angelo",
     name: "Angelo",
     role: "Procesamiento geoespacial",
-    blurb:
-      "Lidera Google Earth Engine: extrae los focos de MODIS y VIIRS, decodifica la calidad de cada producto y agrega los resultados por territorio.",
+    blurb: "Extrae los focos en Earth Engine y los agrega por territorio.",
     tags: ["Earth Engine", "QA de sensores", "Agregación zonal"],
     branch: "feature/gee-data-pipeline",
   },
@@ -36,8 +35,7 @@ export const TEAM: Member[] = [
     slug: "tom",
     name: "Tom",
     role: "Analítica y armonización",
-    blurb:
-      "Convierte las tablas en indicadores: tasas normalizadas, persistencia, anomalías estacionales y el árbol de susceptibilidad.",
+    blurb: "Convierte las tablas en tasas, anomalías y el árbol de susceptibilidad.",
     tags: ["Python", "Anomalías", "Árbol de reglas"],
     branch: "feature/analytics-engine",
   },
@@ -45,8 +43,7 @@ export const TEAM: Member[] = [
     slug: "jhan",
     name: "Jhan",
     role: "Backend e integración",
-    blurb:
-      "Construye la API de solo lectura que entrega los resultados ya calculados y mantiene el contrato entre los módulos.",
+    blurb: "Construye la API de solo lectura y mantiene el contrato entre módulos.",
     tags: ["FastAPI", "Contrato REST", "Integración"],
     branch: "feature/api-backend",
   },
@@ -54,8 +51,7 @@ export const TEAM: Member[] = [
     slug: "sebastian",
     name: "Sebastian",
     role: "Interfaz y experiencia",
-    blurb:
-      "Diseña y desarrolla la aplicación: el mapa, el calendario, las fichas territoriales y la simulación de recorrido.",
+    blurb: "Diseña y desarrolla la aplicación: mapa, calendario y simulación.",
     tags: ["React", "Leaflet", "Diseño"],
     branch: "feature/frontend-dashboard",
   },
@@ -63,8 +59,7 @@ export const TEAM: Member[] = [
     slug: "jean-pierrer",
     name: "Jean Pierrer",
     role: "Producto, calidad y relato",
-    blurb:
-      "Reúne las capas territoriales oficiales, mantiene el contrato legible, verifica la evidencia y construye la narrativa del proyecto.",
+    blurb: "Reúne las capas oficiales, verifica la evidencia y arma el relato.",
     tags: ["Fuentes", "QA de producto", "Presentación"],
     branch: "feature/product-qa-demo",
   },
