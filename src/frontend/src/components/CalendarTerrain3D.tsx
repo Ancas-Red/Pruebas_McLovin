@@ -8,8 +8,12 @@ const M_FULL = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
-const DEFAULT_YAW = -0.56;
-const DEFAULT_PITCH = 0.56;
+// Cámara mirando desde arriba y ligeramente al frente-izquierda (vista cenital-isométrica)
+const DEFAULT_YAW = -0.10;
+const DEFAULT_PITCH = 0.72;
+const DEFAULT_ZOOM = 1;
+const MIN_ZOOM = 0.55;
+const MAX_ZOOM = 2.4;
 const SUB = 3;
 
 interface Props {
@@ -91,8 +95,9 @@ export function CalendarTerrain3D({
 
   const [yaw, setYaw] = useState(DEFAULT_YAW);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [hovered, setHovered] = useState<HoveredVertex | null>(null);
-  const [size, setSize] = useState({ w: 620, h: 224 });
+  const [size, setSize] = useState({ w: 620, h: 222 });
 
   // Construye matriz base [yearIdx][monthIdx] y malla suavizada de valles/crestas
   const terrain = useMemo(() => {
@@ -143,7 +148,7 @@ export function CalendarTerrain3D({
       filled.push(rowF);
     }
 
-    return { ny, nm, gx, gz, heights, filled, rawH, hasData };
+    return { ny, nm, gx, gz, heights, filled };
   }, [years, byKey, tone]);
 
   useEffect(() => {
@@ -159,6 +164,23 @@ export function CalendarTerrain3D({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setHovered(null);
+  }, [years, byKey]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const factor = Math.exp(-e.deltaY * 0.0014);
+      setZoom((prev) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev * factor)));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
 
   const draw = useCallback(() => {
@@ -177,7 +199,6 @@ export function CalendarTerrain3D({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
-    // Fondo sutil con brillo topográfico
     const bg = ctx.createRadialGradient(w * 0.5, h * 0.45, 10, w * 0.5, h * 0.5, w * 0.65);
     bg.addColorStop(0, "rgba(255,255,255,0.03)");
     bg.addColorStop(1, "rgba(0,0,0,0)");
@@ -189,20 +210,22 @@ export function CalendarTerrain3D({
     const cosP = Math.cos(pitch);
     const sinP = Math.sin(pitch);
 
-    const fov = 3.7;
-    const camDist = 3.25;
-    const scaleBase = Math.min(w * 0.44, h * 1.12);
-    const cx = w * 0.5;
-    const cy = h * 0.59;
+    // Cámara por encima del plano (+Y arriba, mirando hacia abajo con pitch > 0):
+    // - A mayor rz0 (fondo) o mayor wy (cresta), ry aumenta -> sube en pantalla (sy menor)
+    // - A mayor wy (cresta), rz disminuye -> queda más cerca de la cámara superior
+    const fov = 8.0;
+    const camDist = 8.0;
+    const scaleBase = Math.min(w / 6.0, h / 2.55) * zoom;
+    const cx = w * 0.53;
+    const cy = h * 0.53;
 
     const project = (wx: number, wy: number, wz: number): Pt3 => {
-      // Rotación Y (yaw) y X (pitch)
       const rx = wx * cosY - wz * sinY;
       const rz0 = wx * sinY + wz * cosY;
-      const ry = wy * cosP - rz0 * sinP;
-      const rz = wy * sinP + rz0 * cosP;
+      const ry = wy * cosP + rz0 * sinP;
+      const rz = -wy * sinP + rz0 * cosP;
       const depth = camDist + rz;
-      const k = fov / Math.max(0.6, depth);
+      const k = fov / Math.max(0.8, depth);
       return {
         x: wx,
         y: wy,
@@ -214,23 +237,24 @@ export function CalendarTerrain3D({
     };
 
     const { gx, gz, heights, filled } = terrain;
-    const spanX = 2.25;
-    const spanZ = 1.55;
-    const elevScale = 0.72;
+    const spanX = 4.9;
+    const spanZ = 1.5;
+    const elevScale = 0.62;
 
     const pts: Pt3[][] = [];
     for (let i = 0; i < gx; i++) {
-      const wx = ((i / Math.max(1, gx - 1)) - 0.5) * spanX;
+      const wx = (i / Math.max(1, gx - 1) - 0.5) * spanX;
       const row: Pt3[] = [];
       for (let j = 0; j < gz; j++) {
-        const wz = ((j / Math.max(1, gz - 1)) - 0.5) * spanZ;
+        // ENE al fondo (+wz), DIC al frente (-wz): coincide con la lectura arriba->abajo del 2D
+        const wz = (0.5 - j / Math.max(1, gz - 1)) * spanZ;
         const wy = heights[i][j] * elevScale;
         row.push(project(wx, wy, wz));
       }
       pts.push(row);
     }
 
-    // Recolectar caras para pintar atrás -> adelante
+    // Recolectar caras para pintar atrás -> adelante (painter's algorithm)
     const quads: {
       i: number;
       j: number;
@@ -259,10 +283,10 @@ export function CalendarTerrain3D({
 
     quads.sort((a, b) => b.depth - a.depth);
 
-    // Vector de luz direccional para acentuar crestas y sombras en valles
-    const lx = 0.36;
+    // Luz superior-frontal-izquierda para modelar crestas y valles
+    const lx = -0.34;
     const ly = 0.86;
-    const lz = -0.35;
+    const lz = -0.38;
 
     for (const q of quads) {
       const { p0, p1, p2, p3 } = q;
@@ -285,7 +309,6 @@ export function CalendarTerrain3D({
         continue;
       }
 
-      // Normal en coordenadas mundo
       const ax = p2.x - p0.x;
       const ay = p2.y - p0.y;
       const az = p2.z - p0.z;
@@ -302,7 +325,7 @@ export function CalendarTerrain3D({
       }
       const nLen = Math.hypot(nx, ny, nz) || 1;
       const dot = Math.max(0, (nx * lx + ny * ly + nz * lz) / nLen);
-      const shade = 0.76 + dot * 0.36;
+      const shade = 0.74 + dot * 0.38;
 
       const [r, g, b] = cividis(q.hAvg);
       const sr = Math.min(255, Math.round(r * shade));
@@ -311,35 +334,36 @@ export function CalendarTerrain3D({
       ctx.fillStyle = `rgb(${sr},${sg},${sb})`;
       ctx.fill();
 
-      // Líneas de contorno discretas en la grilla principal (años/meses)
       const isMajor = q.i % SUB === 0 || q.j % SUB === 0;
       ctx.strokeStyle = isMajor ? "rgba(255, 255, 255, 0.14)" : `rgba(${sr},${sg},${sb},0.55)`;
       ctx.lineWidth = isMajor ? 0.65 : 0.4;
       ctx.stroke();
     }
 
-    // Etiquetas de ejes (años en borde frontal/inferior y meses en lateral)
+    // Etiquetas de ejes sobre la base (años al frente, meses al costado izquierdo)
     ctx.font = "9px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(232, 237, 245, 0.56)";
+    ctx.fillStyle = "rgba(232, 237, 245, 0.6)";
 
-    const yearLabelZ = spanZ * 0.5 + 0.12;
+    const yearLabelZ = -spanZ * 0.5 - 0.14;
     const yearStep = years.length > 10 ? 2 : 1;
     for (let ix = 0; ix < years.length; ix += yearStep) {
-      const wx = ((ix / Math.max(1, years.length - 1)) - 0.5) * spanX;
+      const wx = (ix / Math.max(1, years.length - 1) - 0.5) * spanX;
       const lp = project(wx, 0, yearLabelZ);
       ctx.fillText(`'${String(years[ix]).slice(2)}`, lp.sx, lp.sy);
     }
 
-    const monthLabelX = -spanX * 0.5 - 0.14;
+    const monthLabelX = -spanX * 0.5 - 0.44;
+    ctx.textAlign = "right";
     for (let im = 0; im < 12; im += 2) {
-      const wz = ((im / 11) - 0.5) * spanZ;
+      const wz = (0.5 - im / 11) * spanZ;
       const lp = project(monthLabelX, 0, wz);
       ctx.fillText(M_SHORT[im], lp.sx, lp.sy);
     }
+    ctx.textAlign = "center";
 
-    // Recalcular vértices interactivos (un punto por cada año x mes) + marcadores de anomalía / selección
+    // Vértices interactivos + marcadores de anomalía fuerte
     const vertices: HoveredVertex[] = [];
     for (let ix = 0; ix < years.length; ix++) {
       const y = years[ix];
@@ -361,7 +385,6 @@ export function CalendarTerrain3D({
     }
     verticesRef.current = vertices;
 
-    // Resaltado del vértice hovered
     if (hovered) {
       const hv = vertices.find((v) => v.year === hovered.year && v.month === hovered.month);
       if (hv) {
@@ -377,18 +400,18 @@ export function CalendarTerrain3D({
     const selIx = years.indexOf(selectedYear);
     const selIm = selectedMonth - 1;
     if (selIx >= 0 && selIm >= 0 && selIm < 12) {
-      const wx = ((selIx / Math.max(1, years.length - 1)) - 0.5) * spanX;
-      const wz = ((selIm / 11) - 0.5) * spanZ;
+      const wx = (selIx / Math.max(1, years.length - 1) - 0.5) * spanX;
+      const wz = (0.5 - selIm / 11) * spanZ;
       const selCell = byKey.get(`${selectedYear}-${selectedMonth}`);
       const wy = (selCell ? tone(selCell.detections) : 0) * elevScale;
       const basePt = project(wx, 0, wz);
-      const topPt = project(wx, wy + 0.14, wz);
+      const topPt = project(wx, wy + 0.16, wz);
       const surfPt = project(wx, wy, wz);
 
       ctx.beginPath();
       ctx.moveTo(basePt.sx, basePt.sy);
       ctx.lineTo(topPt.sx, topPt.sy);
-      ctx.strokeStyle = "rgba(216, 255, 51, 0.75)";
+      ctx.strokeStyle = "rgba(216, 255, 51, 0.78)";
       ctx.lineWidth = 1.4;
       ctx.stroke();
 
@@ -400,7 +423,6 @@ export function CalendarTerrain3D({
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      // Rombo flotante
       ctx.beginPath();
       ctx.moveTo(topPt.sx, topPt.sy - 5);
       ctx.lineTo(topPt.sx + 4.5, topPt.sy);
@@ -410,11 +432,7 @@ export function CalendarTerrain3D({
       ctx.fillStyle = "#d8ff33";
       ctx.fill();
     }
-  }, [size, yaw, pitch, terrain, years, byKey, tone, selectedYear, selectedMonth, hovered]);
-
-  useEffect(() => {
-    setHovered(null);
-  }, [years, byKey]);
+  }, [size, yaw, pitch, zoom, terrain, years, byKey, tone, selectedYear, selectedMonth, hovered]);
 
   useEffect(() => {
     draw();
@@ -464,7 +482,7 @@ export function CalendarTerrain3D({
             const dy = e.clientY - dragRef.current.startY;
             if (Math.hypot(dx, dy) > 4) dragRef.current.moved = true;
             setYaw(dragRef.current.startYaw + dx * 0.009);
-            setPitch(Math.max(0.22, Math.min(1.25, dragRef.current.startPitch + dy * 0.008)));
+            setPitch(Math.max(0.24, Math.min(1.22, dragRef.current.startPitch + dy * 0.008)));
             return;
           }
           setHovered(findNearestVertex(e.clientX, e.clientY));
@@ -488,15 +506,16 @@ export function CalendarTerrain3D({
       />
 
       <div className="cal3d__hud">
-        <span className="cal3d__hint">Arrastra para rotar · Clic en cresta/valle</span>
+        <span className="cal3d__hint">Arrastra para rotar · Rueda para zoom · Clic en cresta/valle</span>
         <button
           type="button"
           className="cal3d__reset"
           onClick={() => {
             setYaw(DEFAULT_YAW);
             setPitch(DEFAULT_PITCH);
+            setZoom(DEFAULT_ZOOM);
           }}
-          title="Restaurar ángulo 3D inicial"
+          title="Restaurar ángulo y zoom 3D inicial"
         >
           ↺ Vista
         </button>

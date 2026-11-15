@@ -48,9 +48,9 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     id: "calendario",
     selector: '[data-tour="calendar-strip"]',
     fallbackSelector: '[data-tour="dock-periodo"]',
-    title: "Calendario de actividad térmica",
+    title: "Calendario de actividad térmica (2D y 3D)",
     body:
-      "La matriz muestra la serie histórica mes a mes y el gráfico inferior desglosa los días útiles del mes activo. Haz clic en una celda o barra para saltar a esa fecha.",
+      "Alterna entre 2D Calor y 3D Relieve (arrastra para rotar y usa la rueda del ratón para hacer zoom en valles y crestas), o revisa la serie diaria de días útiles. Haz clic en una celda, cresta/valle o barra para saltar a esa fecha.",
     placement: "top",
   },
   {

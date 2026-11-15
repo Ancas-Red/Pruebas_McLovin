@@ -236,7 +236,7 @@ export function MapTool({
 
   const [year, setYear] = useState(FIXTURE_LAST_YEAR);
   const [month, setMonth] = useState(FIXTURE_LAST_MONTH);
-  const [day, setDay] = useState(15);
+  const [day, setDay] = useState(31);
   /** Qué pinta el mapa: el día elegido o el mes completo. */
   const [granularity, setGranularity] = useState<"day" | "month">("day");
 
@@ -329,20 +329,8 @@ export function MapTool({
   }, [tab]);
 
   /* ----------------------------------------------------- sondeo backend -- */
-  useEffect(() => {
-    let alive = true;
-    probeBackend().then((s) => alive && onBackend(s));
-    const id = setInterval(() => probeBackend().then((s) => alive && onBackend(s)), 120_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [onBackend]);
-
-  /* -------------------------------------------------------- metadatos ---- */
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getMetadata(ctrl.signal)
+  const refreshMetadata = useCallback((signal?: AbortSignal) => {
+    getMetadata(signal)
       .then((r) => {
         setMetadata(r.data);
         setMetadataOrigin(r.origin);
@@ -353,8 +341,36 @@ export function MapTool({
           setMetadataOrigin("fixture");
         }
       });
-    return () => ctrl.abort();
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    const ctrl = new AbortController();
+    probeBackend().then((s) => {
+      if (!alive) return;
+      onBackend(s);
+      refreshMetadata(ctrl.signal);
+    });
+    const id = setInterval(() => {
+      probeBackend().then((s) => {
+        if (!alive) return;
+        onBackend(s);
+        refreshMetadata();
+      });
+    }, 120_000);
+    return () => {
+      alive = false;
+      ctrl.abort();
+      clearInterval(id);
+    };
+  }, [onBackend, refreshMetadata]);
+
+  /* -------------------------------------------------------- metadatos ---- */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    refreshMetadata(ctrl.signal);
+    return () => ctrl.abort();
+  }, [refreshMetadata]);
 
   /* ------------------------------------------------------- territorios --- */
   useEffect(() => {
@@ -408,28 +424,61 @@ export function MapTool({
   }, [availablePeriods]);
 
   const userPickedPeriodRef = useRef(false);
+  const userPickedDayRef = useRef(false);
+  const lastAutoTargetRef = useRef<string | null>(null);
+  const latestBySensorRef = useRef<Partial<Record<Sensor, string>>>({});
   const fallbackTriedPeriodsRef = useRef<Set<string>>(new Set());
 
   const handleSensor = useCallback((nextSensor: Sensor) => {
     userPickedPeriodRef.current = false;
+    userPickedDayRef.current = false;
+    lastAutoTargetRef.current = null;
     fallbackTriedPeriodsRef.current.clear();
     setSensor(nextSensor);
   }, []);
 
   const handlePeriod = useCallback((nextYear: number, nextMonth: number) => {
     userPickedPeriodRef.current = true;
+    userPickedDayRef.current = false;
     fallbackTriedPeriodsRef.current.clear();
     setYear(nextYear);
     setMonth(nextMonth);
   }, []);
 
+  const handleDay = useCallback((nextDay: number) => {
+    userPickedDayRef.current = true;
+    setDay(nextDay);
+  }, []);
+
   /**
-   * Al llegar los metadatos o cambiar de sensor/año/mes, si la fecha abierta
-   * no cae dentro de los períodos o rangos publicados del sensor activo, se
-   * ajusta automáticamente al último año/mes/día válido.
+   * Al llegar o actualizarse los metadatos (o al cambiar de sensor), ubica
+   * automáticamente la herramienta en la última fecha válida publicada si el
+   * usuario no fijó otro período, o si llegó información más reciente.
    */
   useEffect(() => {
     if (!metadata || availablePeriods.size === 0) return;
+
+    const latest = lastAvailableDate(sensor, metadata);
+    if (latest) {
+      const prevLatest = latestBySensorRef.current[sensor];
+      const hasNewerData = prevLatest !== undefined && latest > prevLatest;
+      latestBySensorRef.current[sensor] = latest;
+      const targetKey = `${sensor}|${latest}|${metadataOrigin}`;
+
+      if (hasNewerData) {
+        userPickedPeriodRef.current = false;
+        userPickedDayRef.current = false;
+      }
+
+      if (!userPickedPeriodRef.current && lastAutoTargetRef.current !== targetKey) {
+        lastAutoTargetRef.current = targetKey;
+        const { year: ly, month: lm, day: ld } = splitIso(latest);
+        if (ly !== year) setYear(ly);
+        if (lm !== month) setMonth(lm);
+        if (ld !== day) setDay(ld);
+        return;
+      }
+    }
 
     if (!validYears.includes(year)) {
       const targetYear = validYears[0];
@@ -463,15 +512,14 @@ export function MapTool({
         setDay(pubDays[pubDays.length - 1]);
         return;
       }
-      const last = lastAvailableDate(sensor, metadata);
-      if (last) {
-        const { year: y, month: m, day: d } = splitIso(last);
+      if (latest) {
+        const { year: y, month: m, day: d } = splitIso(latest);
         setYear(y);
         setMonth(m);
         setDay(d);
       }
     }
-  }, [metadata, sensor, year, month, period, dateIso, availablePeriods, validYears]);
+  }, [metadata, metadataOrigin, sensor, year, month, day, period, dateIso, availablePeriods, validYears]);
 
   /**
    * Las fechas publicadas las decide `metadata`, no esta interfaz. Si el día
@@ -622,12 +670,9 @@ export function MapTool({
     if (!ready || !metadata || dailyKey !== activeMonthKey) return;
 
     if (usefulDays.length > 0) {
-      if (!usefulDays.includes(day)) {
-        const activeDays = daily
-          .filter((r) => (r.fire_pixels_nominal_high ?? 0) > 0)
-          .map((r) => Number(r.date.slice(8)))
-          .filter((d) => usefulDays.includes(d));
-        setDay(activeDays.length > 0 ? activeDays[activeDays.length - 1] : usefulDays[usefulDays.length - 1]);
+      if (!userPickedDayRef.current || !usefulDays.includes(day)) {
+        const lastUseful = usefulDays[usefulDays.length - 1];
+        if (day !== lastUseful) setDay(lastUseful);
       }
       return;
     }
@@ -1067,7 +1112,7 @@ export function MapTool({
               month={month}
               onPeriod={handlePeriod}
               day={day}
-              onDay={setDay}
+              onDay={handleDay}
               dateIso={dateIso}
               granularity={granularity}
               onGranularity={setGranularity}
@@ -1192,7 +1237,7 @@ export function MapTool({
               selectedDate={dateIso}
               onPickDay={(d) => {
                 if (usefulDays.length > 0 && !usefulDays.includes(d)) return;
-                setDay(d);
+                handleDay(d);
                 setGranularity("day");
               }}
             />
