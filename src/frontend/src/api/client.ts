@@ -666,7 +666,16 @@ export function isAnalysisDateAvailable(date: string, meta: Metadata | null): bo
 
 /** La ficha exige las dos cosas a la vez: sensor **y** ambiental. */
 export function isSummaryDateAvailable(date: string, sensor: Sensor, meta: Metadata | null): boolean {
-  return isDateAvailable(date, sensor, meta) && isEnvDateAvailable(date, meta);
+  // La ficha se pide mientras la fecha caiga en la ventana publicada del
+  // sensor: ni la lista de "días útiles" ni la ventana ambiental deben
+  // bloquear la consulta (antes casi cualquier fecha salía «sin datos» sin
+  // siquiera preguntarle al backend). El backend devuelve lo que tenga.
+  if (!meta) return false;
+  const rng = meta.available_date_ranges_by_sensor?.[sensor];
+  if (rng?.length) return inRanges(date, rng);
+  const periods = meta.available_periods_by_sensor?.[sensor];
+  if (periods?.length) return periods.includes(periodOf(date));
+  return isDateAvailable(date, sensor, meta);
 }
 
 /**

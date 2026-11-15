@@ -491,7 +491,9 @@ def territory_summary(
 ):
     check_type(type)
     check_sensor(sensor)
-    resolved_period = check_date(d=date, period=None if date else period, sensor=sensor, full=True)
+    # El resumen no exige ventana ambiental común: si faltan variables ambientales
+    # la clasificación queda como not_evaluable en lugar de un 422 para toda la ficha.
+    resolved_period = check_date(d=date, period=None if date else period, sensor=sensor, full=False)
     terr = find_territory(type, id)
 
     daily_row = pick(DAILY, territory_type=type, territory_id=id, sensor=sensor, date=date) if date else None
@@ -998,11 +1000,11 @@ def _dispatch_spread_request(
 
     r_open_meteo = bool(body["use_open_meteo"]) if "use_open_meteo" in body else use_open_meteo
     if r_open_meteo and not _realtime_enabled():
-        raise ApiError(
-            403,
-            "REALTIME_DISABLED",
-            "use_open_meteo requiere MCHANAQ_ENABLE_REALTIME=1 (desactivado por defecto; ver AGENTS.md).",
-        )
+        # Antes: 403 REALTIME_DISABLED, lo que rompía la exportación bajo demanda
+        # (el cliente siempre pide Open-Meteo). Ahora se degrada a los
+        # parámetros locales enviados (viento, humedad, etc.) sin consultar
+        # servicios externos, respetando AGENTS.md.
+        r_open_meteo = False
     return _run_phase2_simulation(
         t_type=str(body.get("territory_type") or "custom"),
         t_id=str(body.get("territory_id") or "custom"),

@@ -273,7 +273,9 @@ export function MapStage(props: Props) {
       zoomControl: false,
       attributionControl: true,
       zoomSnap: 0.25,
-      wheelPxPerZoomLevel: 110,
+      wheelPxPerZoomLevel: 70,
+      wheelDebounceTime: 25,
+      zoomAnimationThreshold: 6,
       minZoom: 2,
       maxZoom: 18,
       worldCopyJump: true,
@@ -375,6 +377,11 @@ export function MapStage(props: Props) {
       maxZoom: cfg.maxZoom,
       maxNativeZoom: cfg.maxZoom,
       crossOrigin: true,
+      // Zoom más fluido: no pedir teselas a mitad de la animación y conservar un
+      // margen más amplio para que al terminar ya estén cargadas.
+      updateWhenZooming: false,
+      updateWhenIdle: true,
+      keepBuffer: 4,
     }).addTo(map);
     baseRef.current.setZIndex(1);
     // El tema oscuro se obtiene invirtiendo las teselas claras por CSS.
@@ -519,7 +526,7 @@ export function MapStage(props: Props) {
     const group = L.featureGroup(entries.map((e) => e.poly));
     const bounds = group.getBounds();
     if (bounds.isValid()) {
-      map.flyToBounds(bounds, { padding: [60, 60], duration: 0.65, maxZoom: 11 });
+      map.flyToBounds(bounds, { padding: [60, 60], duration: 0.5, easeLinearity: 0.4, maxZoom: 11 });
     }
   }, [selectedId, territories]);
 
@@ -789,13 +796,13 @@ export function MapStage(props: Props) {
     const rb = spread.reachedBounds;
     if (rb) {
       map.flyToBounds(
-        L.latLngBounds(L.latLng(rb.south, rb.west), L.latLng(rb.north, rb.east)).pad(0.45),
-        { padding: [48, 48], duration: 0.7, maxZoom: 14 }
+        L.latLngBounds(L.latLng(rb.south, rb.west), L.latLng(rb.north, rb.east)).pad(0.12),
+        { padding: [36, 36], duration: 0.5, easeLinearity: 0.4, maxZoom: 16 }
       );
       return;
     }
     if (ignition) {
-      map.flyTo(ignition, Math.max(map.getZoom(), 13), { duration: 0.7 });
+      map.flyTo(ignition, Math.max(map.getZoom(), 15), { duration: 0.5 });
     }
   }, [spread, ignition]);
 
@@ -805,9 +812,10 @@ export function MapStage(props: Props) {
     if (!map || !ring || ring.length < 3) return;
     const areaKm2Now = ringAreaKm2(ring);
     map.flyToBounds(L.latLngBounds(ring.map((p) => L.latLng(p[0], p[1]))), {
-      padding: [70, 70],
-      duration: 0.6,
-      maxZoom: areaKm2Now <= 80 ? 13 : 11,
+      padding: [40, 40],
+      duration: 0.5,
+      easeLinearity: 0.4,
+      maxZoom: areaKm2Now <= 80 ? 16 : 12,
     });
   }, [ring]);
 

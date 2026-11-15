@@ -1212,7 +1212,7 @@ export function MapTool({
               state: "ready",
               rows: [localRow],
               notice: "La data no es válida en este momento o no está disponible para esta fecha.",
-              foot: r.origin === "unavailable" ? "Sin publicación en /api/v1" : "Sin ficha publicada",
+              foot: r.origin === "unavailable" ? "Fecha sin publicación para este sensor" : "Sin ficha publicada",
             });
             return;
           }
@@ -2154,7 +2154,7 @@ export function MapTool({
         {origin === "fixture" ? (
           <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
         ) : origin === "unavailable" ? (
-          <span className="chip chip--warn">Data no válida o no disponible para esta fecha en /api/v1</span>
+          <span className="chip chip--warn">Sin datos publicados para esta fecha y sensor</span>
         ) : (
           <span className="chip chip--term">Indicadores desde /api/v1</span>
         )}

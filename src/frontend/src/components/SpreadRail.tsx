@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { renderSpreadReport } from "../lib/spreadReport";
+import { renderSpreadGif } from "../lib/spreadGif";
+import { Lightbox } from "./Lightbox";
 import { formatUtm, toUtm } from "../lib/utm";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
@@ -69,8 +71,6 @@ interface Props {
   dateIso?: string;
 }
 
-type PreviewAsset = "simulacion_48h.gif" | null;
-
 const GLOBAL_PRESETS: Array<{ label: string; lat: number; lon: number }> = [
   { label: "Ucayali", lat: -8.198, lon: -75.267 },
   { label: "California", lat: 39.76, lon: -121.62 },
@@ -85,9 +85,14 @@ export function SpreadRail(p: Props) {
   const [forecastDate, setForecastDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [exporting, setExporting] = useState(false);
   const [exportInfo, setExportInfo] = useState<string | null>(null);
-  const [previewAsset, setPreviewAsset] = useState<PreviewAsset>(null);
-  const [previewRev, setPreviewRev] = useState(0);
   const [showReport, setShowReport] = useState(false);
+  // GIF generado en el navegador con la simulación actual (coordenadas actuales).
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
+  const [gifBusy, setGifBusy] = useState<string | null>(null);
+  const [showGif, setShowGif] = useState(false);
+  // GIF del servidor: solo si /spread-export respondió OK para ESTE punto.
+  const [serverGifUrl, setServerGifUrl] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; title: string; name: string } | null>(null);
   // Infografía generada en el navegador a partir de la simulación ACTUAL
   // (antes se mostraba un PNG precalculado del servidor con otra zona fija).
   const reportUrl = useMemo(() => {
@@ -115,6 +120,42 @@ export function SpreadRail(p: Props) {
   const [quickLon, setQuickLon] = useState(() => defaultPt[1].toFixed(3));
   const ignLat = p.ignition?.[0];
   const ignLon = p.ignition?.[1];
+
+  // Si cambia el punto de ignición o la simulación, se descarta todo lo generado
+  // para no mostrar una infografía/GIF de unas coordenadas distintas a las actuales.
+  useEffect(() => {
+    setGifUrl((cur) => {
+      if (cur) URL.revokeObjectURL(cur);
+      return null;
+    });
+    setShowGif(false);
+    setShowReport(false);
+    setServerGifUrl(null);
+    setExportInfo(null);
+    setLightbox(null);
+  }, [ignLat, ignLon, p.result]);
+
+  async function handleBrowserGif() {
+    if (!p.result) return;
+    if (gifUrl) {
+      setShowReport(false);
+      setShowGif((x) => !x);
+      return;
+    }
+    setGifBusy("Generando GIF…");
+    try {
+      const out = await renderSpreadGif(p.result, p.ignition, v.horizonHours, (d, t) =>
+        setGifBusy(`Generando GIF… ${d}/${t}`)
+      );
+      setGifUrl(URL.createObjectURL(out.blob));
+      setShowReport(false);
+      setShowGif(true);
+    } catch {
+      setExportInfo("No se pudo generar el GIF en el navegador.");
+    } finally {
+      setGifBusy(null);
+    }
+  }
 
   // Mantener sincronizadas las coordenadas rápidas con el punto de ignición
   // marcado en el mapa para que "Simular extensión aquí" no salte a otra zona.
@@ -151,13 +192,19 @@ export function SpreadRail(p: Props) {
       const ws = data?.data_sources?.wind_source ?? "local";
       const ds = data?.slope_summary?.dem_source ?? "DEM";
       const ss = data?.savi_summary?.source ?? "SAVI";
-      setPreviewRev((n) => n + 1);
+      const exp = data?.ignition;
+      const sameSpot =
+        !exp ||
+        (Math.abs(Number(exp.lat) - pt[0]) < 1e-3 && Math.abs(Number(exp.lon) - pt[1]) < 1e-3);
+      if (sameSpot) setServerGifUrl(`${API_BASE}/spread-outputs/simulacion_48h.gif?r=${Date.now()}`);
       setExportInfo(
-        `Paquete ${data?.horizon_h ?? 48}h (${forecastDate}) generado${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds} · ${ss}).`
+        `Paquete ${data?.horizon_h ?? 48}h (${forecastDate}) generado en el servidor para ${formatLatLon(pt, 3)}${t ? ` en ${Number(t).toFixed(1)} s` : ""} (${ws} · ${ds} · ${ss}).`
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error de red";
-      setExportInfo(`Exportación en vivo no disponible (${msg}); descargas precalculadas activas.`);
+      setExportInfo(
+        `El servidor no pudo generar el paquete (${msg}). La infografía y el GIF de arriba se generan en tu navegador con la simulación y coordenadas actuales.`
+      );
     } finally {
       setExporting(false);
     }
@@ -173,6 +220,13 @@ export function SpreadRail(p: Props) {
     parsedLon >= -180 &&
     parsedLon <= 180;
 
+  const previewBox = {
+    marginTop: 8,
+    border: "1px solid var(--line-strong)",
+    background: "var(--surface-1)",
+    padding: 6,
+  } as const;
+
   const exportsBlock = (
     <div data-tour="spread-exports">
       <div className="legend__title" style={{ marginTop: 14 }}>
@@ -181,21 +235,26 @@ export function SpreadRail(p: Props) {
       <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 5 }}>
         <button
           type="button"
-          className={`btn${previewAsset === "simulacion_48h.gif" ? " btn--on" : ""}`}
-          onClick={() =>
-            setPreviewAsset((cur) => (cur === "simulacion_48h.gif" ? null : "simulacion_48h.gif"))
-          }
+          className={`btn${showGif ? " btn--on" : ""}`}
+          disabled={!p.result || Boolean(gifBusy)}
+          title={p.result ? undefined : "Ejecuta una simulación primero"}
+          onClick={handleBrowserGif}
         >
-          Ver GIF 48h
+          {gifBusy ?? (gifUrl ? "Ver GIF 48h" : "Generar GIF 48h")}
         </button>
+        {gifUrl && (
+          <a className="btn" href={gifUrl} download={`mchanaq_simulacion_${Math.round(v.horizonHours)}h.gif`}>
+            Descargar GIF
+          </a>
+        )}
         <button
           type="button"
           className={`btn${showReport ? " btn--on" : ""}`}
           disabled={!reportUrl}
           title={reportUrl ? undefined : "Ejecuta una simulación primero"}
           onClick={() => {
-            setPreviewAsset(null);
-            setShowReport((v) => !v);
+            setShowGif(false);
+            setShowReport((x) => !x);
           }}
         >
           Ver infografía
@@ -211,36 +270,52 @@ export function SpreadRail(p: Props) {
         )}
       </div>
       {showReport && reportUrl && (
-        <div
-          style={{
-            marginTop: 8,
-            border: "1px solid var(--line-strong)",
-            background: "var(--surface-1)",
-            padding: 6,
-          }}
-        >
+        <div style={previewBox}>
           <img
             src={reportUrl}
             alt="Infografía de la simulación actual (coordenadas UTM)"
             style={{ display: "block", width: "100%", height: "auto", cursor: "zoom-in" }}
-            onClick={() => window.open(reportUrl, "_blank")}
+            onClick={() =>
+              setLightbox({
+                src: reportUrl,
+                title: `Infografía · ${p.ignition ? formatLatLon(p.ignition, 3) : "simulación actual"}`,
+                name: `mchanaq_infografia_${Math.round(v.horizonHours)}h.png`,
+              })
+            }
           />
         </div>
       )}
-      {previewAsset && (
-        <div
-          style={{
-            marginTop: 8,
-            border: "1px solid var(--line-strong)",
-            background: "var(--surface-1)",
-            padding: 6,
-          }}
-        >
+      {showGif && gifUrl && (
+        <div style={previewBox}>
           <img
-            src={`${API_BASE}/spread-outputs/${previewAsset}${previewRev ? `?r=${previewRev}` : ""}`}
-            alt={`Vista previa ${previewAsset}`}
-            style={{ display: "block", width: "100%", height: "auto" }}
+            src={gifUrl}
+            alt="GIF de la simulación actual"
+            style={{ display: "block", width: "100%", height: "auto", cursor: "zoom-in", imageRendering: "pixelated" }}
+            onClick={() =>
+              setLightbox({
+                src: gifUrl,
+                title: `GIF ${Math.round(v.horizonHours)} h · ${p.ignition ? formatLatLon(p.ignition, 3) : "simulación actual"}`,
+                name: `mchanaq_simulacion_${Math.round(v.horizonHours)}h.gif`,
+              })
+            }
           />
+        </div>
+      )}
+      {serverGifUrl && (
+        <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 5 }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() =>
+              setLightbox({
+                src: serverGifUrl,
+                title: "GIF del servidor (Python) · punto actual",
+                name: "simulacion_48h.gif",
+              })
+            }
+          >
+            Ver GIF del servidor
+          </button>
         </div>
       )}
       <button
@@ -256,14 +331,21 @@ export function SpreadRail(p: Props) {
         <p className="mono-sm" style={{ marginTop: 6 }}>{exportInfo}</p>
       )}
       <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 6 }}>
-        <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">GIF 48h</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">MP4 48h</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4`} download>MP4 (muestra)</a>
+        <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip`} download>Shapefiles QGIS (muestra)</a>
       </div>
       <p className="mono-sm" style={{ marginTop: 6, color: "var(--ink-3)" }}>
-        GIF, MP4 y Shapefiles son muestras precalculadas en el servidor (zona de referencia); la
-        infografía sí corresponde a tu simulación actual.
+        La infografía y el GIF corresponden a tu simulación actual y se generan en el navegador.
+        MP4 y Shapefiles son muestras precalculadas de una zona de referencia, no de tu punto.
       </p>
+      {lightbox && (
+        <Lightbox
+          src={lightbox.src}
+          title={lightbox.title}
+          downloadName={lightbox.name}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 
