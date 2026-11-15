@@ -231,7 +231,7 @@ export function MapStage(props: Props) {
     const map = L.map(hostRef.current, {
       center: PERU_CENTER,
       zoom: 5.4,
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: true,
       zoomSnap: 0.25,
       wheelPxPerZoomLevel: 110,
@@ -682,6 +682,26 @@ export function MapStage(props: Props) {
       />
 
       <div className="ov ov--tl">
+        <div className="toolbar toolbar--zoom" role="group" aria-label="Control de zoom">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => mapRef.current?.zoomIn()}
+            title="Acercar el mapa"
+            aria-label="Acercar el mapa"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => mapRef.current?.zoomOut()}
+            title="Alejar el mapa"
+            aria-label="Alejar el mapa"
+          >
+            −
+          </button>
+        </div>
         <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa" data-tour="map-toolbar">
           <button
             className={`btn${mode === "pan" ? " btn--on" : ""}`}
@@ -737,7 +757,7 @@ export function MapStage(props: Props) {
             Limpiar
           </button>
         </div>
-        <div className="toolbar" role="group" aria-label="Mapa base" style={{ marginTop: 6 }}>
+        <div className="toolbar" role="group" aria-label="Mapa base">
           <button
             className={`btn${baseLayer === "dark" ? " btn--on" : ""}`}
             onClick={() => onBaseLayer("dark")}

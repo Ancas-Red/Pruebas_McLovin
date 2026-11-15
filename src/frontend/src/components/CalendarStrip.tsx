@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -37,9 +37,56 @@ interface Props {
   onPickDay: (day: number) => void;
 }
 
+const MIN_PANEL_H = 175;
+
+function defaultPanelHeight(): number {
+  if (typeof window === "undefined") return 310;
+  return Math.round(Math.max(245, Math.min(365, window.innerHeight * 0.42)));
+}
+
+function clampPanelHeight(h: number): number {
+  if (typeof window === "undefined") return Math.max(MIN_PANEL_H, Math.min(420, h));
+  const maxH = Math.max(230, window.innerHeight - 280);
+  return Math.round(Math.max(MIN_PANEL_H, Math.min(maxH, h)));
+}
+
 export function CalendarStrip(p: Props) {
   const { calendar, year, month } = p;
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [panelHeight, setPanelHeight] = useState<number>(() => defaultPanelHeight());
+  const [resizing, setResizing] = useState(false);
+  const dragRef = useRef<{ active: boolean; startY: number; startH: number }>({
+    active: false,
+    startY: 0,
+    startH: 310,
+  });
+
+  useEffect(() => {
+    const onResize = () => setPanelHeight((h) => clampPanelHeight(h));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current.active) return;
+      const dy = dragRef.current.startY - e.clientY;
+      setPanelHeight(clampPanelHeight(dragRef.current.startH + dy));
+    };
+    const onUp = () => {
+      if (!dragRef.current.active) return;
+      dragRef.current.active = false;
+      setResizing(false);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
 
   const { byKey, years, max } = useMemo(() => {
     const byKey = new Map<string, MonthCell>();
@@ -73,7 +120,26 @@ export function CalendarStrip(p: Props) {
   const tone = useCallback((v: number) => Math.sqrt(v / max), [max]);
 
   return (
-    <section className="calstrip" data-tour="calendar-strip">
+    <section
+      className={`calstrip${resizing ? " calstrip--resizing" : ""}`}
+      style={{ height: panelHeight }}
+      data-tour="calendar-strip"
+    >
+      <div
+        className="calstrip__resizer"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Arrastra para ajustar la altura del calendario"
+        title="Mantén clic y arrastra hacia arriba o abajo para ajustar la altura (doble clic para restaurar)"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          dragRef.current = { active: true, startY: e.clientY, startH: panelHeight };
+          setResizing(true);
+        }}
+        onDoubleClick={() => setPanelHeight(defaultPanelHeight())}
+      >
+        <span className="calstrip__grip" aria-hidden="true" />
+      </div>
       <header className="panel__head">
         <span className="panel__idx">06</span>
         <h2 className="panel__title">Calendario de actividad térmica</h2>

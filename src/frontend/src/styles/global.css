@@ -1000,7 +1000,8 @@ input[type="range"]:focus-visible {
 
 .ov--tl {
   top: 12px;
-  left: 56px;
+  left: 12px;
+  right: 224px;
   display: flex;
   align-items: flex-start;
   flex-wrap: wrap;
@@ -1011,15 +1012,15 @@ input[type="range"]:focus-visible {
   right: 12px;
 }
 .ov--bl {
-  bottom: 26px;
+  bottom: 24px;
   left: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  /* Si se juntan muchas claves, la columna cede por arriba y no tapa la barra
-     de estado ni se sale del mapa. */
-  max-height: calc(100% - 80px);
-  overflow: hidden;
+  gap: 6px;
+  /* Si se juntan muchas claves o el panel inferior crece, hace scroll interno sin solapar controles superiores. */
+  max-height: calc(100% - 76px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .toolbar {
@@ -1035,6 +1036,11 @@ input[type="range"]:focus-visible {
 }
 .toolbar .btn:last-child {
   border-right: 0;
+}
+.toolbar--zoom .btn {
+  padding-inline: 10px;
+  font-size: 13px;
+  font-weight: 700;
 }
 .toolbar .btn--on {
   background: var(--acid);
@@ -1075,7 +1081,7 @@ input[type="range"]:focus-visible {
   background: rgba(7, 16, 11, 0.94);
   border: 1px solid var(--line-strong);
   backdrop-filter: blur(7px);
-  padding: 9px 11px;
+  padding: 7px 10px;
 }
 .legend__title {
   font-size: 9.5px;
@@ -1260,6 +1266,7 @@ input[type="range"]:focus-visible {
 
 /* Calendario ------------------------------------------------------------- */
 .cal {
+  align-self: start;
   overflow-x: auto;
   padding-bottom: 4px;
 }
@@ -1518,8 +1525,8 @@ input[type="range"]:focus-visible {
 /* Columna central: mapa arriba, calendario abajo ------------------------- */
 .center {
   display: grid;
-  /* El mapa manda: nunca baja de 300 px y se queda con el espacio sobrante. */
-  grid-template-rows: minmax(300px, 1fr) auto;
+  /* El mapa nunca queda aplastado y la barra inferior es redimensionable. */
+  grid-template-rows: minmax(210px, 1fr) auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -1528,7 +1535,7 @@ input[type="range"]:focus-visible {
 
 @media (max-width: 1000px) {
   .center {
-    grid-template-rows: minmax(250px, 46vh) minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 1fr) auto;
   }
 }
 
@@ -1536,18 +1543,55 @@ input[type="range"]:focus-visible {
 .calstrip {
   position: relative;
   z-index: 20;
+  display: flex;
+  flex-direction: column;
   border-top: 1px solid var(--line);
   background: var(--surface-0);
   min-width: 0;
-  max-height: 46vh;
-  overflow-y: auto;
+  max-height: 68vh;
+  overflow: hidden;
+}
+.calstrip--resizing {
+  user-select: none;
+}
+
+.calstrip__resizer {
+  flex: none;
+  height: 9px;
+  margin-top: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+  touch-action: none;
+  transition: background 0.14s, border-color 0.14s;
+}
+.calstrip__resizer:hover,
+.calstrip--resizing .calstrip__resizer {
+  background: rgba(216, 255, 51, 0.08);
+  border-bottom-color: var(--acid-dim);
+}
+.calstrip__grip {
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background 0.14s, width 0.14s;
+}
+.calstrip__resizer:hover .calstrip__grip,
+.calstrip--resizing .calstrip__grip {
+  width: 68px;
+  background: var(--acid);
 }
 
 .calstrip .panel__head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: var(--surface-1);
   border-bottom: 1px solid var(--line);
 }
@@ -1639,16 +1683,24 @@ input[type="range"]:focus-visible {
 }
 
 .calstrip__body {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(300px, 1fr) minmax(250px, 330px);
   gap: 16px;
-  padding: 13px 16px 15px;
-  align-items: start;
+  padding: 11px 16px 13px;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 @media (max-width: 900px) {
   .calstrip__body {
     grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .calstrip__side {
+    overflow-y: visible;
+    max-height: none;
   }
   .cal3d {
     height: 280px;
@@ -1660,6 +1712,11 @@ input[type="range"]:focus-visible {
   flex-direction: column;
   gap: 11px;
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .calstrip__legend .legend__ramp {
@@ -1694,8 +1751,7 @@ input[type="range"]:focus-visible {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 290px;
-  align-self: stretch;
+  min-height: 180px;
   min-width: 0;
   border: 1px solid var(--line);
   background: radial-gradient(circle at 50% 42%, rgba(22, 28, 38, 0.72), rgba(8, 10, 14, 0.92));
@@ -1703,6 +1759,8 @@ input[type="range"]:focus-visible {
 }
 
 .cal3d__canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -2647,7 +2705,7 @@ input[type="range"]:focus-visible {
 
   .ov--tl {
     top: 8px;
-    left: 50px;
+    left: 8px;
     right: 8px;
   }
   .toolbar {
