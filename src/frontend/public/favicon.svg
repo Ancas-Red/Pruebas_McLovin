@@ -1,26 +1,39 @@
 <!--
-  Marca de McHanaq para la pestaña del navegador.
-
-  A 16 px no sobrevive casi nada: los paralelos, el meridiano y las órbitas de
-  la marca completa se funden en una mancha. Aquí queda lo mínimo que todavía
-  se reconoce —un aro grueso y la brasa— sobre un cuadro oscuro, que es lo que
-  separa el icono de las pestañas claras del navegador.
-
-  Los trazos son deliberadamente gordos: a tamaño de favicon, un trazo fino
-  desaparece al rasterizar y deja el aro roto.
+  Marca de McHanaq para la pestaña del navegador, homogeneizada con el logo
+  completo del navbar (globo + órbita inclinada + satélite).
+  Trazos gruesos para mantener legibilidad incluso a 16×16 px.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="14" fill="#07100b"/>
+  <rect width="64" height="64" rx="14" fill="#07100b" />
 
-  <!-- Aro del planeta. -->
-  <circle cx="32" cy="32" r="18" fill="none" stroke="#f2f7ef" stroke-width="5"/>
+  <!-- Órbita trasera tenue -->
+  <g transform="translate(31 34) rotate(-28)">
+    <ellipse cx="0" cy="0" rx="25.5" ry="10.5" fill="none" stroke="#f2f7ef" stroke-width="2.6" opacity="0.32" />
+  </g>
 
-  <!-- Un solo paralelo, el ecuador: basta para que el aro se lea como esfera
-       y no como una letra O. -->
-  <path d="M15 32h34" stroke="#f2f7ef" stroke-width="3.4" opacity="0.45"/>
+  <!-- Planeta + meridiano/paralelo mínimos -->
+  <circle cx="31" cy="34" r="15.5" fill="#07100b" stroke="#f2f7ef" stroke-width="3.6" />
+  <ellipse cx="31" cy="34" rx="6.5" ry="15.5" fill="none" stroke="#f2f7ef" stroke-width="2" opacity="0.5" />
+  <path d="M16.5 34h29" stroke="#f2f7ef" stroke-width="2" opacity="0.5" />
 
-  <!-- La brasa: el único elemento con color, y el que dice de qué va esto.
-       Lleva su propio hueco para no tocar el aro ni el ecuador. -->
-  <circle cx="43" cy="44" r="12" fill="#07100b"/>
-  <circle cx="43" cy="44" r="8" fill="#ff5a2b"/>
+  <!-- Arco frontal de órbita -->
+  <g transform="translate(31 34) rotate(-28)">
+    <path
+      d="M -23 4.4 A 25.5 10.5 0 0 0 23 -4.4"
+      fill="none"
+      stroke="#f2f7ef"
+      stroke-width="3"
+      stroke-linecap="round"
+    />
+  </g>
+
+  <!-- Satélite arriba a la derecha sobre la órbita -->
+  <g transform="translate(49 20) rotate(-28)" fill="#d8ff33" stroke="#d8ff33" stroke-width="1.6">
+    <rect x="-3.4" y="-3.4" width="6.8" height="6.8" />
+    <rect x="-10" y="-2.2" width="4.8" height="4.4" fill="none" />
+    <rect x="5.2" y="-2.2" width="4.8" height="4.4" fill="none" />
+  </g>
+
+  <!-- Brasa discreta dentro del globo -->
+  <circle cx="36" cy="41.5" r="3.4" fill="#ff5a2b" />
 </svg>

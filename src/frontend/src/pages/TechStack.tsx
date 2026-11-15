@@ -6,6 +6,7 @@ import { revealSectionBatch } from "../lib/reveal";
 import {
   PIPELINE_STAGES,
   TECH_CATEGORIES,
+  TECH_CONVENTIONS,
   TECH_ITEMS,
   TECH_SPECS,
   type TechCategory,
@@ -23,6 +24,7 @@ const TECH_SECTIONS = [
   { id: "stack", label: "Stack y APIs" },
   { id: "ruta-datos", label: "Ruta de datos" },
   { id: "parametros", label: "Parámetros" },
+  { id: "convenciones", label: "Convenciones" },
 ];
 
 export function TechStack({ onOpenMap, onOpenLanding }: Props) {
@@ -305,7 +307,7 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
       </section>
 
       {/* ================================================== 03 PARÁMETROS === */}
-      <section className="tech-section tech-section--last" id="parametros">
+      <section className="tech-section" id="parametros">
         <div className="wrap">
           <div className="tech-head">
             <div>
@@ -328,6 +330,36 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
                 <span className="spec__label">{spec.label}</span>
                 <strong className="spec__val">{spec.value}</strong>
                 <p className="spec__detail">{spec.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================ 04 CONVENCIONES === */}
+      <section className="tech-section tech-section--last" id="convenciones">
+        <div className="wrap">
+          <div className="tech-head">
+            <div>
+              <p className="eyebrow" data-reveal>
+                04 · Convenciones internacionales y nomenclatura
+              </p>
+              <h2 className="block__title tech-head__title" data-reveal>
+                Por qué cada etiqueta significa exactamente eso.
+              </h2>
+            </div>
+            <p className="block__lead" data-reveal>
+              Terminología alineada con UNDRR, FAO, Copernicus EFFIS y NASA FIRMS para distinguir
+              susceptibilidad contextual, vacíos observacionales e incertidumbre.
+            </p>
+          </div>
+
+          <div className="specs specs--2">
+            {TECH_CONVENTIONS.map((conv) => (
+              <div key={conv.code} className="spec" data-reveal>
+                <span className="spec__label">{conv.code} · {conv.standard}</span>
+                <strong className="spec__val">{conv.title}</strong>
+                <p className="spec__detail">{conv.description}</p>
               </div>
             ))}
           </div>

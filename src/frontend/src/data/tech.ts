@@ -255,3 +255,41 @@ export const TECH_SPECS: TechSpec[] = [
     detail: "Anomalías evaluadas contra el mismo mes de años previos con datos válidos.",
   },
 ];
+
+export interface TechConvention {
+  code: string;
+  title: string;
+  standard: string;
+  description: string;
+}
+
+export const TECH_CONVENTIONS: TechConvention[] = [
+  {
+    code: "SUSC · 01",
+    title: "Susceptibilidad contextual (Alta / Moderada / Baja)",
+    standard: "UNDRR · FAO · Copernicus EFFIS",
+    description:
+      "Siguiendo la jerarquía internacional UNDRR/FAO y EFFIS, «Susceptibilidad» describe la predisposición del entorno (vegetación combustible, sequedad < p25, viento > p75 y pendiente) ante una ignición. No afirma peligro físico (intensidad de llama) ni riesgo (Peligro × Exposición × Vulnerabilidad).",
+  },
+  {
+    code: "N0 · 02",
+    title: "Evaluación parcial y No evaluable",
+    standard: "NASA FIRMS QA · OMM (Cobertura)",
+    description:
+      "Si la compuerta N0 detecta que falta algún bloque ambiental o menos de 5 años para percentiles estacionales, pero existen variables parciales válidas, se reporta «Evaluación parcial» (o «No evaluable» sin evidencia) en vez de imputar un nivel definitivo.",
+  },
+  {
+    code: "NULL · 03",
+    title: "Cero observado vs. Sin observación / No estimable",
+    standard: "MODIS / VIIRS FireMask (Clases 7–9)",
+    description:
+      "«0» significa día observado con cobertura válida (≥ 70 %) y cero detecciones nominal/alta (clases 8–9). «Sin dato» o «Sin observación» indica nulidad por nubes o cero píxeles de tierra válidos; «No estimable» señala línea base < 5 años.",
+  },
+  {
+    code: "SENS · 04",
+    title: "Cero suma cruzada entre sensores y procedencia",
+    standard: "NASA LP DAAC · Contrato McHanaq",
+    description:
+      "MODIS Terra (~10:30), MODIS Aqua (~13:30) y VIIRS S-NPP (~13:30) mantienen series separadas por resolución y hora de sobrevuelo. Toda vista separa explícitamente observaciones de «/api/v1» frente a respaldos de «Datos de muestra».",
+  },
+];

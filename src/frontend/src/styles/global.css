@@ -1384,6 +1384,22 @@ input[type="range"]:focus-visible {
   font-style: italic;
   font-weight: 400;
 }
+.kv--conv {
+  grid-template-columns: 1fr;
+  gap: 2px 0;
+}
+.kv--conv dt {
+  margin-top: 6px;
+  color: var(--fg);
+  font-weight: 600;
+  white-space: normal;
+}
+.kv--conv dd {
+  text-align: left;
+  color: var(--fg-dim);
+  font-weight: 400;
+  line-height: 1.45;
+}
 
 .metric {
   border: 1px solid var(--line);

@@ -26,6 +26,7 @@ export const ANALYSIS_ITEMS: DockItem[] = [
   { id: "indicadores", label: "Indicadores del período", icon: "gauge" },
   { id: "multisensor", label: "Comparación multisensor", icon: "compare" },
   { id: "arbol", label: "Árbol de susceptibilidad", icon: "tree" },
+  { id: "convenciones", label: "Convenciones y lectura", icon: "book" },
 ];
 
 const STATUS_CHIP: Record<ComparisonStatus, string> = {
@@ -424,6 +425,53 @@ export function AnalysisRail(p: Props) {
             no predice dónde ni cuándo empezará un incendio, y no está validada contra incendios
             reales.
           </div>
+        </Drawer>
+      );
+    }
+
+    case "convenciones": {
+      return (
+        <Drawer title="Convenciones" note="UNDRR · FIRMS" onClose={p.onClose}>
+          <div className="legend__title">Susceptibilidad contextual (UNDRR / FAO / EFFIS)</div>
+          <div className="note">
+            Se usan <b>Susceptibilidad alta</b>, <b>moderada</b> y <b>baja</b> siguiendo la
+            jerarquía de UNDRR/FAO y EFFIS: <i>Susceptibilidad</i> mide predisposición del entorno
+            (vegetación combustible, sequedad &lt; p25, viento &gt; p75 y pendiente), a diferencia
+            de <i>Peligro</i> (intensidad del frente) o <i>Riesgo</i> (Peligro × Exposición ×
+            Vulnerabilidad). No predice ignición.
+          </div>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>
+            Evaluación parcial vs. No evaluable (Compuerta N0)
+          </div>
+          <dl className="kv kv--conv">
+            <dt>
+              <span className="chip">Evaluación parcial</span>
+            </dt>
+            <dd>Falta ≥ 1 bloque o &lt; 5 años de línea base, pero hay evidencia parcial</dd>
+            <dt>
+              <span className="chip">No evaluable</span>
+            </dt>
+            <dd>Compuerta N0 cerrada sin evidencia utilizable</dd>
+          </dl>
+          <p className="mono-sm">
+            McHanaq no rellena variables faltantes para forzar un nivel alto/bajo. En modo «Datos de
+            muestra», también se simula una fracción menor de períodos con cobertura parcial.
+          </p>
+
+          <div className="legend__title" style={{ marginTop: 14 }}>
+            Valores térmicos y calidad (NASA FIRMS / OMM)
+          </div>
+          <dl className="kv kv--conv">
+            <dt>0</dt>
+            <dd>Observado (cobertura ≥ 70 %) y 0 detecciones clase 8–9</dd>
+            <dt>Sin observación</dt>
+            <dd>0 píxeles de tierra válidos o nubosidad ≥ 30 % (null ≠ 0)</dd>
+            <dt>No estimable</dt>
+            <dd>Menos de {minBaseline} años válidos para calcular anomalía z σ</dd>
+            <dt>Cero suma cruzada</dt>
+            <dd>Terra, Aqua y VIIRS no se suman entre sí (distinta órbita)</dd>
+          </dl>
         </Drawer>
       );
     }

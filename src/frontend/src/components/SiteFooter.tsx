@@ -21,7 +21,7 @@ export function SiteFooter({
           onClick={() => onNavigate("inicio")}
           title="Volver al inicio"
         >
-          <Logo size={32} tone="light" />
+          <Logo size={36} tone="light" compact={false} />
           <span className="brand__text">
             <span className="brand__name">McHanaq</span>
             <span className="brand__tag">Actividad térmica territorial</span>
