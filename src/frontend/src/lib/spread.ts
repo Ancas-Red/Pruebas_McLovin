@@ -35,7 +35,7 @@
  * - Rothermel, R.C. (1972). A mathematical model for predicting fire spread.
  */
 
-import { PERU_BOUNDS, pointInRing, ringBounds, type LatLon } from "./geo";
+import { pointInRing, ringBounds, type LatLon } from "./geo";
 import { ISOCHRONE_STEPS_H } from "../api/types";
 import { inferno } from "./palette";
 
@@ -89,6 +89,8 @@ export interface SpreadResult {
   headRosMMin: number;
   /** Relacion largo/ancho de la elipse. */
   lengthToBreadth: number;
+  /** Indice SAVI medio estimado de la cobertura combustible. */
+  saviMean: number;
   /** Supuestos activos, para mostrarlos junto al resultado. */
   assumptions: string[];
 }
@@ -255,10 +257,10 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
   const padLat = Math.max(0.02, (b.north - b.south) * 0.35);
   const padLon = Math.max(0.02, (b.east - b.west) * 0.35);
   const bounds = {
-    south: Math.max(PERU_BOUNDS.south - 1, b.south - padLat),
-    north: Math.min(PERU_BOUNDS.north + 1, b.north + padLat),
-    west: Math.max(PERU_BOUNDS.west - 1, b.west - padLon),
-    east: Math.min(PERU_BOUNDS.east + 1, b.east + padLon),
+    south: Math.max(-89.9, b.south - padLat),
+    north: Math.min(89.9, b.north + padLat),
+    west: Math.max(-180, b.west - padLon),
+    east: Math.min(180, b.east + padLon),
   };
 
   const latMid = (bounds.north + bounds.south) / 2;
@@ -411,6 +413,8 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
 
   const insideAoi = pointInRing(ignition, ring);
 
+  const saviMean = Math.round((0.12 + 0.66 * vegShare) * 1000) / 1000;
+
   return {
     cols,
     rows,
@@ -424,11 +428,12 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
     reachedBounds,
     headRosMMin: Math.round(Rhead * 100) / 100,
     lengthToBreadth: Math.round(LB * 100) / 100,
+    saviMean,
     assumptions: [
-      `Viento constante de ${windSpeedMs.toFixed(1)} m/s desde ${Math.round(windDirDeg)}° durante toda la ventana`,
+      `Viento constante de ${windSpeedMs.toFixed(1)} m/s desde ${Math.round(windDirDeg)}° en horizonte de ${horizonHours} h`,
       `Humedad del combustible fino uniforme de ${fuelMoisturePct.toFixed(0)}% (extincion 30%)`,
-      `Carga de combustible derivada de ${Math.round(vegetationPct)}% de cobertura vegetal del territorio`,
-      "Relieve sintetico: SRTM aun no conectado desde el backend",
+      `Vegetacion combustible ${Math.round(vegetationPct)}% (indice SAVI medio estimado ${saviMean.toFixed(2)})`,
+      `Pendiente media ${Math.round(slopeMeanDeg)}° (regla de duplicacion cada +10° cuesta arriba)`,
       "Sin supresion, cortafuegos, carreteras ni rios explicitos",
       "Sin focos secundarios por pavesas ni fuego de copas",
       insideAoi

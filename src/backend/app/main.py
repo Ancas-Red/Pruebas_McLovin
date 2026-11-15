@@ -5,13 +5,15 @@ import io
 import json
 import math
 import os
+import time
 from datetime import date as dt_date
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request
+import httpx
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA = Path(os.getenv("MCHANAQ_DATA_DIR", ROOT / "data" / "processed"))
@@ -83,7 +85,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_origin_regex=CORS_ORIGIN_REGEX,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -703,3 +705,455 @@ def territory_hotspots(type: str, id: str, date: str = Query(...), sensor: str =
         and f.get("properties", {}).get("sensor") == sensor
     ]
     return {"schema_version": "1.0", "type": "FeatureCollection", "features": feats}
+
+
+# ---------------------------------------------------------------------------
+# Fase 2 (Opcional y desacoplada) — Simulación espacial de propagación (48 h)
+# ---------------------------------------------------------------------------
+
+SPREAD_FORECASTS = load_json("spread_forecasts.json") or {"items": []}
+SPREAD_OUTPUTS_DIR = (DATA / "spread_outputs") if (DATA / "spread_outputs").exists() else (ROOT / "data" / "processed" / "spread_outputs")
+_SPREAD_MIME_TYPES = {
+    "simulacion_48h.gif": "image/gif",
+    "pronostico_48h.mp4": "video/mp4",
+    "mchanaq_propagacion_48h_qgis.zip": "application/zip",
+    "infografia_impacto_48h.png": "image/png",
+    "panel_modelo_48h.png": "image/png",
+}
+
+
+def _territory_centroid_and_geom(terr: dict):
+    from shapely.geometry import shape
+
+    geom = shape(terr["geometry"]) if terr.get("geometry") else None
+    if geom is not None and not geom.is_empty:
+        pt = geom.representative_point()
+        return float(pt.y), float(pt.x), geom
+    return -8.19833, -75.26669, None
+
+
+def _run_phase2_simulation(
+    t_type: str,
+    t_id: str,
+    t_name: str,
+    geom,
+    lat: float,
+    lon: float,
+    date_str: str,
+    horizon_h: int,
+    wind_speed_ms: float | None = None,
+    wind_dir_deg: float | None = None,
+    vegetation_pct: float | None = None,
+    slope_mean_deg: float | None = None,
+    fuel_moisture_pct: float | None = None,
+    use_open_meteo: bool = False,
+    export_products: bool = False,
+) -> dict:
+    from src.analytics.spread_model import (
+        build_spread_forecast_payload,
+        export_all_phase2_products,
+        simulate_spread_48h,
+    )
+
+    daily_match = next(
+        (
+            r for r in DAILY
+            if r.get("territory_type") == t_type
+            and str(r.get("territory_id")) == t_id
+            and r.get("date") == date_str
+        ),
+        None,
+    )
+    assess_match = next(
+        (
+            r for r in ASSESS
+            if r.get("territory_type") == t_type
+            and str(r.get("territory_id")) == t_id
+            and r.get("period_id") == date_str[:7]
+        ),
+        None,
+    )
+
+    def _ev_num(var_name: str) -> float | None:
+        if not assess_match:
+            return None
+        for ev in assess_match.get("evidence") or []:
+            if ev.get("variable") == var_name and isinstance(ev.get("value"), (int, float)):
+                return float(ev["value"])
+        return None
+
+    ws = wind_speed_ms if wind_speed_ms is not None else (
+        float(daily_match["wind_speed_10m_ms"])
+        if daily_match and daily_match.get("wind_speed_10m_ms") is not None
+        else (_ev_num("wind_speed_10m_ms") or 4.6)
+    )
+    wd = wind_dir_deg if wind_dir_deg is not None else (
+        float(daily_match["wind_dir_deg"])
+        if daily_match and daily_match.get("wind_dir_deg") is not None
+        else 118.0
+    )
+    veg = vegetation_pct if vegetation_pct is not None else (_ev_num("vegetation_area_pct") or 82.0)
+    slope_pct = _ev_num("slope_class_area_pct")
+    slp = slope_mean_deg if slope_mean_deg is not None else (
+        round(math.degrees(math.atan(slope_pct / 100.0)), 1) if slope_pct is not None else 6.5
+    )
+    precip = _ev_num("precip_30d_mm")
+    fm = fuel_moisture_pct if fuel_moisture_pct is not None else (
+        max(4.0, min(28.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
+    )
+
+    t0 = time.perf_counter()
+    res = simulate_spread_48h(
+        territory_type=t_type,
+        territory_id=t_id,
+        territory_name=t_name,
+        territory_geom=geom,
+        date_str=date_str,
+        ignition_lat=lat,
+        ignition_lon=lon,
+        horizon_h=horizon_h,
+        vegetation_pct=veg,
+        slope_mean_deg=slp,
+        fuel_moisture_pct=fm,
+        base_wind_ms=ws,
+        base_wind_dir_deg=wd,
+        use_open_meteo=use_open_meteo,
+    )
+    sim_s = round(time.perf_counter() - t0, 3)
+    timings: dict[str, float] = {"simulation_s": sim_s, "total_s": sim_s}
+    if export_products:
+        exported = export_all_phase2_products(res, SPREAD_OUTPUTS_DIR)
+        timings.update(exported["timings_s"])
+        timings["total_s"] = round(sim_s + exported["timings_s"]["total_export_s"], 3)
+    return build_spread_forecast_payload(res, timings_s=timings)
+
+
+def _dispatch_spread_request(
+    *,
+    lat: float | None,
+    lon: float | None,
+    date: str,
+    horizon_h: int,
+    wind_speed_10m_ms: float | None,
+    wind_dir_deg: float | None,
+    vegetation_pct: float | None,
+    slope_mean_deg: float | None,
+    fuel_moisture_pct: float | None,
+    use_open_meteo: bool,
+    payload: dict | None,
+    export_products: bool,
+) -> dict:
+    body = payload or {}
+    r_lat = float(body["lat"]) if "lat" in body else lat
+    r_lon = float(body["lon"]) if "lon" in body else lon
+    if r_lat is None or r_lon is None:
+        raise ApiError(400, "INVALID_PARAMETER", "Debe indicar lat y lon para simular propagación")
+    if not (-90.0 <= r_lat <= 90.0 and -180.0 <= r_lon <= 180.0):
+        raise ApiError(400, "INVALID_PARAMETER", "Coordenadas fuera de rango global")
+
+    r_date = str(body.get("date") or date)
+    check_date_syntax(r_date)
+    r_horizon = int(body.get("horizon_h") or horizon_h)
+    if not (6 <= r_horizon <= 48):
+        raise ApiError(400, "INVALID_PARAMETER", "horizon_h debe estar entre 6 y 48 horas")
+
+    r_open_meteo = bool(body["use_open_meteo"]) if "use_open_meteo" in body else use_open_meteo
+    return _run_phase2_simulation(
+        t_type=str(body.get("territory_type") or "custom"),
+        t_id=str(body.get("territory_id") or "custom"),
+        t_name=str(body.get("territory_name") or f"Punto ({r_lat:.3f}, {r_lon:.3f})"),
+        geom=None,
+        lat=r_lat,
+        lon=r_lon,
+        date_str=r_date,
+        horizon_h=r_horizon,
+        wind_speed_ms=float(body["wind_speed_10m_ms"]) if "wind_speed_10m_ms" in body else wind_speed_10m_ms,
+        wind_dir_deg=float(body["wind_dir_deg"]) if "wind_dir_deg" in body else wind_dir_deg,
+        vegetation_pct=float(body["vegetation_pct"]) if "vegetation_pct" in body else vegetation_pct,
+        slope_mean_deg=float(body["slope_mean_deg"]) if "slope_mean_deg" in body else slope_mean_deg,
+        fuel_moisture_pct=float(body["fuel_moisture_pct"]) if "fuel_moisture_pct" in body else fuel_moisture_pct,
+        use_open_meteo=r_open_meteo,
+        export_products=export_products,
+    )
+
+
+@app.get("/api/v1/territories/{type}/{id}/spread-forecast")
+def territory_spread_forecast(
+    type: str,
+    id: str,
+    date: str | None = Query(default=None),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+):
+    check_type(type)
+    terr = find_territory(type, id)
+    if date is not None:
+        check_date_syntax(date)
+
+    for item in SPREAD_FORECASTS.get("items", []):
+        t_info = item.get("territory") or {}
+        if (
+            t_info.get("type") == type
+            and str(t_info.get("id")) == id
+            and (date is None or item.get("date") == date)
+            and int(item.get("horizon_h") or 48) == horizon_h
+        ):
+            return item
+
+    lat, lon, geom = _territory_centroid_and_geom(terr)
+    t_name = str(terr.get("name") or terr.get("territory_name") or id)
+    resolved_date = date or (
+        SPREAD_FORECASTS.get("items", [{}])[0].get("date")
+        if SPREAD_FORECASTS.get("items")
+        else "2024-09-25"
+    )
+    return _run_phase2_simulation(
+        t_type=type,
+        t_id=id,
+        t_name=t_name,
+        geom=geom,
+        lat=lat,
+        lon=lon,
+        date_str=resolved_date,
+        horizon_h=horizon_h,
+    )
+
+
+@app.post("/api/v1/spread-simulate")
+@app.get("/api/v1/spread-simulate")
+def spread_simulate(
+    lat: float | None = Query(default=None, ge=-90.0, le=90.0),
+    lon: float | None = Query(default=None, ge=-180.0, le=180.0),
+    date: str = Query(default="2024-09-25"),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+    wind_speed_10m_ms: float | None = Query(default=None, ge=0.0, le=40.0),
+    wind_dir_deg: float | None = Query(default=None, ge=0.0, le=360.0),
+    vegetation_pct: float | None = Query(default=None, ge=0.0, le=100.0),
+    slope_mean_deg: float | None = Query(default=None, ge=0.0, le=60.0),
+    fuel_moisture_pct: float | None = Query(default=None, ge=1.0, le=35.0),
+    use_open_meteo: bool = Query(default=False),
+    payload: dict | None = Body(default=None),
+):
+    return _dispatch_spread_request(
+        lat=lat,
+        lon=lon,
+        date=date,
+        horizon_h=horizon_h,
+        wind_speed_10m_ms=wind_speed_10m_ms,
+        wind_dir_deg=wind_dir_deg,
+        vegetation_pct=vegetation_pct,
+        slope_mean_deg=slope_mean_deg,
+        fuel_moisture_pct=fuel_moisture_pct,
+        use_open_meteo=use_open_meteo,
+        payload=payload,
+        export_products=False,
+    )
+
+
+@app.post("/api/v1/spread-export")
+@app.get("/api/v1/spread-export")
+def spread_export(
+    lat: float | None = Query(default=None, ge=-90.0, le=90.0),
+    lon: float | None = Query(default=None, ge=-180.0, le=180.0),
+    date: str = Query(default="2024-09-25"),
+    horizon_h: int = Query(default=48, ge=6, le=48),
+    wind_speed_10m_ms: float | None = Query(default=None, ge=0.0, le=40.0),
+    wind_dir_deg: float | None = Query(default=None, ge=0.0, le=360.0),
+    vegetation_pct: float | None = Query(default=None, ge=0.0, le=100.0),
+    slope_mean_deg: float | None = Query(default=None, ge=0.0, le=60.0),
+    fuel_moisture_pct: float | None = Query(default=None, ge=1.0, le=35.0),
+    use_open_meteo: bool = Query(default=False),
+    payload: dict | None = Body(default=None),
+):
+    return _dispatch_spread_request(
+        lat=lat,
+        lon=lon,
+        date=date,
+        horizon_h=horizon_h,
+        wind_speed_10m_ms=wind_speed_10m_ms,
+        wind_dir_deg=wind_dir_deg,
+        vegetation_pct=vegetation_pct,
+        slope_mean_deg=slope_mean_deg,
+        fuel_moisture_pct=fuel_moisture_pct,
+        use_open_meteo=use_open_meteo,
+        payload=payload,
+        export_products=True,
+    )
+
+
+@app.get("/api/v1/spread-outputs/{filename}")
+def spread_output_file(filename: str):
+    if filename not in _SPREAD_MIME_TYPES:
+        raise ApiError(404, "NOT_FOUND", f"Archivo de salida de Fase 2 no encontrado: {filename}")
+    target = SPREAD_OUTPUTS_DIR / filename
+    if not target.exists():
+        raise ApiError(404, "NOT_FOUND", f"El archivo {filename} aún no fue generado en el servidor")
+    return FileResponse(
+        path=target,
+        media_type=_SPREAD_MIME_TYPES[filename],
+        filename=filename,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tiempo real global — Open-Meteo (clima/viento) + NASA FIRMS (MODIS & VIIRS)
+# ---------------------------------------------------------------------------
+
+_FIRMS_SOURCES = (
+    ("MODIS_NRT", "MODIS"),
+    ("VIIRS_SNPP_NRT", "VIIRS_SNPP"),
+    ("VIIRS_NOAA20_NRT", "VIIRS_NOAA20"),
+)
+
+
+def _fetch_open_meteo_current(lat: float, lon: float) -> dict:
+    """Consulta clima y viento actual en Open-Meteo para el centro del área."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": f"{lat:.4f}",
+        "longitude": f"{lon:.4f}",
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m",
+        "wind_speed_unit": "ms",
+    }
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            payload = resp.json()
+        cur = payload.get("current") or {}
+        return {
+            "status": "ok",
+            "source": "Open-Meteo",
+            "observed_at": cur.get("time"),
+            "center": {"lat": round(lat, 4), "lon": round(lon, 4)},
+            "t_amb_c": cur.get("temperature_2m"),
+            "relative_humidity_2m_pct": cur.get("relative_humidity_2m"),
+            "wind_speed_10m_ms": cur.get("wind_speed_10m"),
+            "wind_dir_deg": cur.get("wind_direction_10m"),
+        }
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "source": "Open-Meteo",
+            "detail": str(exc),
+        }
+
+
+def _fetch_firms_source(
+    client: httpx.Client,
+    map_key: str,
+    firms_source: str,
+    sensor_label: str,
+    west: float,
+    south: float,
+    east: float,
+    north: float,
+    days: int,
+) -> tuple[list[dict], str | None]:
+    """Consulta focos activos NRT en NASA FIRMS Area API sin mezclar sensores."""
+    bbox = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{firms_source}/{bbox}/{days}"
+    try:
+        resp = client.get(url)
+        resp.raise_for_status()
+        text = resp.text.strip()
+        if not text or text.lower().startswith("invalid"):
+            return [], text or "empty_response"
+        reader = csv.DictReader(io.StringIO(text))
+        features: list[dict] = []
+        for row in reader:
+            try:
+                lat_v = float(row["latitude"])
+                lon_v = float(row["longitude"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            frp_raw = row.get("frp")
+            try:
+                frp_val = float(frp_raw) if frp_raw not in (None, "") else None
+            except ValueError:
+                frp_val = None
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
+                    "properties": {
+                        "sensor": sensor_label,
+                        "firms_source": firms_source,
+                        "acq_date": row.get("acq_date"),
+                        "acq_time": row.get("acq_time"),
+                        "confidence": row.get("confidence"),
+                        "frp_mw": frp_val,
+                        "satellite": row.get("satellite"),
+                        "daynight": row.get("daynight"),
+                    },
+                }
+            )
+        return features, None
+    except Exception as exc:
+        return [], str(exc)
+
+
+@app.get("/api/v1/realtime/area")
+def realtime_area(
+    south: float = Query(..., ge=-90.0, le=90.0),
+    west: float = Query(..., ge=-180.0, le=180.0),
+    north: float = Query(..., ge=-90.0, le=90.0),
+    east: float = Query(..., ge=-180.0, le=180.0),
+    days: int = Query(3, ge=1, le=10),
+):
+    """Consulta en tiempo real clima global (Open-Meteo) y focos activos MODIS/VIIRS (NASA FIRMS) para cualquier bbox del mundo."""
+    if south >= north or west >= east:
+        raise ApiError(400, "INVALID_PARAMETER", "Bounding box inválido: requiere south < north y west < east")
+
+    center_lat = (south + north) / 2.0
+    center_lon = (west + east) / 2.0
+    weather = _fetch_open_meteo_current(center_lat, center_lon)
+
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    if not firms_key:
+        return {
+            "schema_version": "1.0",
+            "bbox": {"south": south, "west": west, "north": north, "east": east},
+            "days": days,
+            "weather": weather,
+            "hotspots_status": "firms_map_key_required",
+            "counts_by_sensor": {},
+            "hotspots": {"type": "FeatureCollection", "features": []},
+            "firms_setup": {
+                "env_var": "FIRMS_MAP_KEY",
+                "register_url": "https://firms.modaps.eosdis.nasa.gov/api/area/",
+                "note": "Configura FIRMS_MAP_KEY en el servidor para habilitar MODIS_NRT, VIIRS_SNPP_NRT y VIIRS_NOAA20_NRT en tiempo real.",
+            },
+        }
+
+    all_features: list[dict] = []
+    counts_by_sensor: dict[str, int] = {}
+    errors_by_sensor: dict[str, str] = {}
+
+    with httpx.Client(timeout=15.0) as client:
+        for firms_source, sensor_label in _FIRMS_SOURCES:
+            feats, err = _fetch_firms_source(
+                client=client,
+                map_key=firms_key,
+                firms_source=firms_source,
+                sensor_label=sensor_label,
+                west=west,
+                south=south,
+                east=east,
+                north=north,
+                days=days,
+            )
+            counts_by_sensor[sensor_label] = len(feats)
+            if err:
+                errors_by_sensor[sensor_label] = err
+            all_features.extend(feats)
+
+    return {
+        "schema_version": "1.0",
+        "bbox": {"south": south, "west": west, "north": north, "east": east},
+        "days": days,
+        "weather": weather,
+        "hotspots_status": "ok" if not errors_by_sensor else "partial",
+        "counts_by_sensor": counts_by_sensor,
+        "errors_by_sensor": errors_by_sensor or None,
+        "hotspots": {"type": "FeatureCollection", "features": all_features},
+    }

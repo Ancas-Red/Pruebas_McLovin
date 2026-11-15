@@ -30,7 +30,7 @@ import {
   publishedDaysInMonth,
   usefulDaysFromRows,
 } from "../api/client";
-import { insidePeru, ringAreaKm2, type LatLon } from "../lib/geo";
+import { ringAreaKm2, type LatLon } from "../lib/geo";
 
 const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -168,8 +168,8 @@ export function ControlRail(p: Props) {
       setCoordError("Revisa los valores: deben ser números y el radio mayor que cero.");
       return;
     }
-    if (!insidePeru([la, lo])) {
-      setCoordError("Ese punto cae fuera del Perú. La herramienta solo cubre territorio peruano.");
+    if (la < -90 || la > 90 || lo < -180 || lo > 180) {
+      setCoordError("Coordenadas fuera de rango global (latitud -90 a 90, longitud -180 a 180).");
       return;
     }
     setCoordError(null);

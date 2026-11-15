@@ -26,6 +26,7 @@ VIRS/
 *.tif
 *.tiff
 *.zip
+!data/processed/spread_outputs/*.zip
 
 # OS / Editors
 .DS_Store

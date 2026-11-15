@@ -486,6 +486,6 @@ export const NOT_ESTIMABLE = "No estimable";
 /* -------------------------------------------------------------------------- */
 
 /** Escalones de isócronas del recorrido simulado, en horas. */
-export const ISOCHRONE_STEPS_H = [6, 12, 24];
+export const ISOCHRONE_STEPS_H = [6, 12, 24, 36, 48];
 
 export const SPREAD_PHASE = "phase_2_optional" as const;

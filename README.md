@@ -11,6 +11,7 @@ Calendario longitudinal de actividad térmica (MODIS Terra/Aqua y VIIRS S-NPP) c
 
 * [Documento técnico y operativo v1.7](docs/McHanaq_documento_tecnico_operativo_v1.7.md)
 * [Arquitectura frontend ↔ backend y procesamiento longitudinal (v1.2)](docs/arquitectura_frontend_backend_McHanaq.md)
+* [Fase 2: Simulación espacial de propagación 48 h (SAVI + Topografía + Viento horario)](docs/Fase2_Simulacion_Espacial_Propagacion_48h.md)
 * [Descripción del reto](docs/reto.txt)
 * [Ancla para agentes (`docs/harness/`)](docs/harness/README.md)
 
@@ -93,7 +94,7 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 * **Inicio (`#/`):** portada por bloques con cortina orbital (`OrbitalLoader`), globo 3D interactivo + campo estelar (`#inicio`, titular animado de la ventana `2012 — 2026`), propósito y límites (`#proyecto`), y sección de equipo **Los McLovin** (`#equipo`) con transición de opacidad suave entre bloques y enlace oficial en el emblema de lentes.
 * **Mapa (`#/mapa`):**
   * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`GuidedTour`), selector territorial, calendario longitudinal (`2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
-  * **Simulación (Fase 2 opcional):** recorrido exploratorio desde una ignición hipotética con viento, humedad, vegetación, pendiente y horizonte configurables.
+  * **Simulación (Fase 2 opcional, hasta 48 h):** modelo exploratorio desacoplado (`src/analytics/spread_model.py`, marco Ley 26.815 / SNMF / CONAE-Gulich AC + Rothermel/Anderson/SAVI) que combina SAVI, pendiente DEM y viento horario de 48 h (`+6h..+48h`) con arquitectura API en 2 pasos (`/spread-simulate` instantáneo y `/spread-export` bajo demanda para GIF, MP4, Shapefiles QGIS `.zip` e infografías 300 DPI) y consultas globales Open-Meteo / NASA FIRMS (`/realtime/area`).
 * **Tecnología (`#/tecnologia`):** vista dedicada con tarjetas filtrables por capa técnica (`src/frontend/src/data/tech.ts`) y terminal interactiva (`TechTerminal` en pestañas Bash / Python / API).
 * **Fotos del equipo:** archivos activos en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`; `jhan.jpg` queda pendiente y la interfaz muestra su monograma `"J"` automáticamente).
 

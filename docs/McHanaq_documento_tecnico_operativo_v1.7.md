@@ -188,7 +188,7 @@ La diferenciación de McHanaq debe plantearse como **integración e interpretaci
 | Áreas quemadas | MapBiomas Fuego, Colección 2 | 30 m; anual, 1990–2025 | Referencia reciente para revisión retrospectiva. La colección se lanzó el 10/11/2026; comprobar el acceso y la versión descargable. |
 | Límites políticos (provincias y distritos) | **INEI 2023** (`Distrital INEI 2023 geogpsperu SuyoPomalia.shp`: `1,891` distritos / `196` provincias en Perú; `19` distritos / `4` provincias en Ucayali); respaldo global: `FAO/GAUL/2015/level1-2`, GADM, geoBoundaries | Capa vectorial (`EPSG:4326`) | Unidad administrativa para agregación y comunicación (`province` en API, más estadísticas distritales en `ucayali_districts_static.csv`). |
 | Unidades hidrográficas | **ANA / GeoIDEP**, metodología Pfafstetter (`Cuencas Hidrograficas/UH.shp`: `231` UH nacionales, `20` en Ucayali; `Autoridad_Administrativa_del_Agua.shp`); respaldo global: HydroSHEDS / HydroBASINS | Capa vectorial jerárquica (`EPSG:4326`) | Unidad hidrográfica (`hydro_unit` nivel 4 en Ucayali). No mezclar niveles Pfafstetter en un mismo ranking. |
-| Focos puntuales de referencia (opcional / visor) | **NASA FIRMS** (`src/gee/firms_peru/`): MODIS `2000–2025`, VIIRS JPSS-1 `2018–2025`, VIIRS S-NPP `2012–2015` *(pendiente completar `2016–2026`)* | Puntos diarios (`lat, lon, frp, confidence`) | Insumo para `hotspots.geojson`; complementa la lectura territorial sin sustituir `MOD14A1`/`MYD14A1`/`VNP14A1` de GEE. |
+| Focos puntuales de referencia (opcional / visor) | **NASA FIRMS** (`src/gee/firms_peru/`): MODIS `2000–2025` (26 archivos), VIIRS JPSS-1 `2018–2025` (8 archivos), VIIRS S-NPP `2012–2025` (14 archivos, serie completa) | Puntos diarios (`lat, lon, frp, confidence`) | Insumo tabular (CSV de focos de calor, no imágenes raster) para `hotspots.geojson`; complementa la lectura territorial sin sustituir `MOD14A1`/`MYD14A1`/`VNP14A1` de GEE. |
 | Áreas quemadas | MapBiomas Fuego, Colección 2; alternativamente MODIS MCD64A1 | MapBiomas C2: anual, 30 m, 1990–2025; MCD64A1: mensual, 500 m | Referencia retrospectiva; no equivale a hotspot ni valida por sí sola cada detección. El Monitor del Fuego aporta productos mensuales recientes 2025–2026, sujetos a disponibilidad. |
 
 ### 5.3. Criterios para elegir las fuentes en el hackathon
@@ -399,35 +399,37 @@ El árbol responde una pregunta descriptiva: *dadas las condiciones observadas e
 
 | Factor | Variable | Regla indicativa | Fuente |
 |---|---|---|---|
-| Vegetación combustible | Proporción de clases combustibles (`vegetation_area_pct`) | Mayor o igual a `umbral_veg` (parámetro documentado). | MapBiomas |
+| Vegetación combustible | Proporción de clases combustibles (`vegetation_area_pct` / `effective_vegetation_area_pct`) | Mayor o igual a `umbral_veg` (`20%` en piloto Ucayali, descontando agua y clases no combustibles). | MINAM `CobVeg_180615.shp` / MapBiomas / `ESA/WorldCover/v200` |
 | Sequedad | `precip_30d_mm` o `soil_moisture_surface`; `ndvi_anomaly` como evidencia complementaria | Por debajo del percentil estacional bajo (p25) del mismo territorio y mes. El NDVI negativo apoya la señal pero no la sustituye. | ERA5-Land / MOD13A3 |
 | Viento | `wind_speed_10m_ms` | Por encima del percentil estacional alto (p75). | ERA5-Land |
 | Condición cálida y seca | `temperature_2m_c` y `relative_humidity_2m_pct` | Temperatura sobre p75 **y** humedad relativa bajo p25. No basta la temperatura sola. | ERA5-Land |
-| Pendiente | `slope_class_area_pct` | Proporción de área con pendiente elevada mayor o igual a `umbral_pend`. | SRTM |
-| Agua y humedales | `water_area_pct`, humedales | Solo descriptivo en el MVP; no cambia la categoría. | MapBiomas |
-| Antecedente térmico | `signal_status` por sensor, persistencia | `elevated` en al menos un sensor con cobertura suficiente. Solo informativo. | MODIS / VIIRS |
+| Pendiente | `slope_class_area_pct` | Proporción de área con pendiente elevada mayor o igual a `umbral_pend` (`15%`). Interviene en `N3b` (`wind_high and steep`) y como modificador. | `COPERNICUS_DEM_GLO30` (30 m) |
+| Agua y humedales | `water_area_pct` y `water_buffer_150m_pct` (buffer `150 m`) | Cuando `water_buffer_150m_pct >= 5%` (o `water_area_pct >= 5%`), atenúa `high` a `moderate` (`water_buffer_150m_attenuation`). | MINAM `CobVeg_180615.shp` / `JRC/GSW1_4/GlobalSurfaceWater` |
+| Antecedente térmico | `signal_status` por sensor, persistencia | `elevated` en al menos un sensor con cobertura suficiente. Solo informativo (`thermal_history_elevated`). | MODIS / VIIRS |
 
-**Árbol de decisión (versión inicial):**
+**Árbol de decisión (versión vigente):**
 
 ```text
 N0  ¿Pasa la compuerta de calidad?
      ├─ No  → PARTIAL o NOT_EVALUABLE (según qué bloque falte)
      └─ Sí  ↓
-N1  ¿Vegetación combustible ≥ umbral_veg?
+N1  ¿Vegetación combustible efectiva ≥ umbral_veg (20 %)?
      ├─ No  → LOW   (poco combustible vegetal en el territorio)
      └─ Sí  ↓
 N2  ¿Señal de sequedad? (precip_30d o humedad del suelo < p25 estacional)
      ├─ Sí → N3a ¿Condición atmosférica propicia?
      │           (viento > p75  O  (temperatura > p75 Y humedad relativa < p25))
-     │           ├─ Sí → HIGH
+     │           ├─ Sí → HIGH (atenuado a MODERATE si water_buffer_150m_pct ≥ 5 %)
      │           └─ No → MODERATE
-     └─ No → N3b ¿Viento > p75 Y proporción de pendiente elevada ≥ umbral_pend?
+     └─ No → N3b ¿Viento > p75 Y proporción de pendiente elevada ≥ umbral_pend (15 %)?
                  ├─ Sí → MODERATE
                  └─ No → LOW
 
-Modificadores informativos (no cambian la categoría en el MVP):
-  steep_slope_share_high · thermal_history_elevated · water_share_high
+Modificadores registrados:
+  steep_slope_share_high · thermal_history_elevated · water_share_high · surface_water_buffer_150m
 ```
+
+**Alcance frente al protocolo peruano (CENEPRED / SERFOR):** el árbol `N0–N3` integra los tres factores condicionantes físicos y climáticos utilizados en el Perú (cobertura vegetal combustible del MINAM, pendiente `COPERNICUS_DEM_GLO30` y déficit hídrico/meteorología estacional `ERA5-Land`), pero se distingue de un Escenario de Riesgo oficial de CENEPRED en cuatro aspectos deliberados: (1) el antecedente térmico (`thermal_history_elevated`) es informativo y no modela el factor desencadenante antrópico (proximidad a vías, centros poblados o frontera agrícola), (2) la vegetación combustible se evalúa de forma binaria sin pesos diferenciales de inflamabilidad por formación vegetal, (3) clasifica unidades territoriales agregadas (`province`, `hydro_unit`) en 3 niveles (`high`, `moderate`, `low`) en lugar de un ráster continuo AHP en 4 niveles, y (4) no cruza con elementos expuestos (población, ANP o infraestructura).
 
 **Categorías de salida** (`classification`):
 
@@ -1403,3 +1405,7 @@ Para el piloto operativo sobre **Ucayali** (`4` provincias INEI 2023 y `20` unid
 6. **Capas generadas de Ucayali y mejoras del visor técnico (`src/gee/`, `src/frontend/`):**
    - `src/gee/prepare_ucayali_layers.py` genera `data/processed/territories.geojson` (`4` provincias + `20` UH ANA de Ucayali), `data/processed/ucayali_territories.geojson` y `data/processed/ucayali_districts_static.csv` (`19` distritos con `vegetation_fraction` entre `0.9098` y `1.0000`, todos $\ge 0.20$, y `water_buffer_150m_fraction` entre `0.0000` y `0.1474`).
    - El visor (`src/frontend/src/components/MapStage.tsx`, `types.ts`, `MapTool.tsx`) expone directamente sobre el mapa los botones de mapa base (`Oscuro` OpenStreetMap, `Relieve` OpenTopoMap, `Satélite` Esri World Imagery), diferencia visualmente los focos por sensor (**MODIS Terra** `#ff9f1c`, **MODIS Aqua** `#ff3b30`, **VIIRS Suomi-NPP** `#00e5ff`) con tooltip explícito, evita que la selección de polígonos interfiera al dibujar o ubicar igniciones dentro de una zona, desbloquea el paneo/zoom mundial (`minZoom: 2`, `worldCopyJump: true`) y selecciona por defecto un día útil con detecciones cuando existe.
+7. **Fase 2 opcional y desacoplada — Simulación espacial de propagación a 48 h (`src/analytics/spread_model.py`, `docs/Fase2_Simulacion_Espacial_Propagacion_48h.md`):**
+   - Sin alterar ni reemplazar la Fase 1 (calendario histórico, comparación multisensor y árbol `N0..N3`), Fase 2 modela propagación exploratoria condicional a un punto de ignición hasta **48 horas** (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`) integrando **SAVI (Huete, 1988)**, **topografía/pendiente direccional** (`COPERNICUS_DEM_GLO30`) y **viento horario de 48 h** bajo un esquema de **Autómatas Celulares** con elipse **Anderson (1983) / Alexander (1985)** y humedad de **Rothermel (1972)**, alineado con el marco normativo-espacial argentino (**Ley N.º 26.815 / SNMF / CONAE – Instituto Gulich UNC / SARTiv**).
+   - **Productos generados (`data/processed/spread_forecasts.json` y `data/processed/spread_outputs/`):** animación `simulacion_48h.gif`, video `pronostico_48h.mp4` (H.264), paquete `mchanaq_propagacion_48h_qgis.zip` con 4 Shapefiles WGS84 listos para QGIS (`isocronas_48h.shp`, `celdas_horarias_48h.shp`, `ignicion_y_viento_48h.shp`, `vectores_viento_48h.shp`), `panel_modelo_48h.png` e `infografia_impacto_48h.png` (300 DPI).
+   - **Evaluación mundial vía APIs y arquitectura web en 2 pasos:** el backend expone el **Paso 1 instantáneo** (`POST|GET /api/v1/spread-simulate`, ~`0.13 s` de cómputo local en grilla `120×120`), el **Paso 2 bajo demanda** (`POST|GET /api/v1/spread-export` + `GET /api/v1/spread-outputs/{filename}`, ~`4.2 s` locales con *blitting* Matplotlib y cuantización rápida Pillow) y consulta global opcional en vivo a **Open-Meteo** (viento horario + elevación `COPERNICUS_DEM_GLO90_OPEN_METEO`) y **NASA FIRMS** (`GET /api/v1/realtime/area`, separando sensores sin sumar conteos). Se mantiene visible de forma obligatoria el descargo de que es una proyección exploratoria condicional y **no un sistema operativo de alerta, predicción de ignición o evacuación**.

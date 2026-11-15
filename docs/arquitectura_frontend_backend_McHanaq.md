@@ -30,7 +30,7 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
    daily_activity.csv          (MOD14/MYD14/VNP14)   • tasas y anomalías (MAD)    │
    environmental_daily.csv     (T_amb, T_suelo,      • resumen mensual            │ lee al arrancar
                                 viento diario, DEM)  • árbol de susceptibilidad   ▼
-   environmental_context.csv   (mensual + MapBiomas) • comparación multisensor   backend/app/main.py (Tom)
+   environmental_context.csv   (mensual + CobVeg/MapBiomas) • comparación multisensor   backend/app/main.py (Tom)
    gee_manifest.json           (fuentes, DEM/época)                              FastAPI, solo lectura
  data/processed/                                                                         │
    territories.geojson         ────────────────────────────────────────────────►  HTTP   │ /api/v1/...
@@ -51,6 +51,7 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
    * **`environmental_daily.csv`:** serie longitudinal **diaria** por `(date, territory_type, territory_id)` con `t_amb_c`, `relative_humidity_2m_pct`, `t_suelo_c`, `lst_valid_pixel_pct`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m` y `dem_source` (sección 2.2).
    * **`environmental_context.csv`:** tabla mensual por `(period_id, territory_type, territory_id)` generada por Tom (en `analytics/`) agregando `environmental_daily.csv` junto con MapBiomas/MINAM, `MOD13A3` NDVI, `precip_30d_mm`, `soil_moisture_surface` (`volumetric_soil_water_layer_1`, `m³/m³`) y pendiente DEM.
    * **`gee_manifest.json`:** registra colecciones exactas, fechas reales disponibles en GEE (`gee_verified_dates.json`), `min_baseline_years: 5`, modelo `COPERNICUS_DEM_GLO30` y fuente de `t_amb_c`.
+   * **Respaldo tabular FIRMS Perú (`src/gee/firms_peru/`):** registros CSV puntuales de anomalías térmicas (*Country Yearly Summary*, Standard Processing) para Perú: `modis/` (`2000–2025`, 26 archivos), `viirs-snpp/` (`2012–2025`, 14 archivos) y `viirs-jpss1/` (`2018–2025`, 8 archivos), utilizados para `hotspots.geojson` sin sustituir las grillas diarias `MOD14A1`/`MYD14A1`/`VNP14A1`.
    * **Regla operativa GEE y opciones oficiales de exportación:** las tareas batch desde Earth Engine Code Editor exportan inicialmente vía `Export.table.toDrive` (o GCS) por bloques de 1–2 años sobre el área piloto para evitar timeouts o límites de cuota EECU, luego se descargan a `data/intermediate/` y se respaldan en **Azure Blob Storage (Free Tier)**. Las **3 opciones oficiales de exportación** para Ucayali son:
      1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
      2. **Línea base mínima de 5 años:** `2018-01-01` a `2026-11-03`
@@ -444,27 +445,32 @@ Criterio de listo para esta capa:
 
 ---
 
-## 12. Fase 2 (Opcional) — Predicción visual de propagación del fuego
+## 12. Fase 2 (Opcional) — Simulación espacial de propagación del fuego (48 h)
 
-Esta fase es **estrictamente opcional y desacoplada de la Fase 1**: no bloquea ni modifica los endpoints de las secciones 1–11, sino que reutiliza las variables diarias ya preparadas en Fase 1 para estimar y proyectar visualmente hacia dónde podría propagarse un incendio activo.
+Esta fase es **estrictamente opcional y desacoplada de la Fase 1**: no bloquea ni modifica los endpoints de las secciones 1–11, sino que reutiliza las variables diarias ya preparadas en Fase 1 (más insumos globales opcionales vía APIs) para estimar y proyectar visualmente y en formatos GIS hacia dónde podría avanzar un frente desde una ignición hipotética o foco detectado hasta **48 horas**.
 
-### 12.1. Entradas heredadas de Fase 1
+### 12.1. Entradas y marco metodológico (`src/analytics/spread_model.py`)
 
-| Factor | Variables de Fase 1 reutilizadas | Rol en propagación |
+Referencia documental completa en [docs/Fase2_Simulacion_Espacial_Propagacion_48h.md](docs/Fase2_Simulacion_Espacial_Propagacion_48h.md) (marco legal/espacial argentino **Ley N.º 26.815 / SNMF / SMN / CONAE – Instituto Gulich UNC / SARTiv** por Autómatas Celulares, acoplado con **Huete 1988 SAVI**, **Rothermel 1972** y propagación elíptica **Anderson 1983 / Alexander 1985**).
+
+| Factor | Variables reutilizadas / externas | Rol en propagación (48 h) |
 |---|---|---|
-| **Viento diario** | `wind_dir_deg`, `wind_speed_10m_ms` | Define el eje principal de avance y la elongación del frente (elipse/cono de propagación). |
-| **Topografía (DEM)** | `elevation_m`, pendiente y orientación (`aspect`) | Acelera el avance pendiente arriba y modula la velocidad según exposición. |
-| **Combustible y condiciones térmicas** | Cobertura (`MapBiomas`), `t_amb_c`, `t_suelo_c` (LST), humedad/precipitación | Modula la resistencia o favorabilidad del terreno circundante. |
-| **Focos de partida** | `hotspots.geojson` (o coordenadas elegidas en el mapa) | Puntos de ignición inicial para proyectar el avance en `+6h`, `+12h`, `+24h`. |
+| **Vegetación / Combustible (SAVI)** | SAVI (`[-1, 1]`, GeoTIFF Sentinel-2/Landsat opcional o calibrado desde `vegetation_area_pct` / `CobVeg_180615.shp`) | Modula carga combustible por celda; agua/suelo (`SAVI <= 0.12`) actúa como barrera. |
+| **Topografía (DEM)** | `COPERNICUS_DEM_GLO30` (`GeoTIFF` local, `Open-Meteo Elevation API` global o perfil calibrado con `slope_class_area_pct`) | Calcula pendiente direccional celda a celda $\theta_{ij}$ en grados. |
+| **Viento horario (48 h)** | `wind_dir_deg`, `wind_speed_10m_ms` (perfil horario ERA5-Land o `Open-Meteo Forecast/Archive API` `use_open_meteo=true`) | Actualiza hora por hora (`Hora 01..48`) el eje de avance, ROS de cabeza y elongación `L/B`. |
+| **Focos de partida** | `hotspots.geojson`, `/api/v1/realtime/area` (NASA FIRMS) o coordenadas elegidas en el mapa | Punto de ignición para proyectar isócronas `+6h`, `+12h`, `+24h`, `+36h` y `+48h`. |
 
-### 12.2. Contrato de API opcional (Fase 2)
+### 12.2. Contrato de API opcional en 2 pasos (Fase 2) y salidas GIS
 
-Se habilita solo si existe el módulo de propagación (`analytics/spread_model.py` o resultados precalculados en `data/processed/spread_forecasts.json`):
+Se habilita solo cuando están presentes `src/analytics/spread_model.py` o `data/processed/spread_forecasts.json`. Para no bloquear la respuesta web ni el servidor **Azure App Service F1**, se divide en **Paso 1 interactivo (~0.13 s local / ~1–5 s con APIs)** y **Paso 2 exportador bajo demanda (~4.2 s local con *blitting*)**:
 
 | Ruta | Para qué sirve |
 |---|---|
-| `GET /api/v1/territories/{type}/{id}/spread-forecast?date=YYYY-MM-DD&horizon_h=24` | Devuelve isócronas precomputadas (`+6h`, `+12h`, `+24h`) y vectores de avance para los focos del día en ese territorio. |
-| `POST /api/v1/spread-simulate` *(opcional interactivo)* | Recibe `{ "lat": number, "lon": number, "date": "YYYY-MM-DD", "horizon_h": 24 }` y devuelve la envolvente estimada desde ese punto usando el viento y DEM del día. |
+| `GET /api/v1/territories/{type}/{id}/spread-forecast?date=YYYY-MM-DD&horizon_h=48` | Devuelve isócronas precomputadas (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`) o calculadas para el territorio con `hourly_wind`, `savi_summary`, `slope_summary`, `outputs` y `timings_s`. |
+| `POST\|GET /api/v1/spread-simulate` *(Paso 1 rápido)* | Recibe `{ "lat", "lon", "date", "horizon_h": 48, "use_open_meteo": false, ... }` y devuelve JSON/GeoJSON inmediato para pintar en el visor web. |
+| `POST\|GET /api/v1/spread-export` *(Paso 2 bajo demanda)* | Ejecuta simulación + generación de todos los productos en `data/processed/spread_outputs/`: `simulacion_48h.gif`, `pronostico_48h.mp4`, `mchanaq_propagacion_48h_qgis.zip` (4 shapefiles `.shp`), `infografia_impacto_48h.png` y `panel_modelo_48h.png`, devolviendo URLs y `timings_s`. |
+| `GET /api/v1/spread-outputs/{filename}` | Descarga segura de cualquiera de los 5 artefactos generados en Fase 2. |
+| `GET /api/v1/realtime/area?south=…&west=…&north=…&east=…` | Consulta global en tiempo real de Open-Meteo (clima actual) y NASA FIRMS (`MODIS_NRT`, `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT` sin sumar sensores) para cualquier caja delimitadora del mundo. |
 
 **Forma de respuesta esperada (GeoJSON):**
 
@@ -472,17 +478,26 @@ Se habilita solo si existe el módulo de propagación (`analytics/spread_model.p
 {
   "schema_version": "1.0",
   "phase": "phase_2_optional",
-  "date": "2026-09-15",
-  "horizon_h": 24,
-  "dominant_wind": { "wind_dir_deg": 135.0, "wind_speed_10m_ms": 4.2 },
+  "date": "2024-09-25",
+  "horizon_h": 48,
+  "dominant_wind": { "wind_dir_deg": 118.0, "wind_speed_10m_ms": 4.02 },
+  "savi_summary": { "mean": 0.44, "p90": 0.61, "source": "SAVI_HUETE1988_VEG_CALIBRATED" },
+  "slope_summary": { "mean_deg": 4.52, "max_deg": 19.65, "dem_source": "COPERNICUS_DEM_GLO30_PARAMETRIC" },
   "isochrones": {
     "type": "FeatureCollection",
     "features": [
-      { "type": "Feature", "properties": { "step_h": 6, "risk_level": "high" }, "geometry": { "type": "Polygon", "coordinates": [] } },
-      { "type": "Feature", "properties": { "step_h": 12, "risk_level": "moderate" }, "geometry": { "type": "Polygon", "coordinates": [] } },
-      { "type": "Feature", "properties": { "step_h": 24, "risk_level": "low" }, "geometry": { "type": "Polygon", "coordinates": [] } }
+      { "type": "Feature", "properties": { "step_h": 6, "risk_level": "critical" }, "geometry": { "type": "MultiPolygon", "coordinates": [] } },
+      { "type": "Feature", "properties": { "step_h": 48, "risk_level": "extended" }, "geometry": { "type": "MultiPolygon", "coordinates": [] } }
     ]
   },
+  "outputs": {
+    "gif": "/api/v1/spread-outputs/simulacion_48h.gif",
+    "mp4": "/api/v1/spread-outputs/pronostico_48h.mp4",
+    "shapefiles_zip": "/api/v1/spread-outputs/mchanaq_propagacion_48h_qgis.zip",
+    "infografia_impacto": "/api/v1/spread-outputs/infografia_impacto_48h.png",
+    "panel_modelo": "/api/v1/spread-outputs/panel_modelo_48h.png"
+  },
+  "timings_s": { "simulation_s": 0.126, "total_s": 0.126 },
   "model_metadata": {
     "model_name": "heuristic_wind_slope_spread_v1",
     "disclaimer": "Proyección exploratoria basada en viento diario, DEM y cobertura; no sustituye modelos físicos operativos en tiempo real."
@@ -490,8 +505,8 @@ Se habilita solo si existe el módulo de propagación (`analytics/spread_model.p
 }
 ```
 
-### 12.3. Visualización en el Frontend (Fase 2)
+### 12.3. Visualización y descargas en el Frontend (Fase 2)
 
-1. **Capa opcional con interruptor (*toggle*):** «Proyección de propagación (Fase 2)» desactivada por defecto para mantener limpia la vista de Fase 1.
-2. **Isócronas en el mapa:** polígonos concéntricos/direccionales semitransparentes (`+6h`, `+12h`, `+24h`) con leyenda clara de horas estimadas.
-3. **Vector de viento y pendiente:** flecha direccional sobre el foco indicando `wind_dir_deg` y velocidad (`m/s`), junto con el aviso metodológico (`disclaimer`) visible en pantalla.
+1. **Capa opcional desacoplada:** Panel «Escenario · Fase 2» (`SpreadRail.tsx`) e isócronas horarias hasta `48 h` (`+6h`, `+12h`, `+24h`, `+36h`, `+48h`) con reproducción temporal en navegador (`0 h → 48 h`) y métricas de `SAVI medio (Huete 1988)`, pendiente y relación `L/B`.
+2. **Exportación GIS y multimedia en 1 clic:** Botón «Generar reporte 48 h (Python / API)» que llama a `POST /api/v1/spread-export` (con coordenadas activas y `use_open_meteo: true`) y enlaces directos a GIF, MP4, paquete `.zip` de Shapefiles para QGIS, infografía de impacto y panel del modelo.
+3. **Vector de viento y descargo obligatorio:** Flecha direccional de avance del viento sobre la ignición y aviso metodológico (`disclaimer`) visible en todo momento.
