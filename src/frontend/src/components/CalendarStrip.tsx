@@ -259,6 +259,13 @@ export function CalendarStrip(p: Props) {
               <span>{Math.round(max / 4).toLocaleString("es-PE")}</span>
               <span>{max.toLocaleString("es-PE")}</span>
             </div>
+            <div
+              className="calstrip__flag-legend"
+              title="Triángulo superior derecho en celda: mes con anomalía histórica robusta z ≥ 2 respecto a su línea base"
+            >
+              <span className="calstrip__flag-sample" aria-hidden="true" />
+              <span>Esquina: anomalía fuerte (z ≥ 2)</span>
+            </div>
           </div>
 
           <div className="calstrip__chart">

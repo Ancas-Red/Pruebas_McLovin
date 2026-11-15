@@ -162,6 +162,17 @@ export function ControlRail(p: Props) {
     return map;
   }, [p.daily, p.sensor]);
 
+  const daysWithFiresCount = useMemo(() => {
+    let count = 0;
+    for (const d of usefulDays) {
+      const row = dailyByDate.get(isoDate(p.year, p.month, d));
+      if ((row?.fire_pixels_nominal_high ?? 0) > 0 || (row?.fire_pixels_low ?? 0) > 0) {
+        count += 1;
+      }
+    }
+    return count;
+  }, [usefulDays, dailyByDate, p.year, p.month]);
+
   const features = p.territories?.features ?? [];
 
   useEffect(() => {
@@ -282,47 +293,66 @@ export function ControlRail(p: Props) {
               <span>
                 {p.dailyLoading
                   ? "Cargando…"
-                  : `${usefulDays.length} ${usefulDays.length === 1 ? "día útil" : "días útiles"}`}
+                  : `${usefulDays.length} ${usefulDays.length === 1 ? "día útil" : "días útiles"}${
+                      daysWithFiresCount > 0 ? ` · ${daysWithFiresCount} con focos` : ""
+                    }`}
               </span>
               <span>{pad2(usefulDays[usefulDays.length - 1] ?? maxDay)}</span>
             </div>
 
             {monthDaysSpan.length > 0 && (
-              <div className="day-grid" role="group" aria-label="Días del mes con datos útiles">
-                {monthDaysSpan.map((d) => {
-                  const iso = isoDate(p.year, p.month, d);
-                  const row = dailyByDate.get(iso);
-                  const isUseful = usefulSet.has(d);
-                  const isSelected = isUseful && p.day === d;
-                  const covPct =
-                    row?.observation_coverage != null
-                      ? `${Math.round(row.observation_coverage * 100)} %`
-                      : null;
-                  const title = isUseful
-                    ? `Día ${iso}${covPct ? ` · cobertura ${covPct}` : ""}`
-                    : !isDateAvailable(iso, p.sensor, p.metadata)
-                      ? `Día ${iso} · sin publicación en metadata`
-                      : row?.activity_rate == null
-                        ? `Día ${iso} · sin observación válida`
-                        : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      className="day-pill"
-                      disabled={Boolean(p.dailyLoading) || !isUseful}
-                      aria-pressed={isSelected}
-                      title={title}
-                      onClick={() => {
-                        p.onDay(d);
-                        p.onGranularity("day");
-                      }}
-                    >
-                      {pad2(d)}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="day-grid" role="group" aria-label="Días del mes con datos útiles">
+                  {monthDaysSpan.map((d) => {
+                    const iso = isoDate(p.year, p.month, d);
+                    const row = dailyByDate.get(iso);
+                    const isUseful = usefulSet.has(d);
+                    const isSelected = isUseful && p.day === d;
+                    const nomHigh = row?.fire_pixels_nominal_high ?? 0;
+                    const lowOnly = row?.fire_pixels_low ?? 0;
+                    const hasFires = nomHigh > 0 || lowOnly > 0;
+                    const covPct =
+                      row?.observation_coverage != null
+                        ? `${Math.round(row.observation_coverage * 100)} %`
+                        : null;
+                    const fireLabel =
+                      nomHigh > 0
+                        ? `${nomHigh} foco(s) ${SENSOR_LABELS[p.sensor].short}`
+                        : lowOnly > 0
+                          ? `${lowOnly} foco(s) conf. baja`
+                          : "0 focos";
+                    const title = isUseful
+                      ? `Día ${iso} · ${fireLabel}${covPct ? ` · cobertura ${covPct}` : ""}`
+                      : !isDateAvailable(iso, p.sensor, p.metadata)
+                        ? `Día ${iso} · sin publicación en metadata`
+                        : row?.activity_rate == null
+                          ? `Día ${iso} · sin observación válida`
+                          : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        className="day-pill"
+                        data-fires={isUseful && hasFires ? "true" : undefined}
+                        disabled={Boolean(p.dailyLoading) || !isUseful}
+                        aria-pressed={isSelected}
+                        title={title}
+                        onClick={() => {
+                          p.onDay(d);
+                          p.onGranularity("day");
+                        }}
+                      >
+                        {pad2(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="day-grid__legend" aria-hidden="true">
+                  <span><i className="day-dot day-dot--fire" /> Con focos</span>
+                  <span><i className="day-dot day-dot--clear" /> Útil sin focos</span>
+                  <span><i className="day-dot day-dot--off" /> Sin cobertura</span>
+                </div>
+              </>
             )}
 
             {!p.dailyLoading && usefulDays.length === 0 && (

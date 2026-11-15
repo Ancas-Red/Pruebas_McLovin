@@ -193,11 +193,16 @@ def check_date(
                 ok &= _date_in_ranges(d, ranges_map[sensor])
             else:
                 ok &= resolved_period in META.get("available_periods_by_sensor", {}).get(sensor, [])
-        if full or env_only:
-            if "common_environmental_dates" in META:
-                ok &= _date_in_ranges(d, META.get("common_environmental_dates"))
+        env_dates = META.get("common_environmental_dates")
+        env_periods = META.get("common_environmental_periods")
+        has_env_window = bool(env_dates) or bool(env_periods)
+        if env_only or (full and has_env_window):
+            if env_dates:
+                ok &= _date_in_ranges(d, env_dates)
+            elif env_periods:
+                ok &= resolved_period in env_periods
             else:
-                ok &= resolved_period in (META.get("common_environmental_periods") or [])
+                ok = False
         if comparison:
             if "common_analysis_dates" in META:
                 ok &= _date_in_ranges(d, META.get("common_analysis_dates"))
@@ -216,11 +221,16 @@ def check_date(
                 ok &= period in periods_map[sensor]
             else:
                 ok &= _period_in_ranges(period, META.get("available_date_ranges_by_sensor", {}).get(sensor))
-        if full or env_only:
-            if "common_environmental_periods" in META:
-                ok &= period in (META.get("common_environmental_periods") or [])
+        env_dates = META.get("common_environmental_dates")
+        env_periods = META.get("common_environmental_periods")
+        has_env_window = bool(env_dates) or bool(env_periods)
+        if env_only or (full and has_env_window):
+            if env_periods:
+                ok &= period in env_periods
+            elif env_dates:
+                ok &= _period_in_ranges(period, env_dates)
             else:
-                ok &= _period_in_ranges(period, META.get("common_environmental_dates"))
+                ok = False
         if comparison:
             if "common_analysis_periods" in META:
                 ok &= period in (META.get("common_analysis_periods") or [])
