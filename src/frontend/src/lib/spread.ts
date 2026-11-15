@@ -467,14 +467,26 @@ export function renderSpreadPNG(
   horizonHours: number
 ): string {
   const { cols, rows, arrival } = result;
-  const canvas = document.createElement("canvas");
-  canvas.width = cols;
-  canvas.height = rows;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
 
-  const img = ctx.createImageData(cols, rows);
+  // Paso 1: la grilla nitida, en la resolucion real del modelo. Sigue siendo
+  // la fuente de verdad (no se inventa detalle que la simulacion no tiene),
+  // pero ya no se entrega tal cual: se usa como insumo del paso 2.
+  const core = document.createElement("canvas");
+  core.width = cols;
+  core.height = rows;
+  const coreCtx = core.getContext("2d");
+  if (!coreCtx) return "";
+
+  const img = coreCtx.createImageData(cols, rows);
   const data = img.data;
+
+  // Ruido pseudoaleatorio estable por celda (varia con tHours, no con cada
+  // frame): sugiere el parpadeo propio de una brasa sin fingir que el
+  // modelo observa mas detalle del que calculo.
+  const flickerSeed = (i: number) => {
+    const x = Math.sin(i * 12.9898 + tHours * 0.37) * 43758.5453;
+    return x - Math.floor(x);
+  };
 
   for (let i = 0; i < cols * rows; i++) {
     const t = arrival[i];
@@ -483,15 +495,42 @@ export function renderSpreadPNG(
       data[o + 3] = 0;
       continue;
     }
-    // Mas reciente = mas brillante. El area ya consumida se apaga.
+    // Mas reciente = mas brillante. El area ya consumida se apaga hacia
+    // brasa (menos opacidad), en vez de quedar plana al 100%.
     const age = (tHours - t) / Math.max(0.5, horizonHours);
-    const [r, g, bl] = rampColor(1 - Math.min(1, age * 0.92));
+    const clampedAge = Math.min(1, age * 0.92);
+    const [r, g, bl] = rampColor(1 - clampedAge);
+    const flicker = 0.92 + flickerSeed(i) * 0.16;
+    const alpha = Math.round((238 - clampedAge * 150) * flicker);
     data[o] = r;
     data[o + 1] = g;
     data[o + 2] = bl;
-    data[o + 3] = 225;
+    data[o + 3] = Math.max(0, Math.min(255, alpha));
   }
 
-  ctx.putImageData(img, 0, 0);
-  return canvas.toDataURL("image/png");
+  coreCtx.putImageData(img, 0, 0);
+
+  // Paso 2: lienzo final ampliado con un halo difuso de calor debajo del
+  // nucleo nitido (suavizado, ya no "pixelated" duro). El halo comunica
+  // "esto es fuego" sin desplazar donde esta realmente el frente.
+  const scale = 6;
+  const out = document.createElement("canvas");
+  out.width = cols * scale;
+  out.height = rows * scale;
+  const outCtx = out.getContext("2d");
+  if (!outCtx) return core.toDataURL("image/png");
+
+  outCtx.save();
+  outCtx.filter = `blur(${scale * 1.7}px)`;
+  outCtx.globalAlpha = 0.85;
+  outCtx.drawImage(core, 0, 0, out.width, out.height);
+  outCtx.restore();
+
+  outCtx.save();
+  outCtx.filter = `blur(${scale * 0.3}px)`;
+  outCtx.globalCompositeOperation = "screen";
+  outCtx.drawImage(core, 0, 0, out.width, out.height);
+  outCtx.restore();
+
+  return out.toDataURL("image/png");
 }

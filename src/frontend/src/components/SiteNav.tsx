@@ -56,7 +56,7 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
             `compact={false}`: en la cabecera va la marca completa (globo
             con meridianos, doble órbita y satélite) propuesta por el
             equipo, no la versión reducida de abajo de 44px. */}
-        <Logo size={36} tone="light" compact={false} />
+        <Logo size={36} tone="light" compact={false} animate />
         <span className="brand__text">
           <span className="brand__name">McHanaq</span>
           <span className="brand__tag">Actividad térmica</span>
