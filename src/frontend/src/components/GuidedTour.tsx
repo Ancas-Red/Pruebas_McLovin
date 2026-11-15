@@ -25,7 +25,7 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="dock-area"]',
     title: "Territorio (Provincias y Cuencas)",
     body:
-      "Alterna entre las 4 provincias y las 20 unidades hidrográficas de Ucayali, o cambia la variable ambiental pintada en el mapa.",
+      "Alterna entre las provincias y unidades hidrográficas del Perú, o cambia la variable ambiental pintada en el mapa.",
     placement: "right",
   },
   {
@@ -41,7 +41,7 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="map-toolbar"]',
     title: "Mapa y zona poligonal",
     body:
-      "Haz clic sobre cualquier polígono de Ucayali para inspeccionarlo, o usa las herramientas para trazar un área e ignición en la simulación exploratoria.",
+      "Haz clic sobre cualquier polígono del Perú para inspeccionarlo, o usa las herramientas para trazar un área e ignición en la simulación exploratoria.",
     placement: "bottom",
   },
   {
@@ -272,7 +272,7 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
           </h2>
           <p className="tour-modal__body">
             Te mostraremos en {steps.length} pasos breves dónde seleccionar fechas útiles,
-            explorar las provincias y unidades hidrográficas de Ucayali, interpretar el calendario
+            explorar las provincias y unidades hidrográficas del Perú, interpretar el calendario
             térmico y revisar el árbol de susceptibilidad.
           </p>
 

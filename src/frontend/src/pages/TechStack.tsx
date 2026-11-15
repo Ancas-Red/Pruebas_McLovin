@@ -195,7 +195,7 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
 
           <dl className="facts tech-facts" data-reveal>
             <div>
-              <dt>Ventana común Ucayali</dt>
+              <dt>Ventana común Perú</dt>
               <dd>2012-01-19 — 2026-11-02</dd>
             </div>
             <div>
@@ -313,7 +313,7 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
                 03 · Rigor metodológico y umbrales
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Parámetros verificados del piloto Ucayali.
+                Parámetros verificados a escala nacional (Perú).
               </h2>
             </div>
             <p className="block__lead" data-reveal>

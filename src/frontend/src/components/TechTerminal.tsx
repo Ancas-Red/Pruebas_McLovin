@@ -20,11 +20,11 @@ const SESSIONS: TermSession[] = [
   {
     id: "bash",
     label: "BASH",
-    hostPrompt: "mchanaq@ucayali ~/McHanaq %",
+    hostPrompt: "mchanaq@peru ~/McHanaq %",
     lines: [
       { kind: "cmd", text: "$ python -m src.analytics.run_pipeline --processed data/processed" },
       { kind: "spacer", text: "" },
-      { kind: "accent", text: "> [[ MCHANAQ PIPELINE · UCAYALI ]]" },
+      { kind: "accent", text: "> [[ MCHANAQ PIPELINE · PERÚ ]]" },
       { kind: "kv", text: "> window........: 2012-01-19 -> 2026-11-02 (14.8 yr)" },
       { kind: "kv", text: "> sensors.......: MODIS_TERRA | MODIS_AQUA | VIIRS_SNPP" },
       { kind: "kv", text: "> cloud_gate....: observation_coverage >= 0.70" },
