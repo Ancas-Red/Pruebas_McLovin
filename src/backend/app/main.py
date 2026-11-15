@@ -22,7 +22,7 @@ if not DATA.is_absolute():
 NO_CACHE = os.getenv("MCHANAQ_NO_CACHE", "0") == "1"
 CORS_ORIGINS = [
     o.strip().rstrip("/")
-    for o in os.getenv("MCHANAQ_CORS_ORIGINS", "http://localhost:5173").split(",")
+    for o in os.getenv("MCHANAQ_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
     if o.strip()
 ]
 CORS_ORIGIN_REGEX = os.getenv("MCHANAQ_CORS_ORIGIN_REGEX", "").strip() or None
@@ -62,7 +62,11 @@ def load_json(name: str):
 
 
 META = load_json("metadata.json") or {}
-TERR = load_json("territories.geojson") or {"type": "FeatureCollection", "features": []}
+TERR = (
+    load_json("peru_territories.geojson")
+    or load_json("territories.geojson")
+    or {"type": "FeatureCollection", "features": []}
+)
 DAILY = (load_json("activity_daily.json") or {}).get("items", [])
 SUMMARY = (load_json("activity_summary.json") or {}).get("items", [])
 COMPARE = (load_json("sensor_comparison.json") or {}).get("items", [])
