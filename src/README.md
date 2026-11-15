@@ -9,7 +9,7 @@ Todos los comandos se ejecutan desde la **raíz del repositorio** (`McHanaq/`), 
 ### Windows (PowerShell)
 ```powershell
 # Levanta backend (:8000) y frontend (:5173) en ventanas/procesos separados.
-# Usa data/processed si metadata.json existe; si no, usa data/fixtures automáticamente.
+# Usa data/processed (Ucayali + Fase 2) si territories.geojson existe; si no, usa data/fixtures automáticamente.
 .\src\dev.ps1
 
 # Forzar fixtures explícitamente:

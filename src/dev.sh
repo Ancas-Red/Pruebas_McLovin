@@ -11,12 +11,13 @@ else
   PYTHON_BIN="python3"
 fi
 
-if [[ "${1:-}" == "--fixtures" ]] || [[ ! -f "$REPO_ROOT/data/processed/metadata.json" ]]; then
+if [[ "${1:-}" == "--fixtures" ]] || [[ ! -f "$REPO_ROOT/data/processed/territories.geojson" ]]; then
   export MCHANAQ_DATA_DIR="data/fixtures"
   export MCHANAQ_NO_CACHE="1"
   echo "[McHanaq] Backend usando data/fixtures (MCHANAQ_NO_CACHE=1)"
 else
-  echo "[McHanaq] Backend usando data/processed"
+  unset MCHANAQ_DATA_DIR MCHANAQ_NO_CACHE 2>/dev/null || true
+  echo "[McHanaq] Backend usando data/processed (Ucayali + Fase 2)"
 fi
 
 cleanup() {

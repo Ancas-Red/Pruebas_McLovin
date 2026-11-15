@@ -12,13 +12,15 @@ if (-not (Test-Path $PythonExe)) {
     $PythonExe = "python"
 }
 
-$ProcessedMeta = Join-Path $RepoRoot "data\processed\metadata.json"
-if ($Fixtures -or -not (Test-Path $ProcessedMeta)) {
+$ProcessedTerr = Join-Path $RepoRoot "data\processed\territories.geojson"
+if ($Fixtures -or -not (Test-Path $ProcessedTerr)) {
     $env:MCHANAQ_DATA_DIR = "data/fixtures"
     $env:MCHANAQ_NO_CACHE = "1"
     Write-Host "[McHanaq] Backend usando data/fixtures (MCHANAQ_NO_CACHE=1)" -ForegroundColor Yellow
 } else {
-    Write-Host "[McHanaq] Backend usando data/processed" -ForegroundColor Green
+    Remove-Item Env:MCHANAQ_DATA_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:MCHANAQ_NO_CACHE -ErrorAction SilentlyContinue
+    Write-Host "[McHanaq] Backend usando data/processed (Ucayali + Fase 2)" -ForegroundColor Green
 }
 
 Write-Host "[McHanaq] Iniciando Backend en http://localhost:$BackendPort ..." -ForegroundColor Cyan
