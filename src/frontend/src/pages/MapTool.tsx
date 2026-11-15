@@ -108,7 +108,11 @@ function buildHoverCard(
           s.environmental_conditions.classification,
       },
     ],
-    foot: origin === "fixture" ? "Datos de muestra · backend sin responder" : "Backend · /api/v1",
+    /* No se dice por qué son de muestra: `fixture` tapa tres casos distintos
+       —fecha no publicada, el backend no contestó, o contestó un error del
+       contrato— y atribuirlo al backend sería afirmar algo que aquí no se
+       sabe. El rótulo de la cabecera ya informa si hay conexión. */
+    foot: origin === "fixture" ? "Datos de muestra" : "Backend · /api/v1",
   };
 }
 
