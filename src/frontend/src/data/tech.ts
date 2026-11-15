@@ -98,15 +98,15 @@ export const TECH_ITEMS: TechItem[] = [
   },
   {
     id: "era5-dem",
-    name: "ECMWF ERA5-Land & Copernicus DEM",
+    name: "ERA5-Land, Open-Meteo & Copernicus DEM",
     category: "satelital",
     categoryLabel: "Clima y Terreno",
     summary:
-      "Contexto meteorológico diario y topografía única a 30 m (COPERNICUS/DEM/GLO30) para caracterizar sequedad, viento y pendiente del terreno.",
+      "Contexto meteorológico y topográfico para Fase 1 (ERA5-Land + GLO-30) y consulta global en vivo (Open-Meteo + Sentinel-2 SAVI) en Fase 2.",
     uses: [
-      "Temperatura ambiente a 2 m (t_amb_c) y humedad relativa vía Magnus-Tetens",
-      "Promedio vectorial diario de viento a 10 m (wind_dir_deg y wind_speed_10m_ms)",
-      "Elevación, pendiente y exposición de ladera sobre toda la ventana 2012–2026",
+      "Temperatura a 2 m (t_amb_c), humedad relativa y viento vectorial a 10 m en ERA5-Land",
+      "Topografía Copernicus DEM (GLO-30 en GEE y GLO-90 global vía Open-Meteo Elevation)",
+      "Viento horario Open-Meteo e índice SAVI Sentinel-2 L2A (Planetary Computer) en Fase 2",
     ],
     href: "https://cds.climate.copernicus.eu/",
     icon: "climate",
@@ -132,11 +132,11 @@ export const TECH_ITEMS: TechItem[] = [
     category: "backend",
     categoryLabel: "API REST",
     summary:
-      "Backend en src/backend/ estrictamente de solo lectura: sirve artefactos JSON/GeoJSON precomputados sin ejecutar consultas externas por petición.",
+      "API en src/backend/: Fase 1 estrictamente de solo lectura sobre JSON/GeoJSON y endpoints globales opcionales de Fase 2 desacoplados.",
     uses: [
-      "Endpoints diarios por defecto (date=YYYY-MM-DD, from/to) y comparativa multisensor",
-      "Preservación estricta de null en fechas sin observación útil y cabeceras HTTP limpias",
-      "Pruebas de contrato e integración con pytest + httpx y simulación opcional en Fase 2",
+      "Endpoints diarios de Fase 1 (date=YYYY-MM-DD, from/to) y preservación estricta de null",
+      "Rutas globales opcionales: /reverse-geocode (OSM Nominatim), /realtime/area y /spread-simulate",
+      "Fallback liviano en Python puro (httpx + Open-Meteo DEM) para Azure F1 y pruebas pytest",
     ],
     href: "https://fastapi.tiangolo.com/",
     icon: "api",
@@ -165,8 +165,8 @@ export const TECH_ITEMS: TechItem[] = [
       "Aplicación web compilada con Vite en tipado estricto, enrutamiento por hash sin dependencias pesadas y gráficos de series comparativas.",
     uses: [
       "Sincronización continua entre calendario térmico, selector de sensor y ficha territorial",
-      "Gráficos históricos comparativos y resumen diario con Recharts",
-      "Modo de contingencia automático sobre data/fixtures/ cuando no hay API activa",
+      "Gráficos históricos con Recharts y contingencia automática sobre data/fixtures/",
+      "Verificación visual automatizada con Playwright en desktop (1440×900, 1280×720) y móvil",
     ],
     href: "https://react.dev/",
     icon: "react",
@@ -181,7 +181,7 @@ export const TECH_ITEMS: TechItem[] = [
     uses: [
       "Capas base libres: OpenStreetMap, OpenTopoMap (relieve/hidrología) y Esri Imagery",
       "Polígonos territoriales de 4 provincias y 20 cuencas ANA (< 1 MB GeoJSON)",
-      "Dibujo interactivo de área de interés y simulación de propagación sobre pendiente/viento",
+      "Simulación global 1 clic (Open-Meteo + DEM + SAVI) y etiqueta administrativa OSM Nominatim",
     ],
     href: "https://leafletjs.com/",
     icon: "map",

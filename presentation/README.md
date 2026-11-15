@@ -67,9 +67,9 @@
     * `NASA/VIIRS/002/VNP14A1` / `NOAA/VIIRS/001/VNP14A1` (VIIRS S-NPP Thermal Anomalies & Fire Daily 1 km, since `2012-01-19`)
     * `MODIS/061/MOD11A1` / `MYD11A1` & `VNP21A1D` (Daily Land Surface Temperature, 1 km)
     * `MODIS/061/MOD13A3` (Monthly Vegetation Indices NDVI/EVI, 1 km)
-  * **Complementary Open Sources:** `ECMWF/ERA5_LAND/DAILY_AGGR` (~11.1 km meteorology: 2 m temp, dewpoint → Magnus-Tetens RH, vector u/v wind, 30-day precip, soil moisture), `COPERNICUS/DEM/GLO30` (`COPERNICUS_DEM_GLO30` 30 m DEM across the verified `2012–2026` common window; pre-2012 `NASADEM` archived as out-of-scope legacy note), MINAM Cobertura Vegetal 2015 (`CobVeg_180615.shp`), INEI 2023 provinces, ANA Pfafstetter level-4 hydrographic units, and API-key-free basemaps (OpenStreetMap, OpenTopoMap CC-BY-SA, Esri World Imagery).
+  * **Complementary Open Sources:** `ECMWF/ERA5_LAND/DAILY_AGGR` (~11.1 km meteorology: 2 m temp, dewpoint → Magnus-Tetens RH, vector u/v wind, 30-day precip, soil moisture), `COPERNICUS/DEM/GLO30` (`COPERNICUS_DEM_GLO30` 30 m DEM across the verified `2012–2026` common window; pre-2012 `NASADEM` archived as out-of-scope legacy note), MINAM Cobertura Vegetal 2015 (`CobVeg_180615.shp`), INEI 2023 provinces, ANA Pfafstetter level-4 hydrographic units, API-key-free basemaps (OpenStreetMap, OpenTopoMap CC-BY-SA, Esri World Imagery), plus **Open-Meteo** (current weather/wind & Copernicus GLO-90 Elevation API), **Microsoft Planetary Computer** (`sentinel-2-l2a` SAVI), and **OpenStreetMap Nominatim** (administrative reverse geocoding) for optional Phase 2 global queries.
 * **Notas del presentador (ES):**
-  * Resaltar la separación de responsabilidades: el frontend no calcula, la API es de solo lectura sobre `data/processed/`, desplegada en **Microsoft Azure Free Tier** (**Azure Static Web Apps Plan Free** + **Azure App Service Plan Free F1**), con **Azure Blob Storage** como puente offline/build-time de artefactos (GEE exporta inicialmente a Drive/GCS y se espeja a Azure Blob Storage; nunca se consulta GEE ni almacenamiento externo en runtime).
+  * Resaltar la separación de responsabilidades: el frontend no calcula, la API es de solo lectura sobre `data/processed/`, desplegada en **Microsoft Azure App Service (Plan Free F1)** y frontend en **Cloudflare Pages** (recomendado) o **Azure Static Web Apps (Plan Free)**, con **Azure Blob Storage** como puente offline/build-time de artefactos (GEE exporta inicialmente a Drive/GCS y se espeja a Azure Blob Storage; nunca se consulta GEE ni almacenamiento externo en runtime para Fase 1).
   * Citar expresamente al menos un dataset de la pestaña *Resources* del reto NASA (`MOD14A1`, `MYD14A1`, `VNP14A1`).
 
 ---
@@ -86,11 +86,12 @@
     * Verified multisensor common window: **`2012-01-19` to `2026-11-02`** (last complete common month: **`2026-10`**, ~14.8 years > 5-year minimum baseline, using `COPERNICUS_DEM_GLO30`), where `MODIS_TERRA`, `MODIS_AQUA`, `VIIRS_SNPP`, and `ERA5-Land` coincide. Metadata exposes only useful recorded days (`valid_land_pixels > 0`, `< 30 %` clouds / `observation_coverage >= 0.70`, non-null `activity_rate`).
   * **Contextual Susceptibility Tree (`N0..N3b` — Qualitative Interpretation Layer):**
     * Uses MINAM `CobVeg_180615.shp` fuel definition (`umbral_veg = 20%`), Copernicus DEM slope (`umbral_pend = 15%`), ERA5-Land seasonal p25/p75 thresholds, and a **150 m surface-water buffer rule** (`water_buffer_150m_pct >= 5%` attenuates `high` → `moderate` with full `decision_path` traceability).
-    * Optional, decoupled **Phase 2 Explorer** (`heuristic_wind_slope_spread_v1`) visualizes hypothetical `+6h / +12h / +24h` isochrones without touching Phase 1 endpoints.
+    * Optional, decoupled **Phase 2 Explorer** (`heuristic_wind_slope_spread_v1`) visualizes hypothetical spread up to `48 h` (`+6h..+48h`) with 1-click global presets (Ucayali, California, Grecia, or arbitrary lat/lon), a `Fecha de inicio (48 h)` date picker, live Open-Meteo wind, Copernicus GLO-90 DEM, Sentinel-2 SAVI via Microsoft Planetary Computer, OSM Nominatim administrative geocoding in the top header (`SiteNav`) and drawer, a dedicated 5-step `? Guía` (`SPREAD_TOUR_STEPS`), and inline/exportable 48 h GIF, MP4, QGIS Shapefiles, and PNG outputs without touching Phase 1 endpoints.
   * **Verified Pilot Finding Placeholder:** `[INSERT VERIFIED UCAYALI MONTH/TERRITORY CASE STUDY AFTER FINAL GEE CSV EXPORT]`
 * **Notas del presentador (ES):**
   * Recorrer un caso real de Ucayali (provincia o unidad hidrográfica) apenas Tom y Angelo confirmen las cifras finales procesadas.
   * Mostrar la trazabilidad del árbol (`N0:pass → N1:yes → N2:yes → N3a:...` y la regla de buffer hídrico de `150 m`), dejando claro que es contexto descriptivo y no predicción de propagación.
+  * Si se muestra la pestaña **Simulación** (Fase 2 opcional), abrir `Escenario · Fase 2`, usar la **simulación global en 1 clic** (Ucayali / California / Grecia o Lat/Lon libre) y señalar su `? Guía` de 5 pasos, recalcando que es un modelo exploratorio desacoplado de Fase 1.
 
 ---
 
@@ -104,11 +105,11 @@
   * MODIS and VIIRS differ in overpass schedule, resolution, and sensitivity — semantic/statistical harmonization is **not** radiometric calibration.
   * Contextual susceptibility (`high` / `moderate` / `low` / `partial` / `not_evaluable`) is qualitative and unvalidated against observed fire spread; McHanaq does **not** predict ignitions or replace emergency dispatch authorities.
 * **Demo Plan B (Live Fail-Safe):**
-  1. **Primary:** Live frontend on **Azure Static Web Apps (Free)** connected to read-only FastAPI on **Azure App Service (Plan Free F1)** reading local verified `data/processed/` JSONs synced from Azure Blob Storage at build/deploy time (zero external GEE/Blob/Drive dependency at runtime).
+  1. **Primary:** Live frontend on **Cloudflare Pages** (or **Azure Static Web Apps Free**) connected to FastAPI on **Azure App Service (Plan Free F1)** serving Phase 1 from local verified `data/processed/` JSONs (or `"Datos de muestra"` from `data/fixtures/` until final GEE CSVs enter `data/intermediate/`), while Phase 2 global endpoints (`/reverse-geocode`, `/realtime/area`, `/spread-simulate`) query Open-Meteo, OSM Nominatim, and Planetary Computer live.
   2. **Plan B-1 (Backend offline):** Run local `uvicorn src.backend.app.main:app` with `MCHANAQ_DATA_DIR=data/processed` (offline snapshot) or `data/fixtures` (clearly labeled `"Datos de muestra"` / `"fixture"`).
   3. **Plan B-2 (Browser/host fallback):** Pre-captured screenshots from the verified running prototype, explicitly labeled by data origin.
 * **Notas del presentador (ES):**
-  * Reconocer límites aumenta la credibilidad ante el jurado (*Validity*).
+  * Reconocer límites aumenta la credibilidad ante el jurado (*Validity*) y refuerza la transparencia documentada en [`AI_USAGE.md`](../AI_USAGE.md) (ninguna imagen o resultado satelital generado por IA).
   * En caso de fallo de red o API en vivo, el Plan B garantiza continuidad sin jamás presentar fixtures como si fueran observaciones reales.
 
 ---
