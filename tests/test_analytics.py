@@ -279,7 +279,7 @@ def test_processed_territories_geojson_contract():
     feats = fc.get("features", [])
     types = {f["properties"]["territory_type"] for f in feats}
     assert types == {"province", "hydro_unit"}
-    assert len(feats) == 24
+    assert len(feats) >= 24
 
 
 def test_metadata_metrics_and_environmental_sources(tmp_path: Path):

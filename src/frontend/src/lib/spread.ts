@@ -35,7 +35,7 @@
  * - Rothermel, R.C. (1972). A mathematical model for predicting fire spread.
  */
 
-import { PERU_BOUNDS, pointInRing, ringBounds, type LatLon } from "./geo";
+import { pointInRing, ringBounds, type LatLon } from "./geo";
 import { ISOCHRONE_STEPS_H } from "../api/types";
 import { inferno } from "./palette";
 
@@ -255,10 +255,10 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
   const padLat = Math.max(0.02, (b.north - b.south) * 0.35);
   const padLon = Math.max(0.02, (b.east - b.west) * 0.35);
   const bounds = {
-    south: Math.max(PERU_BOUNDS.south - 1, b.south - padLat),
-    north: Math.min(PERU_BOUNDS.north + 1, b.north + padLat),
-    west: Math.max(PERU_BOUNDS.west - 1, b.west - padLon),
-    east: Math.min(PERU_BOUNDS.east + 1, b.east + padLon),
+    south: Math.max(-89.9, b.south - padLat),
+    north: Math.min(89.9, b.north + padLat),
+    west: Math.max(-180, b.west - padLon),
+    east: Math.min(180, b.east + padLon),
   };
 
   const latMid = (bounds.north + bounds.south) / 2;

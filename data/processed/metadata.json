@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "data_origin": "processed",
+  "notice": "Metadatos base con ventana multisensor verificada en GEE (2012-01-19 a 2026-11-02) y parámetros reales de Ucayali/Perú. Las series diarias se completarán tras correr src/analytics/run_pipeline.py sobre los CSV exportados de GEE.",
+  "generated_at": "2026-11-15T07:13:00Z",
+  "processing_version": "0.2.0",
+  "territory_types": [
+    "province",
+    "hydro_unit"
+  ],
+  "sensors": [
+    {
+      "id": "MODIS_TERRA",
+      "product": "MOD14A1",
+      "overpass_local": "~10:30",
+      "available_since": "2000-02",
+      "resolution": "1 km"
+    },
+    {
+      "id": "MODIS_AQUA",
+      "product": "MYD14A1",
+      "overpass_local": "~13:30",
+      "available_since": "2002-07",
+      "resolution": "1 km"
+    },
+    {
+      "id": "VIIRS_SNPP",
+      "product": "VNP14A1",
+      "overpass_local": "~13:30",
+      "available_since": "2012-01",
+      "resolution": "1 km"
+    }
+  ],
+  "available_periods_by_sensor": {
+    "MODIS_TERRA": [],
+    "MODIS_AQUA": [],
+    "VIIRS_SNPP": []
+  },
+  "available_date_ranges_by_sensor": {
+    "MODIS_TERRA": [],
+    "MODIS_AQUA": [],
+    "VIIRS_SNPP": []
+  },
+  "common_environmental_periods": [],
+  "common_environmental_dates": [],
+  "common_analysis_periods": [],
+  "common_analysis_dates": [],
+  "verified_gee_common_window": {
+    "from": "2012-01-19",
+    "to": "2026-11-02",
+    "last_complete_common_month": "2026-10"
+  },
+  "metrics": {
+    "activity": [
+      "activity_rate",
+      "fire_pixel_days_8_9",
+      "active_days",
+      "max_consecutive_active_days",
+      "observation_coverage"
+    ],
+    "environmental": [
+      "t_amb_c",
+      "t_suelo_c",
+      "wind_dir_deg",
+      "wind_speed_10m_ms",
+      "elevation_m"
+    ],
+    "classification": [
+      "conditions_classification"
+    ]
+  },
+  "units": {
+    "activity_rate": "píxeles-día detectados / píxeles-día válidos (adimensional)",
+    "observation_coverage": "fracción 0–1",
+    "fire_pixel_days_8_9": "píxeles-día",
+    "t_amb_c": "°C",
+    "t_suelo_c": "°C",
+    "wind_dir_deg": "grados (0–360, desde dónde sopla)",
+    "wind_speed_10m_ms": "m/s",
+    "elevation_m": "m s.n.m."
+  },
+  "dem_by_epoch": [
+    {
+      "epoch": "2012-presente",
+      "applies_to": "MODIS_TERRA, MODIS_AQUA, VIIRS_SNPP",
+      "dem_source": "COPERNICUS_DEM_GLO30",
+      "resolution": "30 m"
+    }
+  ],
+  "environmental_sources": {
+    "t_amb_c": "ECMWF/ERA5_LAND/HOURLY o DAILY_AGGR (temperature_2m)",
+    "relative_humidity_2m_pct": "ECMWF/ERA5_LAND (Magnus-Tetens con temperature_2m y dewpoint_temperature_2m)",
+    "t_suelo_c": "MODIS/061/MOD11A1, MYD11A1; NOAA/VIIRS/001/VNP21A1D (o NASA/VIIRS/002/VNP21A1D)",
+    "wind": "ECMWF/ERA5_LAND (u_component_of_wind_10m, v_component_of_wind_10m)",
+    "vegetation_cover": "MINAM 2015 (CobVeg_180615.shp, toda vegetación como combustible potencial)",
+    "territories": "INEI 2023 (196 provincias / 19 distritos Ucayali) y ANA (231 UH / 20 UH Ucayali)"
+  },
+  "parameters": {
+    "min_observation_coverage_for_comparison": 0.70,
+    "max_cloud_pct": 30.0,
+    "elevated_signal_robust_z": 2.0,
+    "min_baseline_years": 5,
+    "umbral_veg_pct": 20.0,
+    "umbral_pend_pct": 15.0,
+    "water_buffer_m": 150.0,
+    "water_buffer_attenuation_pct": 5.0
+  },
+  "limitations": [
+    "activity_rate no es probabilidad de incendio ni superficie quemada.",
+    "No se suman conteos entre sensores.",
+    "null nunca se convierte en 0.",
+    "La susceptibilidad contextual es cualitativa, no un índice validado de riesgo."
+  ]
+}
