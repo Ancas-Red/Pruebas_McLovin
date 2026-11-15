@@ -74,6 +74,79 @@ ASSESS = (load_json("conditions_assessment.json") or {}).get("items", [])
 HOTSPOTS = load_json("hotspots.geojson")
 
 
+def _is_useful_daily_record(record: dict) -> bool:
+    """Replica el criterio de src/analytics/run_pipeline.py: >=70% cobertura o tasa valida."""
+    valid = record.get("valid_land_pixels")
+    if valid is None or valid <= 0:
+        return False
+    cov = record.get("observation_coverage")
+    if cov is not None and cov < 0.70:
+        return False
+    return bool(record.get("cloud_ok_lt30pct")) or (record.get("activity_rate") is not None)
+
+
+def _contiguous_date_ranges(dates: list[str]) -> list[dict[str, str]]:
+    """Agrupa fechas en rangos continuos por meses calendario consecutivos (igual que run_pipeline.py)."""
+    if not dates:
+        return []
+    uniq = sorted(set(dates))
+
+    def _next_month(period: str) -> str:
+        y, m = int(period[:4]), int(period[5:7])
+        return f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+
+    ranges: list[dict[str, str]] = []
+    span_start = uniq[0]
+    span_end = uniq[0]
+    prev_period = uniq[0][:7]
+    for d in uniq[1:]:
+        cur_period = d[:7]
+        if cur_period == prev_period or cur_period == _next_month(prev_period):
+            span_end = d
+        else:
+            ranges.append({"from": span_start, "to": span_end})
+            span_start = d
+            span_end = d
+        prev_period = cur_period
+    ranges.append({"from": span_start, "to": span_end})
+    return ranges
+
+
+def _reconcile_metadata_with_daily(meta: dict, daily: list[dict]) -> dict:
+    """Recalcula available_periods_by_sensor / available_date_ranges_by_sensor desde la
+    tabla DAILY realmente cargada en memoria, en vez de confiar en el metadata.json estatico.
+
+    Por que: metadata.json y activity_daily.json se generan (y suben a R2) en corridas
+    independientes del pipeline, y pueden desincronizarse (p. ej. metadata.json sigue
+    anunciando 2012-2025 mientras activity_daily.json solo trae filas desde una fecha mas
+    reciente por el limite de RAM del backend, ver AGENTS.md). Sin esto, el calendario deja
+    elegir meses "disponibles" segun metadata para los que /activity no tiene ninguna fila,
+    y la ficha diaria sale "no disponible" sin explicacion.
+    """
+    if not daily:
+        return meta
+    dates_by_sensor: dict[str, set] = {}
+    for r in daily:
+        s = r.get("sensor")
+        d = r.get("date")
+        if not s or not d or not _is_useful_daily_record(r):
+            continue
+        dates_by_sensor.setdefault(s, set()).add(d)
+    if not any(dates_by_sensor.values()):
+        return meta
+    meta = dict(meta)
+    meta["available_periods_by_sensor"] = {
+        s: sorted({d[:7] for d in dates}) for s, dates in dates_by_sensor.items()
+    }
+    meta["available_date_ranges_by_sensor"] = {
+        s: _contiguous_date_ranges(sorted(dates)) for s, dates in dates_by_sensor.items()
+    }
+    return meta
+
+
+META = _reconcile_metadata_with_daily(META, DAILY)
+
+
 class ApiError(Exception):
     """Error de dominio con formato uniforme para el cliente."""
 
