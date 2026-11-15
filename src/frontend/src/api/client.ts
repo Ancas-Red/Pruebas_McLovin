@@ -455,6 +455,23 @@ export interface RealtimeAreaResponse {
   };
   hotspots_status: string;
   counts_by_sensor: Record<string, number>;
+  hotspots?: {
+    type: "FeatureCollection";
+    features: Array<{
+      type: "Feature";
+      geometry: { type: "Point"; coordinates: [number, number] };
+      properties: {
+        sensor: string;
+        firms_source?: string;
+        acq_date?: string | null;
+        acq_time?: string | null;
+        confidence?: number | string | null;
+        frp_mw?: number | null;
+        satellite?: string | null;
+        daynight?: string | null;
+      };
+    }>;
+  };
 }
 
 export interface SpreadSimulateResponse {

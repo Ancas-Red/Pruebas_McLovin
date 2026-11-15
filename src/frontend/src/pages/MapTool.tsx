@@ -270,6 +270,8 @@ export function MapTool({
   const [metric, setMetric] = useState<MetricId>("activity_rate");
 
   const [showHotspots, setShowHotspots] = useState(true);
+  const [liveFirms, setLiveFirms] = useState(false);
+  const [firmsSummary, setFirmsSummary] = useState<string | null>(null);
   const [showChoropleth, setShowChoropleth] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
   const [baseLayer, setBaseLayer] = useState<"dark" | "relief" | "satellite">("dark");
@@ -642,7 +644,7 @@ export function MapTool({
 
   /* --------------------------------------------------------- hotspots ---- */
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || liveFirms) return;
     const ctrl = new AbortController();
     getHotspots(
       { type: territoryType, id: territoryId, date: dateIso, sensor },
@@ -658,7 +660,7 @@ export function MapTool({
         if (!isAbort(e)) setHotspots([]);
       });
     return () => ctrl.abort();
-  }, [ready, activityOk, territoryType, territoryId, dateIso, sensor]);
+  }, [ready, liveFirms, activityOk, territoryType, territoryId, dateIso, sensor]);
 
   /* ------------------------------------------- serie diaria del mes ------ */
   useEffect(() => {
@@ -1087,6 +1089,74 @@ export function MapTool({
     return polygonCentroid(rings[0] as [number, number][]);
   }, [territories, territoryId]);
 
+  /* ---------------- focos NRT en vivo (NASA FIRMS via /realtime/area) --- */
+  useEffect(() => {
+    if (!liveFirms) {
+      setFirmsSummary(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    let south = -10.5;
+    let north = -6.5;
+    let west = -76.5;
+    let east = -72.5;
+    if (ring && ring.length >= 3) {
+      const lats = ring.map((pt) => pt[0]);
+      const lons = ring.map((pt) => pt[1]);
+      south = Math.max(-89.5, Math.min(...lats) - 0.25);
+      north = Math.min(89.5, Math.max(...lats) + 0.25);
+      west = Math.max(-179.5, Math.min(...lons) - 0.25);
+      east = Math.min(179.5, Math.max(...lons) + 0.25);
+    } else if (territoryCenter) {
+      south = Math.max(-89.5, territoryCenter[0] - 1.5);
+      north = Math.min(89.5, territoryCenter[0] + 1.5);
+      west = Math.max(-179.5, territoryCenter[1] - 1.5);
+      east = Math.min(179.5, territoryCenter[1] + 1.5);
+    }
+    setFirmsSummary("Consultando NASA FIRMS NRT…");
+    fetchRealtimeArea({ south, west, north, east }, 3, ctrl.signal)
+      .then((res) => {
+        if (ctrl.signal.aborted) return;
+        if (!res) {
+          setFirmsSummary("No se pudo consultar /realtime/area.");
+          return;
+        }
+        const mapped: HotspotFeature[] = (res.hotspots?.features ?? []).map((f) => {
+          const sat = String(f.properties.satellite ?? "").toLowerCase();
+          const mappedSensor =
+            f.properties.sensor === "MODIS"
+              ? sat.includes("aqua") || sat === "a"
+                ? "MODIS_AQUA"
+                : "MODIS_TERRA"
+              : "VIIRS_SNPP";
+          return {
+            type: "Feature",
+            geometry: f.geometry,
+            properties: {
+              date: f.properties.acq_date ?? dateIso,
+              sensor: mappedSensor,
+              confidence: f.properties.confidence ?? null,
+              frp_mw: f.properties.frp_mw ?? null,
+            },
+          };
+        });
+        setHotspots(mapped);
+        setHotspotsOrigin("api");
+        if (res.hotspots_status === "firms_map_key_required") {
+          setFirmsSummary("Falta FIRMS_MAP_KEY en el backend.");
+        } else {
+          const c = res.counts_by_sensor ?? {};
+          setFirmsSummary(
+            `NRT (3 días): MODIS ${c.MODIS ?? 0} · VIIRS S-NPP ${c.VIIRS_SNPP ?? 0} · NOAA-20 ${c.VIIRS_NOAA20 ?? 0}`
+          );
+        }
+      })
+      .catch((e) => {
+        if (!isAbort(e)) setFirmsSummary("No se pudo consultar /realtime/area.");
+      });
+    return () => ctrl.abort();
+  }, [liveFirms, ring, territoryCenter, dateIso]);
+
   const csvHref = useMemo(
     () =>
       territoryId
@@ -1500,6 +1570,9 @@ export function MapTool({
               onMetric={setMetric}
               showHotspots={showHotspots}
               onShowHotspots={setShowHotspots}
+              liveFirms={liveFirms}
+              onLiveFirms={setLiveFirms}
+              firmsSummary={firmsSummary}
               showChoropleth={showChoropleth}
               onShowChoropleth={setShowChoropleth}
               showCalendar={showCalendar}

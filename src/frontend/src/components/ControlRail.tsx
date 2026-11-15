@@ -78,6 +78,9 @@ interface Props {
 
   showHotspots: boolean;
   onShowHotspots: (v: boolean) => void;
+  liveFirms: boolean;
+  onLiveFirms: (v: boolean) => void;
+  firmsSummary?: string | null;
   showChoropleth: boolean;
   onShowChoropleth: (v: boolean) => void;
   showCalendar: boolean;
@@ -539,6 +542,13 @@ export function ControlRail(p: Props) {
             <i className="toggle__box" style={{ background: p.showHotspots ? "var(--acid)" : "transparent" }} />
             <span>Focos térmicos</span>
           </button>
+          <button className="toggle" aria-pressed={p.liveFirms} onClick={() => p.onLiveFirms(!p.liveFirms)}>
+            <i className="toggle__box" style={{ background: p.liveFirms ? "var(--acid)" : "transparent" }} />
+            <span>Focos NRT en vivo (NASA FIRMS)</span>
+          </button>
+          {p.liveFirms && p.firmsSummary && (
+            <p className="mono-sm" style={{ marginTop: 4 }}>{p.firmsSummary}</p>
+          )}
           <button className="toggle" aria-pressed={p.showCalendar} onClick={() => p.onShowCalendar(!p.showCalendar)}>
             <i className="toggle__box" style={{ background: p.showCalendar ? "var(--acid)" : "transparent" }} />
             <span>Calendario</span>

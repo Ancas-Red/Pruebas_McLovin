@@ -67,7 +67,7 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="tab-simulacion"]',
     title: "Simulación exploratoria · Fase 2 global",
     body:
-      "Cambia a Simulación para modelar extensión hipotética del fuego (hasta 48 h) en Ucayali o cualquier coordenada del mundo con viento Open-Meteo, DEM Copernicus GLO-90 y salidas GIF/MP4/QGIS. Al abrirla, pulsa ? Guía para ver su recorrido específico.",
+      "Cambia a Simulación para modelar extensión hipotética del fuego (hasta 48 h) en el Perú o cualquier coordenada del mundo con viento Open-Meteo, DEM Copernicus GLO-90 y salidas GIF/MP4/QGIS. Al abrirla, pulsa ? Guía para ver su recorrido específico.",
     placement: "bottom",
   },
 ];
@@ -79,7 +79,7 @@ export const SPREAD_TOUR_STEPS: TourStep[] = [
     fallbackSelector: '[data-tour="right-dock"]',
     title: "Simulación global en 1 clic",
     body:
-      "Elige Ucayali, California, Grecia o escribe cualquier latitud/longitud del planeta y pulsa «Simular extensión aquí»: traza el dominio, sitúa la ignición, consulta clima/DEM reales y anima el frente sobre el mapa.",
+      "Elige Perú, California, Grecia o escribe cualquier latitud/longitud del planeta y pulsa «Simular extensión aquí»: traza el dominio, sitúa la ignición, consulta clima/DEM reales y anima el frente sobre el mapa.",
     placement: "left",
   },
   {
