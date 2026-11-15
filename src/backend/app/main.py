@@ -949,6 +949,14 @@ def _run_phase2_simulation(
     return build_spread_forecast_payload(res, timings_s=timings)
 
 
+def _realtime_enabled() -> bool:
+    """AGENTS.md: el backend oficial no consulta almacenamiento/APIs externas por
+    petición HTTP salvo la excepción explícita de Fase 2. Estos endpoints de
+    tiempo real quedan apagados por defecto y solo se activan a propósito con
+    MCHANAQ_ENABLE_REALTIME=1 (por ejemplo, para una demo en vivo)."""
+    return os.getenv("MCHANAQ_ENABLE_REALTIME", "").strip().lower() in {"1", "true", "yes"}
+
+
 def _dispatch_spread_request(
     *,
     lat: float | None,
@@ -979,6 +987,12 @@ def _dispatch_spread_request(
         raise ApiError(400, "INVALID_PARAMETER", "horizon_h debe estar entre 6 y 48 horas")
 
     r_open_meteo = bool(body["use_open_meteo"]) if "use_open_meteo" in body else use_open_meteo
+    if r_open_meteo and not _realtime_enabled():
+        raise ApiError(
+            403,
+            "REALTIME_DISABLED",
+            "use_open_meteo requiere MCHANAQ_ENABLE_REALTIME=1 (desactivado por defecto; ver AGENTS.md).",
+        )
     return _run_phase2_simulation(
         t_type=str(body.get("territory_type") or "custom"),
         t_id=str(body.get("territory_id") or "custom"),
@@ -1360,6 +1374,17 @@ def reverse_geocode(
     lon: float = Query(..., ge=-180.0, le=180.0),
 ):
     """Resuelve país, región/estado, provincia/condado y ciudad/distrito para cualquier punto del planeta."""
+    if not _realtime_enabled():
+        return {
+            "schema_version": "1.0",
+            "lat": round(lat, 5),
+            "lon": round(lon, 5),
+            "status": "realtime_disabled",
+            "realtime_setup": {
+                "env_var": "MCHANAQ_ENABLE_REALTIME",
+                "note": "Configura MCHANAQ_ENABLE_REALTIME=1 en el servidor para habilitar la geocodificación en tiempo real (OSM Nominatim).",
+            },
+        }
     return {
         "schema_version": "1.0",
         "lat": round(lat, 5),
@@ -1379,6 +1404,20 @@ def realtime_area(
     """Consulta en tiempo real clima global (Open-Meteo), geocodificación administrativa y focos activos MODIS/VIIRS (NASA FIRMS) para cualquier bbox del mundo."""
     if south >= north or west >= east:
         raise ApiError(400, "INVALID_PARAMETER", "Bounding box inválido: requiere south < north y west < east")
+
+    if not _realtime_enabled():
+        return {
+            "schema_version": "1.0",
+            "bbox": {"south": south, "west": west, "north": north, "east": east},
+            "days": days,
+            "hotspots_status": "realtime_disabled",
+            "counts_by_sensor": {},
+            "hotspots": {"type": "FeatureCollection", "features": []},
+            "realtime_setup": {
+                "env_var": "MCHANAQ_ENABLE_REALTIME",
+                "note": "Configura MCHANAQ_ENABLE_REALTIME=1 en el servidor para habilitar clima/geocodificación/focos en tiempo real (Open-Meteo, Nominatim, NASA FIRMS).",
+            },
+        }
 
     center_lat = (south + north) / 2.0
     center_lon = (west + east) / 2.0
