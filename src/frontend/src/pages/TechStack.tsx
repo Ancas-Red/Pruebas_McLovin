@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { McTropicCoder } from "../components/McTropicCoder";
+import { PhaseEngines } from "../components/PhaseEngines";
 import { SiteFooter } from "../components/SiteFooter";
 import { Starfield } from "../components/Starfield";
 import { TechTerminal } from "../components/TechTerminal";
@@ -23,6 +24,7 @@ interface Props {
 
 const TECH_SECTIONS = [
   { id: "arquitectura", label: "Arquitectura" },
+  { id: "fases", label: "Fase 1 y Fase 2" },
   { id: "stack", label: "Stack y APIs" },
   { id: "ruta-datos", label: "Ruta de datos" },
   { id: "parametros", label: "Parámetros" },
@@ -215,13 +217,35 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
         </div>
       </section>
 
-      {/* ================================================= 01 STACK Y APIS === */}
+      {/* ============================================== 01 FASE 1 Y FASE 2 === */}
+      <section className="tech-section" id="fases">
+        <div className="wrap">
+          <div className="tech-head">
+            <div>
+              <p className="eyebrow" data-reveal>
+                01 · Dos fases analíticas desacopladas
+              </p>
+              <h2 className="block__title tech-head__title" data-reveal>
+                Árbol contextual (N0–N3) y propagación física a 48{"\u00A0"}h.
+              </h2>
+            </div>
+            <p className="block__lead" data-reveal>
+              La Fase 1 evalúa históricamente la susceptibilidad territorial mediante reglas
+              auditables; la Fase 2 añade un simulador elíptico opcional ante una ignición hipotética.
+            </p>
+          </div>
+
+          <PhaseEngines onOpenMap={onOpenMap} />
+        </div>
+      </section>
+
+      {/* ================================================= 02 STACK Y APIS === */}
       <section className="tech-section" id="stack">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                01 · Stack, sensores y servicios
+                02 · Stack, sensores y servicios
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Plataformas y motores que sostienen cada capa.
@@ -263,13 +287,13 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
         </div>
       </section>
 
-      {/* ================================================ 02 RUTA DE DATOS === */}
+      {/* ================================================ 03 RUTA DE DATOS === */}
       <section className="tech-section" id="ruta-datos">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                02 · Ruta de datos desacoplada
+                03 · Ruta de datos desacoplada
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Cuatro etapas del píxel crudo al navegador.
@@ -309,13 +333,13 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
         </div>
       </section>
 
-      {/* ================================================== 03 PARÁMETROS === */}
+      {/* ================================================== 04 PARÁMETROS === */}
       <section className="tech-section" id="parametros">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                03 · Rigor metodológico y umbrales
+                04 · Rigor metodológico y umbrales
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Parámetros verificados a escala nacional (Perú).
@@ -339,13 +363,13 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
         </div>
       </section>
 
-      {/* ================================================ 04 CONVENCIONES === */}
+      {/* ================================================ 05 CONVENCIONES === */}
       <section className="tech-section tech-section--last" id="convenciones">
         <div className="wrap">
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                04 · Convenciones internacionales y nomenclatura
+                05 · Convenciones internacionales y nomenclatura
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
                 Por qué cada etiqueta significa exactamente eso.
