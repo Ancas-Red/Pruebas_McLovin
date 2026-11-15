@@ -37,9 +37,9 @@ export const TEAM: Member[] = [
   {
     slug: "tom",
     name: "Tom",
-    role: "Analítica y armonización",
+    role: "Líder y coordinación general",
     blurb:
-      "Convierte las tablas en indicadores: tasas normalizadas, persistencia, anomalías estacionales y el árbol de susceptibilidad.",
+      "Lidera el proyecto y articula al equipo entre áreas, conectando datos satelitales, analítica, backend e interfaz de extremo a extremo.",
     github: "https://github.com/TomJordan1",
     branch: "feature/analytics-engine",
   },
