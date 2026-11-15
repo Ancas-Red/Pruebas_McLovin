@@ -10,7 +10,7 @@ interface Props {
 export function SiteFooter({
   route,
   onNavigate,
-  note = "Susceptibilidad contextual ≠ predicción de ignición · Fase 2 desacoplada",
+  note = "Datos: NASA LP DAAC · Copernicus ERA5-Land · COPERNICUS DEM · MapBiomas",
 }: Props) {
   return (
     <footer className="site-foot" data-reveal>
