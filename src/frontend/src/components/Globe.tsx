@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
+import { createStars, drawStars, type Star } from "../lib/starfield";
 
 /**
  * Fondo de la portada: campo de estrellas sobre negro y un globo terráqueo de
@@ -13,10 +14,11 @@ import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
 interface Props {
   /** Posición horizontal del centro del globo, 0 a 1. */
   anchorX?: number;
+  /** Cuando pasa a false (al entrar en la sección de equipo), atenúa las luces del planeta. */
+  lightsActive?: boolean;
 }
 
 const POINTS = 9500;
-const STARS = 700;
 const LIGHT_LEVELS = 14;
 /** Resolución de la máscara de tierra, en grados por píxel ÷ 2. */
 const MASK_W = 720;
@@ -46,9 +48,14 @@ function buildPalette(rgb: [number, number, number], aMin: number, aMax: number)
 const LAND_PAL = buildPalette([95, 205, 228], 0.25, 1);
 const SEA_PAL = buildPalette([40, 95, 150], 0.1, 0.55);
 
-export function Globe({ anchorX = 0.3 }: Props) {
+export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lightsTargetRef = useRef(lightsActive);
+
+  useEffect(() => {
+    lightsTargetRef.current = lightsActive;
+  }, [lightsActive]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -117,7 +124,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
     const peru = toVec(PERU_MARK);
 
     /* ------------------------------------------------ estrellas ---------- */
-    let stars: { x: number; y: number; z: number; r: number; tw: number }[] = [];
+    let stars: Star[] = [];
 
     /* -------------------------------------------------- estado ----------- */
     let W = 0;
@@ -141,18 +148,9 @@ export function Globe({ anchorX = 0.3 }: Props) {
       canvas!.height = Math.max(1, Math.round(H * dpr));
       canvas!.style.width = `${W}px`;
       canvas!.style.height = `${H}px`;
-      R = Math.min(W * 0.27, H * 0.385);
+      R = W < 820 ? Math.min(W * 0.31, H * 0.36) : Math.min(W * 0.27, H * 0.385);
 
-      stars = [];
-      for (let i = 0; i < STARS; i++) {
-        stars.push({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          z: 0.25 + Math.random() * 0.75,
-          r: Math.random() < 0.82 ? 0.7 : 1.5,
-          tw: Math.random() * Math.PI * 2,
-        });
-      }
+      stars = createStars(W, H);
     }
     resize();
     const ro = new ResizeObserver(resize);
@@ -172,11 +170,14 @@ export function Globe({ anchorX = 0.3 }: Props) {
       return { x: x * cr - y * sr, y: x * sr + y * cr, z };
     }
 
-    function drawOrbit(o: Orbit, front: boolean) {
+    function drawOrbit(o: Orbit, front: boolean, alpha: number) {
+      if (alpha <= 0.004) return;
       const cx = cxOf();
       const cy = cyOf();
       const SEG = 140;
       let prev: { sx: number; sy: number } | null = null;
+      ctx!.save();
+      ctx!.globalAlpha = alpha;
       ctx!.lineWidth = 1;
       for (let k = 0; k <= SEG; k++) {
         const a = (k / SEG) * Math.PI * 2;
@@ -192,9 +193,11 @@ export function Globe({ anchorX = 0.3 }: Props) {
         }
         prev = { sx, sy };
       }
+      ctx!.restore();
     }
 
-    function drawSat(front: boolean) {
+    function drawSat(front: boolean, alpha: number) {
+      if (alpha <= 0.004) return;
       const o = ORBITS[0];
       const p = orbPt(o, satA);
       if (p.z >= 0 !== front) return;
@@ -208,7 +211,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.save();
       ctx!.translate(sx, sy);
       ctx!.rotate(ang + Math.PI / 4);
-      ctx!.globalAlpha = front ? 1 : 0.4;
+      ctx!.globalAlpha = (front ? 1 : 0.4) * alpha;
       ctx!.strokeStyle = "#cfe6f7";
       ctx!.fillStyle = "#06101c";
       ctx!.lineWidth = 1.2;
@@ -225,18 +228,30 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.lineTo(0, -10 * u);
       ctx!.stroke();
       ctx!.restore();
-      ctx!.globalAlpha = 1;
     }
 
     let raf = 0;
     let running = true;
     let prevT = 0;
     let t = 0;
+    let lights = lightsTargetRef.current ? 1 : 0;
 
     function frame(now: number) {
       const dt = Math.min(0.05, (now - (prevT || now)) / 1000);
       prevT = now;
       t += dt;
+
+      const lt = lightsTargetRef.current ? 1 : 0;
+      if (reduced) {
+        lights = lt;
+      } else {
+        const rate = lt < lights ? 7.5 : 4.5;
+        lights += (lt - lights) * Math.min(1, dt * rate);
+        if (Math.abs(lt - lights) < 0.004) lights = lt;
+      }
+      const beaconAlpha = Math.pow(lights, 1.6);
+      const orbitAlpha = Math.pow(lights, 1.3);
+      const surfaceAlpha = Math.pow(lights, 1.3);
 
       if (!dragging) {
         const target = -AUTO;
@@ -251,28 +266,10 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.clearRect(0, 0, W, H);
 
       /* --- estrellas --- */
-      for (const s of stars) {
-        s.x -= dt * 2.6 * s.z;
-        if (s.x < -2) {
-          s.x = W + 2;
-          s.y = Math.random() * H;
-        }
-        const tw = 0.42 + 0.58 * Math.sin(t * 1.5 * s.z + s.tw);
-        ctx!.globalAlpha = Math.min(1, 0.95 * s.z * tw);
-        ctx!.fillStyle = "#ffffff";
-        ctx!.beginPath();
-        ctx!.arc(s.x, s.y, s.r, 0, 7);
-        ctx!.fill();
-        // Destello en las más brillantes.
-        if (s.r > 1 && tw > 0.82) {
-          ctx!.globalAlpha = (tw - 0.82) * 1.6 * s.z;
-          ctx!.fillRect(s.x - s.r * 3.4, s.y - 0.4, s.r * 6.8, 0.8);
-          ctx!.fillRect(s.x - 0.4, s.y - s.r * 3.4, 0.8, s.r * 6.8);
-        }
-      }
-      ctx!.globalAlpha = 1;
+      drawStars(ctx!, stars, W, H, dt, t);
 
-      /* --- halo --- */
+      /* --- halo (en #equipo permanece suave como silueta) --- */
+      ctx!.globalAlpha = 0.52 + 0.48 * lights;
       const g = ctx!.createRadialGradient(cx, cy, R * 0.95, cx, cy, R * 1.4);
       g.addColorStop(0, "rgba(60,150,200,.22)");
       g.addColorStop(1, "rgba(60,150,200,0)");
@@ -281,10 +278,11 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.arc(cx, cy, R * 1.4, 0, 7);
       ctx!.fill();
 
-      ORBITS.forEach((o) => drawOrbit(o, false));
-      drawSat(false);
+      ORBITS.forEach((o) => drawOrbit(o, false, orbitAlpha));
+      drawSat(false, lights);
 
-      /* --- disco --- */
+      /* --- disco y borde (silueta del planeta) --- */
+      ctx!.globalAlpha = 1;
       const d = ctx!.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
       d.addColorStop(0, "#0e2c48");
       d.addColorStop(0.6, "#081a30");
@@ -293,13 +291,14 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.beginPath();
       ctx!.arc(cx, cy, R, 0, 7);
       ctx!.fill();
+      ctx!.globalAlpha = 0.55 + 0.45 * lights;
       ctx!.strokeStyle = "rgba(120,200,230,.3)";
       ctx!.lineWidth = 1;
       ctx!.beginPath();
       ctx!.arc(cx, cy, R, 0, 7);
       ctx!.stroke();
 
-      /* --- superficie --- */
+      /* --- superficie (continentes y mar se atenúan en #equipo) --- */
       const cl = Math.cos(viewLon);
       const sl = Math.sin(viewLon);
       const ct = Math.cos(tilt);
@@ -307,78 +306,82 @@ export function Globe({ anchorX = 0.3 }: Props) {
       const u = R / 260;
       const sizeL = 2.0 * u;
       const sizeS = 1.15 * u;
-      for (let i = 0; i < POINTS; i++) {
-        const x0 = PX[i];
-        const z0 = PZ[i];
-        const x = x0 * cl - z0 * sl;
-        const z = x0 * sl + z0 * cl;
-        const y0 = PY[i];
-        const y = y0 * ct - z * st;
-        const z2 = y0 * st + z * ct;
-        if (z2 <= 0.02) continue;
-        const lit = Math.max(0, Math.min(1, 0.55 * z2 + 0.25 * (-x * 0.6 + y * 0.5) + 0.25));
-        const lv = Math.max(0, Math.min(LIGHT_LEVELS - 1, Math.round(lit * (LIGHT_LEVELS - 1))));
-        const sx = cx + R * x;
-        const sy = cy - R * y;
-        if (PL[i]) {
-          ctx!.fillStyle = LAND_PAL[lv];
-          const s = sizeL * (0.55 + 0.45 * z2);
-          ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
-        } else {
-          ctx!.fillStyle = SEA_PAL[lv];
-          const s = sizeS * (0.6 + 0.4 * z2);
-          ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+      if (surfaceAlpha > 0.004) {
+        ctx!.globalAlpha = surfaceAlpha;
+        for (let i = 0; i < POINTS; i++) {
+          const x0 = PX[i];
+          const z0 = PZ[i];
+          const x = x0 * cl - z0 * sl;
+          const z = x0 * sl + z0 * cl;
+          const y0 = PY[i];
+          const y = y0 * ct - z * st;
+          const z2 = y0 * st + z * ct;
+          if (z2 <= 0.02) continue;
+          const lit = Math.max(0, Math.min(1, 0.55 * z2 + 0.25 * (-x * 0.6 + y * 0.5) + 0.25));
+          const lv = Math.max(0, Math.min(LIGHT_LEVELS - 1, Math.round(lit * (LIGHT_LEVELS - 1))));
+          const sx = cx + R * x;
+          const sy = cy - R * y;
+          if (PL[i]) {
+            ctx!.fillStyle = LAND_PAL[lv];
+            const s = sizeL * (0.55 + 0.45 * z2);
+            ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+          } else {
+            ctx!.fillStyle = SEA_PAL[lv];
+            const s = sizeS * (0.6 + 0.4 * z2);
+            ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
+          }
         }
       }
 
-      /* --- pulsos --- */
-      for (const v of pulses) {
-        const hx = v.x * cl - v.z * sl;
-        const hz = v.x * sl + v.z * cl;
-        const hy = v.y * ct - hz * st;
-        const hz2 = v.y * st + hz * ct;
-        if (hz2 <= 0.05) continue;
-        const sx = cx + R * hx;
-        const sy = cy - R * hy;
-        const pulse = (Math.sin(t * 2.2 + v.ph) + 1) / 2;
-        ctx!.globalAlpha = Math.min(1, hz2 * 2.2);
-        ctx!.fillStyle = `rgba(255,138,76,${(0.18 + 0.2 * pulse).toFixed(2)})`;
-        ctx!.beginPath();
-        ctx!.arc(sx, sy, (5 + 7 * pulse) * u * 1.2, 0, 7);
-        ctx!.fill();
-        ctx!.fillStyle = "#ff9a5c";
-        ctx!.beginPath();
-        ctx!.arc(sx, sy, 2.6 * u * 1.2, 0, 7);
-        ctx!.fill();
-        ctx!.globalAlpha = 1;
-      }
-
-      /* --- marca del Perú --- */
-      {
-        const hx = peru.x * cl - peru.z * sl;
-        const hz = peru.x * sl + peru.z * cl;
-        const hy = peru.y * ct - hz * st;
-        const hz2 = peru.y * st + hz * ct;
-        if (hz2 > 0.08) {
+      /* --- puntos luminosos en los continentes (se apagan en #equipo) --- */
+      if (beaconAlpha > 0.004) {
+        for (const v of pulses) {
+          const hx = v.x * cl - v.z * sl;
+          const hz = v.x * sl + v.z * cl;
+          const hy = v.y * ct - hz * st;
+          const hz2 = v.y * st + hz * ct;
+          if (hz2 <= 0.05) continue;
           const sx = cx + R * hx;
           const sy = cy - R * hy;
-          const ring = 9 + 5 * ((Math.sin(t * 1.5) + 1) / 2);
-          ctx!.globalAlpha = Math.min(1, hz2 * 2);
-          ctx!.strokeStyle = "rgba(216,255,51,.85)";
-          ctx!.lineWidth = 1.3;
+          const pulse = (Math.sin(t * 2.2 + v.ph) + 1) / 2;
+          ctx!.globalAlpha = Math.min(1, hz2 * 2.2) * beaconAlpha;
+          ctx!.fillStyle = `rgba(255,138,76,${(0.18 + 0.2 * pulse).toFixed(2)})`;
           ctx!.beginPath();
-          ctx!.arc(sx, sy, ring * u * 1.2, 0, 7);
-          ctx!.stroke();
-          ctx!.fillStyle = "#d8ff33";
-          ctx!.beginPath();
-          ctx!.arc(sx, sy, 2.4 * u * 1.2, 0, 7);
+          ctx!.arc(sx, sy, (5 + 7 * pulse) * u * 1.2, 0, 7);
           ctx!.fill();
-          ctx!.globalAlpha = 1;
+          ctx!.fillStyle = "#ff9a5c";
+          ctx!.beginPath();
+          ctx!.arc(sx, sy, 2.6 * u * 1.2, 0, 7);
+          ctx!.fill();
+        }
+
+        /* --- marca del Perú --- */
+        {
+          const hx = peru.x * cl - peru.z * sl;
+          const hz = peru.x * sl + peru.z * cl;
+          const hy = peru.y * ct - hz * st;
+          const hz2 = peru.y * st + hz * ct;
+          if (hz2 > 0.08) {
+            const sx = cx + R * hx;
+            const sy = cy - R * hy;
+            const ring = 9 + 5 * ((Math.sin(t * 1.5) + 1) / 2);
+            ctx!.globalAlpha = Math.min(1, hz2 * 2) * beaconAlpha;
+            ctx!.strokeStyle = "rgba(216,255,51,.85)";
+            ctx!.lineWidth = 1.3;
+            ctx!.beginPath();
+            ctx!.arc(sx, sy, ring * u * 1.2, 0, 7);
+            ctx!.stroke();
+            ctx!.fillStyle = "#d8ff33";
+            ctx!.beginPath();
+            ctx!.arc(sx, sy, 2.4 * u * 1.2, 0, 7);
+            ctx!.fill();
+          }
         }
       }
 
-      ORBITS.forEach((o) => drawOrbit(o, true));
-      drawSat(true);
+      ORBITS.forEach((o) => drawOrbit(o, true, orbitAlpha));
+      drawSat(true, lights);
+      ctx!.globalAlpha = 1;
 
       if (running) raf = requestAnimationFrame(frame);
     }

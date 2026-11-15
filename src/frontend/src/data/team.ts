@@ -16,8 +16,10 @@ export interface Member {
   role: string;
   /** Que hace en el proyecto, en una o dos lineas. */
   blurb: string;
-  /** Etiquetas cortas de su frente de trabajo. */
-  tags: string[];
+  /** URL del perfil de LinkedIn (opcional mientras se completa). */
+  linkedin?: string;
+  /** URL del perfil de GitHub (opcional mientras se completa). */
+  github?: string;
   /** Rama de GitHub que le corresponde. */
   branch: string;
 }
@@ -29,7 +31,7 @@ export const TEAM: Member[] = [
     role: "Procesamiento geoespacial",
     blurb:
       "Lidera Google Earth Engine: extrae los focos de MODIS y VIIRS, decodifica la calidad de cada producto y agrega los resultados por territorio.",
-    tags: ["Earth Engine", "QA de sensores", "Agregación zonal"],
+    github: "https://github.com/Ancas-Red",
     branch: "feature/gee-data-pipeline",
   },
   {
@@ -38,7 +40,7 @@ export const TEAM: Member[] = [
     role: "Analítica y armonización",
     blurb:
       "Convierte las tablas en indicadores: tasas normalizadas, persistencia, anomalías estacionales y el árbol de susceptibilidad.",
-    tags: ["Python", "Anomalías", "Árbol de reglas"],
+    github: "https://github.com/TomJordan1",
     branch: "feature/analytics-engine",
   },
   {
@@ -47,7 +49,6 @@ export const TEAM: Member[] = [
     role: "Backend e integración",
     blurb:
       "Construye la API de solo lectura que entrega los resultados ya calculados y mantiene el contrato entre los módulos.",
-    tags: ["FastAPI", "Contrato REST", "Integración"],
     branch: "feature/api-backend",
   },
   {
@@ -56,7 +57,6 @@ export const TEAM: Member[] = [
     role: "Interfaz y experiencia",
     blurb:
       "Diseña y desarrolla la aplicación: el mapa, el calendario, las fichas territoriales y la simulación de recorrido.",
-    tags: ["React", "Leaflet", "Diseño"],
     branch: "feature/frontend-dashboard",
   },
   {
@@ -65,7 +65,6 @@ export const TEAM: Member[] = [
     role: "Producto, calidad y relato",
     blurb:
       "Reúne las capas territoriales oficiales, mantiene el contrato legible, verifica la evidencia y construye la narrativa del proyecto.",
-    tags: ["Fuentes", "QA de producto", "Presentación"],
     branch: "feature/product-qa-demo",
   },
 ];
