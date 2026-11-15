@@ -1044,12 +1044,12 @@
 }
 
 .mctropic-paw--left {
-  transform-origin: 107px 166px;
+  transform-origin: 103px 172px;
   animation: mctropic-type-left 0.42s ease-in-out infinite alternate;
 }
 
 .mctropic-paw--right {
-  transform-origin: 144px 166px;
+  transform-origin: 149px 172px;
   animation: mctropic-type-right 0.48s ease-in-out infinite alternate;
 }
 

@@ -239,117 +239,72 @@ export function McTropicCoder() {
           <circle cx="96" cy="162" r="2.2" fill="#d8ff33" />
           <circle cx="156" cy="162" r="2.2" fill="#39e08a" />
 
-          {/* Laptop espacial en perspectiva 3/4 con teclado completo y pantalla hacia McTropic */}
-          <g className="mctropic-laptop">
-            {/* Haz tenue de luz desde la pantalla hacia el casco */}
-            <polygon
-              points="36,144 76,133 124,122 114,166 80,174"
-              fill="#39e08a"
-              fillOpacity="0.06"
-            />
-            {/* Tapa trasera exterior de la pantalla */}
-            <polygon
-              points="31,145 36,144 42,185 37,186"
-              fill="#14231b"
-              stroke="#e8efe9"
-              strokeOpacity="0.74"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            {/* Pantalla abierta mirando hacia McTropic */}
-            <polygon
-              points="36,144 76,133 82,172 42,185"
-              fill="#07150d"
-              stroke="#e8efe9"
-              strokeOpacity="0.92"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-            />
-            <polygon
-              points="40,147 72,138 77,168 45,179"
-              fill="#0a1f14"
-              stroke="#39e08a"
-              strokeOpacity="0.48"
-              strokeWidth="1.1"
-            />
-            {/* Lineas de codigo animadas sobre la pantalla */}
-            <line className="mctropic-code mctropic-code--1" x1="43" y1="153" x2="67" y2="146" stroke="#d8ff33" strokeWidth="2.1" strokeLinecap="round" />
-            <line className="mctropic-code mctropic-code--2" x1="44" y1="159" x2="70" y2="151.5" stroke="#39e08a" strokeWidth="1.9" strokeLinecap="round" />
-            <line className="mctropic-code mctropic-code--3" x1="45" y1="165" x2="63" y2="160" stroke="#e8efe9" strokeOpacity="0.75" strokeWidth="1.8" strokeLinecap="round" />
-            <line className="mctropic-code mctropic-code--4" x1="46" y1="171" x2="69" y2="164" stroke="#d8ff33" strokeWidth="1.9" strokeLinecap="round" />
-            <rect className="mctropic-cursor" x="70.5" y="161" width="3.2" height="4.2" rx="0.6" fill="#d8ff33" transform="rotate(-16 70.5 161)" />
-
-            {/* Chasis y teclado visible sobre el borde de la terminal */}
-            <polygon
-              points="42,185 82,172 146,184 104,199"
-              fill="#0c1d14"
-              stroke="#e8efe9"
-              strokeOpacity="0.92"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-            />
-            {/* Borde frontal biselado 3D de la base del teclado */}
-            <polygon
-              points="42,185 104,199 104,203 42,189"
-              fill="#152b20"
-              stroke="#e8efe9"
-              strokeOpacity="0.7"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            <polygon
-              points="104,199 146,184 146,188 104,203"
-              fill="#0a1610"
-              stroke="#e8efe9"
-              strokeOpacity="0.6"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            {/* Hueco oscuro de la matriz de teclas */}
-            <polygon
-              points="54,183 84,174 128,183 96,193"
-              fill="#050e09"
-              stroke="#39e08a"
-              strokeOpacity="0.4"
-              strokeWidth="0.9"
-            />
-            {/* Filas de teclas individuales en perspectiva */}
-            <g stroke="#39e08a" strokeOpacity="0.88" strokeWidth="2.1" strokeLinecap="butt">
-              <line x1="80" y1="177" x2="120" y2="184.5" strokeDasharray="4.5 2.2" />
-              <line x1="72" y1="180.5" x2="113" y2="188" strokeDasharray="4.5 2.2" />
-              <line x1="63" y1="184" x2="104" y2="191.5" strokeDasharray="4.5 2.2" />
-            </g>
-            {/* Barra espaciadora destacada + trackpad */}
-            <line x1="74" y1="190" x2="90" y2="193" stroke="#d8ff33" strokeOpacity="0.85" strokeWidth="2.4" strokeLinecap="round" />
-            <polygon
-              points="105,191.5 117,187 129,189.5 117,194"
-              fill="#07150d"
-              stroke="#72f3a8"
-              strokeOpacity="0.55"
-              strokeWidth="1"
-            />
-          </g>
-
-          {/* Manitas espaciales tecleando sobre las teclas */}
+          {/* Bracitos sutiles detras de la tapa trasera de la laptop (tecleando en oculto) */}
           <g className="mctropic-paw mctropic-paw--left">
             <path
-              d="M 107 166 Q 94 173 84 182"
+              d="M 103 172 Q 86 178 82 188"
               stroke="#ffb224"
-              strokeOpacity="0.88"
-              strokeWidth="4.3"
+              strokeOpacity="0.82"
+              strokeWidth="4"
               strokeLinecap="round"
             />
-            <circle cx="83" cy="183" r="3.6" fill="#e8efe9" stroke="#0a1610" strokeWidth="1.5" />
+            <circle cx="81" cy="189" r="3.4" fill="#e8efe9" stroke="#0a1610" strokeWidth="1.4" />
           </g>
           <g className="mctropic-paw mctropic-paw--right">
             <path
-              d="M 144 166 Q 130 177 109 186"
+              d="M 149 172 Q 166 178 170 188"
               stroke="#ffb224"
-              strokeOpacity="0.88"
-              strokeWidth="4.3"
+              strokeOpacity="0.82"
+              strokeWidth="4"
               strokeLinecap="round"
             />
-            <circle cx="108" cy="186" r="3.6" fill="#e8efe9" stroke="#0a1610" strokeWidth="1.5" />
+            <circle cx="171" cy="189" r="3.4" fill="#e8efe9" stroke="#0a1610" strokeWidth="1.4" />
+          </g>
+
+          {/* Tapa trasera de la laptop abierta frente a McTropic (cubre el teclado detras) */}
+          <g className="mctropic-laptop">
+            {/* Carcasa exterior mate con ligero escorzo hacia el frente */}
+            <path
+              d="M 81 168 Q 81 163 86 163 L 166 163 Q 171 163 171 168 L 167 206 L 85 206 Z"
+              fill="#08140d"
+              stroke="#e8efe9"
+              strokeOpacity="0.88"
+              strokeWidth="2.2"
+              strokeLinejoin="round"
+            />
+            {/* Bisel interior sutil */}
+            <path
+              d="M 85 168 Q 85 166 87 166 L 165 166 Q 167 166 167 168 L 164 202 L 88 202 Z"
+              fill="#0c1c13"
+              stroke="#39e08a"
+              strokeOpacity="0.34"
+              strokeWidth="1"
+              strokeLinejoin="round"
+            />
+            {/* Borde superior luminoso de la bisagra superior de pantalla */}
+            <line
+              x1="92"
+              y1="163"
+              x2="160"
+              y2="163"
+              stroke="#d8ff33"
+              strokeOpacity="0.45"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+            {/* Emblema minimalista de McHanaq en el centro de la tapa */}
+            <g transform="translate(126 184)">
+              <circle r="7.5" fill="#07130c" stroke="#39e08a" strokeOpacity="0.72" strokeWidth="1.2" />
+              <ellipse
+                rx="12.5"
+                ry="4.2"
+                transform="rotate(-24)"
+                stroke="#e8efe9"
+                strokeOpacity="0.72"
+                strokeWidth="1.1"
+              />
+              <circle className="mctropic-beacon" cx="9.8" cy="-4.8" r="1.9" fill="#d8ff33" />
+            </g>
           </g>
         </g>
       </svg>
