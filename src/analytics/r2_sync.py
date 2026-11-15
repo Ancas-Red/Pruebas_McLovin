@@ -34,6 +34,17 @@ Configuracion (variables de entorno u opciones de linea de comandos):
   R2_SECRET_ACCESS_KEY Secret Key del mismo token.
   R2_PREFIX            Opcional: subcarpeta dentro del bucket (ej. "processed/").
 
+Archivos grandes subidos en partes (sin boto3, directo del dashboard web)
+--------------------------------------------------------------------------
+El dashboard web de R2 no deja arrastrar archivos de mas de ~300MB. Para un
+artefacto grande (tipicamente activity_daily.json) alguien puede partirlo
+localmente en pedazos binarios secuenciales nombrados
+`<nombre_sin_extension>.part1`, `.part2`, etc. (ej. activity_daily.part1,
+activity_daily.part2, ...) y subirlos uno por uno por el dashboard. `download`
+intenta primero el objeto completo (activity_daily.json); si no existe (404),
+busca y concatena part1, part2, ... hasta el primer 404 que falte, en ese
+orden. No hace falta avisarle nada especial al backend: esto es automatico.
+
 Uso:
   # En startup.sh (arranque del backend), solo lectura:
   python -m src.analytics.r2_sync download --target data/processed --if-missing
@@ -79,6 +90,41 @@ def _public_url(base_url: str, name: str, *, prefix: str) -> str:
     return f"{base}/{urllib_parse.quote(rel)}"
 
 
+def _download_bytes(url: str, timeout_sec: int) -> bytes:
+    req = urllib_request.Request(url, method="GET")
+    with urllib_request.urlopen(req, timeout=timeout_sec) as resp:
+        return resp.read()
+
+
+def _download_parts_concat(base_url: str, prefix: str, name: str, timeout_sec: int) -> bytes | None:
+    """Reconstruye `name` a partir de partes `<nombre_sin_ext>.partN` subidas a mano.
+
+    Caso de uso: el dashboard web de R2 no acepta arrastrar archivos de mas de
+    ~300MB, asi que para snapshots grandes (ej. activity_daily.json con varios
+    años de ventana FIRMS) alguien del equipo los divide localmente en pedazos
+    (activity_daily.part1, activity_daily.part2, ...) y los sube uno por uno.
+    Esta funcion intenta part1, part2, ... hasta el primer 404 y concatena los
+    bytes en el mismo orden; si no encuentra ni siquiera part1, devuelve None
+    (no hay partes, el llamador decide si eso es un error).
+    """
+    stem = Path(name).stem
+    chunks: list[bytes] = []
+    i = 1
+    while True:
+        part_name = f"{stem}.part{i}"
+        url = _public_url(base_url, part_name, prefix=prefix)
+        try:
+            chunks.append(_download_bytes(url, timeout_sec))
+        except urllib_error.HTTPError as exc:
+            if exc.code == 404:
+                break
+            raise
+        i += 1
+    if not chunks:
+        return None
+    return b"".join(chunks)
+
+
 def download_processed_snapshot(
     target_dir: Path,
     *,
@@ -111,14 +157,22 @@ def download_processed_snapshot(
         if only_if_missing and dest.is_file() and dest.stat().st_size > 0:
             continue
         url = _public_url(resolved, name, prefix=eff_prefix)
-        req = urllib_request.Request(url, method="GET")
         try:
-            with urllib_request.urlopen(req, timeout=timeout_sec) as resp:
-                data = resp.read()
+            data = _download_bytes(url, timeout_sec)
         except urllib_error.HTTPError as exc:
-            if exc.code == 404 and name in optional_list:
-                continue
-            raise
+            if exc.code == 404:
+                # El archivo completo no esta como objeto unico; puede estar
+                # dividido en partes (ver _download_parts_concat) porque no
+                # cupo en una subida directa por el dashboard web de R2.
+                parts_data = _download_parts_concat(resolved, eff_prefix, name, timeout_sec)
+                if parts_data is not None:
+                    data = parts_data
+                elif name in optional_list:
+                    continue
+                else:
+                    raise
+            else:
+                raise
         tmp_path = dest.with_suffix(dest.suffix + ".tmp")
         tmp_path.write_bytes(data)
         tmp_path.replace(dest)
