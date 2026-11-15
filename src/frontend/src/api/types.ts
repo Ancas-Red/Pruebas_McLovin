@@ -296,6 +296,8 @@ export interface HotspotCollection {
 export interface DateRange {
   from: string;
   to: string;
+  start?: string;
+  end?: string;
 }
 
 export interface SensorMeta {
@@ -334,6 +336,8 @@ export interface Metadata {
   /** Ojo: es una **lista** de rangos por sensor, no un rango único. */
   available_date_ranges_by_sensor: Partial<Record<Sensor, DateRange[]>>;
   available_periods_by_sensor: Partial<Record<Sensor, string[]>>;
+  /** Lista explícita opcional de fechas diarias útiles (`YYYY-MM-DD`) por sensor. */
+  available_useful_dates_by_sensor?: Partial<Record<Sensor, string[]>>;
   common_environmental_dates: DateRange[];
   common_environmental_periods: string[];
   common_analysis_dates: DateRange[];
@@ -394,7 +398,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2000,
     overpass: "~10:30",
-    color: "#f8850c",
+    color: "#ff9f1c",
   },
   MODIS_AQUA: {
     label: "MODIS Aqua",
@@ -404,7 +408,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2002,
     overpass: "~13:30",
-    color: "#e65c2f",
+    color: "#ff3b30",
   },
   VIIRS_SNPP: {
     label: "VIIRS Suomi-NPP",
@@ -414,7 +418,7 @@ export const SENSOR_META: Record<
     resolution: "1 km",
     since: 2012,
     overpass: "~13:30",
-    color: "#d8ff33",
+    color: "#00e5ff",
   },
 };
 

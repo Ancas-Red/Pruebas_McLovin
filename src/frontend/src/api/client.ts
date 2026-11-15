@@ -16,8 +16,11 @@
  */
 
 import type {
+  AnomalyStatus,
   ApiErrorBody,
+  DailyRow,
   DateRange,
+  HistoricalAnomaly,
   HotspotCollection,
   MetricId,
   MetricResponse,
@@ -28,19 +31,32 @@ import type {
   TerritorySummary,
   TerritoryType,
 } from "./types";
-import { ACTIVITY_METRICS, SCHEMA_VERSION } from "./types";
+import { ACTIVITY_METRICS, SCHEMA_VERSION, SENSORS } from "./types";
 
 /* -------------------------------------------------------------------------- */
 /* Configuración                                                              */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Base de la API. Se fija con `VITE_API_BASE` al compilar (en Render apunta
- * al servicio del backend). En desarrollo, uvicorn en el puerto 8000.
+ * Resuelve la URL base de la API aceptando `VITE_API_BASE` o `VITE_API_BASE_URL`.
+ * Normaliza barras finales y añade `/api/v1` si se configuró solo el dominio raíz
+ * (por ejemplo `https://mchanaq-api.azurewebsites.net` desde Cloudflare Pages).
  */
-export const API_BASE: string =
-  (import.meta.env?.VITE_API_BASE as string | undefined)?.replace(/\/+$/, "") ||
-  "http://localhost:8000/api/v1";
+export function resolveApiBase(raw?: string): string {
+  const cleaned = (raw ?? "").trim().replace(/\/+$/, "");
+  if (!cleaned) return "http://localhost:8000/api/v1";
+  return cleaned.endsWith("/api/v1") ? cleaned : `${cleaned}/api/v1`;
+}
+
+/**
+ * Base de la API. En Cloudflare Pages se configura al compilar mediante
+ * `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando al App Service de Azure.
+ * En desarrollo apunta a uvicorn local en el puerto 8000.
+ */
+export const API_BASE: string = resolveApiBase(
+  (import.meta.env?.VITE_API_BASE as string | undefined) ||
+    (import.meta.env?.VITE_API_BASE_URL as string | undefined)
+);
 
 /** Cuánto se espera a la API antes de darla por caída. */
 const TIMEOUT_MS = 8000;
@@ -269,16 +285,18 @@ export interface ActivityQuery {
 export interface ActivityResponse {
   schema_version: string;
   territory: { type: TerritoryType; id: string };
+  territory_type?: TerritoryType;
+  territory_id?: string;
   sensor: Sensor;
   from?: string | null;
   to?: string | null;
   period?: string | null;
-  items: import("./types").DailyRow[];
+  items: DailyRow[];
 }
 
-export function fetchActivity(q: ActivityQuery, signal?: AbortSignal): Promise<ActivityResponse> {
+export async function fetchActivity(q: ActivityQuery, signal?: AbortSignal): Promise<ActivityResponse> {
   const byRange = Boolean(q.from && q.to);
-  return get<ActivityResponse>(
+  const res = await get<ActivityResponse>(
     `/territories/${encodeURIComponent(q.type)}/${encodeURIComponent(q.id)}/activity`,
     {
       sensor: q.sensor,
@@ -286,6 +304,60 @@ export function fetchActivity(q: ActivityQuery, signal?: AbortSignal): Promise<A
       to: byRange ? q.to : undefined,
       period: byRange ? undefined : q.period,
     },
+    signal
+  );
+  if (!res.territory) {
+    res.territory = {
+      type: res.territory_type ?? q.type,
+      id: res.territory_id ?? q.id,
+    };
+  }
+  return res;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 6b · /territories/{type}/{id}/calendar  (opcional, serie mensual)          */
+/* -------------------------------------------------------------------------- */
+
+export interface CalendarItem {
+  period?: string;
+  period_id?: string;
+  year?: number;
+  month?: number;
+  detections?: number | null;
+  fire_pixel_days_8_9?: number | null;
+  detections_low?: number | null;
+  fire_pixel_days_7_9?: number | null;
+  fire_pixel_days_7?: number | null;
+  activity_rate: number | null;
+  observation_coverage: number | null;
+  active_days: number | null;
+  max_consecutive_active_days: number | null;
+  unobserved_days?: number;
+  days_with_data?: number;
+  historical_anomaly?: number | HistoricalAnomaly | null;
+  anomaly_status?: AnomalyStatus;
+  baseline_years?: number;
+}
+
+export interface CalendarResponse {
+  schema_version?: string;
+  territory?: { type: TerritoryType; id: string };
+  territory_type?: TerritoryType;
+  territory_id?: string;
+  sensor?: Sensor;
+  items: CalendarItem[];
+}
+
+export function fetchCalendar(
+  type: TerritoryType,
+  id: string,
+  sensor: Sensor,
+  signal?: AbortSignal
+): Promise<CalendarResponse> {
+  return get<CalendarResponse>(
+    `/territories/${encodeURIComponent(type)}/${encodeURIComponent(id)}/calendar`,
+    { sensor },
     signal
   );
 }
@@ -334,50 +406,108 @@ export function exportCsvUrl(q: {
 
 /**
  * Puede no existir: solo hay respuesta si el backend tiene `hotspots.geojson`.
- * Un `404` aquí es un estado previsto, no una avería, así que devuelve una
- * colección vacía y la interfaz lo rotula.
+ * Un `404` aquí es un estado previsto; un `200 OK` con `features: []` indica
+ * cero focos observados en el backend real.
  */
-export async function fetchHotspots(
+export function fetchHotspots(
   q: { type: TerritoryType; id: string; date: string; sensor: Sensor },
   signal?: AbortSignal
 ): Promise<HotspotCollection> {
-  try {
-    return await get<HotspotCollection>(
-      `/territories/${encodeURIComponent(q.type)}/${encodeURIComponent(q.id)}/hotspots`,
-      { date: q.date, sensor: q.sensor },
-      signal
-    );
-  } catch (e) {
-    if (e instanceof ApiError && (e.isNotFound || e.isPeriodUnavailable)) {
-      return { type: "FeatureCollection", features: [] };
-    }
-    throw e;
-  }
+  return get<HotspotCollection>(
+    `/territories/${encodeURIComponent(q.type)}/${encodeURIComponent(q.id)}/hotspots`,
+    { date: q.date, sensor: q.sensor },
+    signal
+  );
 }
 
 /* -------------------------------------------------------------------------- */
 /* Disponibilidad de fechas — la decide `metadata` (§5)                       */
 /* -------------------------------------------------------------------------- */
 
+/** Cobertura diaria mínima exigida para considerar un día analizable (<30% nubes). */
+export const MIN_USEFUL_COVERAGE = 0.7;
+
+export function rangeBounds(r: DateRange | undefined | null): { from: string; to: string } | null {
+  if (!r || typeof r !== "object") return null;
+  const from = r.from || r.start || "";
+  const to = r.to || r.end || "";
+  return from && to ? { from, to } : null;
+}
+
+/**
+ * Valida que `/api/v1/metadata` traiga sensores y al menos un rango de fechas
+ * utilizable; si llega vacío (p. ej. `data_loaded: false`), se cae a muestra.
+ */
+export function hasUsableMetadata(meta: Partial<Metadata> | null | undefined): meta is Metadata {
+  if (!meta || typeof meta !== "object") return false;
+  if (!Array.isArray(meta.sensors) || meta.sensors.length === 0) return false;
+  const rangesBySensor = meta.available_date_ranges_by_sensor;
+  if (!rangesBySensor || typeof rangesBySensor !== "object") return false;
+  return Object.values(rangesBySensor).some(
+    (ranges) => Array.isArray(ranges) && ranges.some((r) => rangeBounds(r) !== null)
+  );
+}
+
 function inRanges(date: string, ranges: DateRange[] | undefined): boolean {
   if (!ranges?.length) return false;
-  return ranges.some((r) => date >= r.from && date <= r.to);
+  return ranges.some((r) => {
+    const b = rangeBounds(r);
+    return b !== null && date >= b.from && date <= b.to;
+  });
+}
+
+function periodInRanges(period: string, ranges: DateRange[] | undefined): boolean {
+  if (!ranges?.length) return false;
+  return ranges.some((r) => {
+    const b = rangeBounds(r);
+    return b !== null && period >= b.from.slice(0, 7) && period <= b.to.slice(0, 7);
+  });
 }
 
 /** ¿Hay datos de ese sensor ese día? (`activity`, `metrics`, `export.csv`) */
 export function isDateAvailable(date: string, sensor: Sensor, meta: Metadata | null): boolean {
   if (!meta) return false;
-  return inRanges(date, meta.available_date_ranges_by_sensor?.[sensor]);
+  const useful = meta.available_useful_dates_by_sensor?.[sensor];
+  const rng = meta.available_date_ranges_by_sensor?.[sensor];
+  const periods = meta.available_periods_by_sensor?.[sensor];
+  const inPublished = rng?.length
+    ? inRanges(date, rng)
+    : periods?.length
+      ? periods.includes(periodOf(date))
+      : Boolean(useful?.length);
+  if (!inPublished) return false;
+  if (Array.isArray(useful)) return useful.includes(date);
+  return true;
+}
+
+/** ¿El período `YYYY-MM` está publicado para ese sensor? */
+export function isPeriodAvailable(period: string, sensor: Sensor, meta: Metadata | null): boolean {
+  if (!meta) return false;
+  const rng = meta.available_date_ranges_by_sensor?.[sensor];
+  if (rng?.length) return periodInRanges(period, rng);
+  return meta.available_periods_by_sensor?.[sensor]?.includes(period) ?? false;
 }
 
 /** ¿Hay variables ambientales ese día? (métricas sin sensor) */
 export function isEnvDateAvailable(date: string, meta: Metadata | null): boolean {
-  return meta ? inRanges(date, meta.common_environmental_dates) : false;
+  if (!meta) return false;
+  if (meta.common_environmental_dates?.length) return inRanges(date, meta.common_environmental_dates);
+  return meta.common_environmental_periods?.includes(periodOf(date)) ?? false;
+}
+
+/** ¿Hay variables ambientales en ese período `YYYY-MM`? */
+export function isEnvPeriodAvailable(period: string, meta: Metadata | null): boolean {
+  if (!meta) return false;
+  if (meta.common_environmental_periods?.length) return meta.common_environmental_periods.includes(period);
+  if (meta.common_environmental_dates?.length) return periodInRanges(period, meta.common_environmental_dates);
+  return false;
 }
 
 /** ¿Se puede comparar sensores ese día? */
 export function isAnalysisDateAvailable(date: string, meta: Metadata | null): boolean {
-  return meta ? inRanges(date, meta.common_analysis_dates) : false;
+  if (!meta) return false;
+  if (meta.common_analysis_dates?.length) return inRanges(date, meta.common_analysis_dates);
+  return meta.common_analysis_periods?.includes(periodOf(date)) ?? false;
 }
 
 /** La ficha exige las dos cosas a la vez: sensor **y** ambiental. */
@@ -394,16 +524,149 @@ export function isSummaryDateAvailable(date: string, sensor: Sensor, meta: Metad
  * una pantalla de avisos.
  */
 export function lastAvailableDate(sensor: Sensor, meta: Metadata | null): string | null {
+  const useful = meta?.available_useful_dates_by_sensor?.[sensor];
+  if (Array.isArray(useful)) {
+    if (useful.length === 0) return null;
+    const sorted = [...useful].sort();
+    return sorted[sorted.length - 1] ?? null;
+  }
   const r = meta?.available_date_ranges_by_sensor?.[sensor];
-  return r?.length ? r[r.length - 1].to : null;
+  if (r?.length) {
+    const ends = r.map((item) => rangeBounds(item)?.to ?? "").filter(Boolean).sort();
+    return ends.length ? ends[ends.length - 1] : null;
+  }
+  const p = meta?.available_periods_by_sensor?.[sensor];
+  if (p?.length) {
+    const sorted = [...p].sort();
+    const lastP = sorted[sorted.length - 1];
+    if (lastP) {
+      const [y, m] = lastP.split("-").map(Number);
+      return monthRange(y, m).to;
+    }
+  }
+  return null;
 }
 
 /** Sensores que publican algo ese día. */
 export function sensorsAvailableOn(date: string, meta: Metadata | null): Sensor[] {
   if (!meta) return [];
-  return (Object.keys(meta.available_date_ranges_by_sensor ?? {}) as Sensor[]).filter((s) =>
-    inRanges(date, meta.available_date_ranges_by_sensor[s])
-  );
+  return SENSORS.filter((s) => isDateAvailable(date, s, meta));
+}
+
+/** Períodos `YYYY-MM` habilitados en la interfaz para un sensor. */
+export function availablePeriodsForSensor(sensor: Sensor, meta: Metadata | null): Set<string> {
+  const set = new Set<string>();
+  if (!meta) return set;
+  const useful = meta.available_useful_dates_by_sensor?.[sensor];
+  if (Array.isArray(useful)) {
+    for (const d of useful) {
+      if (typeof d === "string" && d.length >= 7) set.add(d.slice(0, 7));
+    }
+    return set;
+  }
+  const periods = meta.available_periods_by_sensor?.[sensor];
+  if (periods?.length) {
+    for (const pr of periods) set.add(pr);
+    return set;
+  }
+  const ranges = meta.available_date_ranges_by_sensor?.[sensor];
+  if (ranges?.length) {
+    for (const r of ranges) {
+      const b = rangeBounds(r);
+      if (!b) continue;
+      for (const [y, m] of monthsBetween(b.from, b.to)) {
+        set.add(`${y}-${pad2(m)}`);
+      }
+    }
+  }
+  return set;
+}
+
+/** Días del mes `(year, month)` que caen dentro de las fechas disponibles del sensor. */
+export function publishedDaysInMonth(
+  year: number,
+  month: number,
+  sensor: Sensor,
+  meta: Metadata | null
+): number[] {
+  const maxD = daysInMonth(year, month);
+  const out: number[] = [];
+  for (let d = 1; d <= maxD; d++) {
+    const iso = isoDate(year, month, d);
+    if (!meta || isDateAvailable(iso, sensor, meta)) out.push(d);
+  }
+  return out;
+}
+
+/**
+ * Un día es analizable si tiene tasa calculable (`activity_rate !== null`) y
+ * cobertura suficiente (`observation_coverage === null || >= 0.70`), además de
+ * respetar `available_useful_dates_by_sensor` si el backend lo publica.
+ */
+export function isUsefulDailyRow(
+  row: Pick<DailyRow, "date" | "activity_rate" | "observation_coverage">,
+  sensor?: Sensor,
+  meta?: Metadata | null
+): boolean {
+  if (row.activity_rate === null || row.activity_rate === undefined) return false;
+  if (
+    row.observation_coverage !== null &&
+    row.observation_coverage !== undefined &&
+    row.observation_coverage < MIN_USEFUL_COVERAGE
+  ) {
+    return false;
+  }
+  if (sensor && meta && !isDateAvailable(row.date, sensor, meta)) {
+    return false;
+  }
+  return true;
+}
+
+/** Días ordenados (1..31) del mes con datos útiles analizables en la serie diaria. */
+export function usefulDaysFromRows(
+  rows: DailyRow[],
+  year: number,
+  month: number,
+  sensor: Sensor,
+  meta: Metadata | null
+): number[] {
+  const prefix = `${year}-${pad2(month)}-`;
+  const daySet = new Set<number>();
+  for (const r of rows) {
+    if (!r.date?.startsWith(prefix)) continue;
+    if (r.sensor && r.sensor !== sensor) continue;
+    if (!isUsefulDailyRow(r, sensor, meta)) continue;
+    const d = Number(r.date.slice(8, 10));
+    if (Number.isFinite(d) && d >= 1 && d <= 31) daySet.add(d);
+  }
+  return [...daySet].sort((a, b) => a - b);
+}
+
+/** Tramo del mes intersectado con los rangos publicados del sensor en `metadata`. */
+export function monthClampedSpan(
+  year: number,
+  month: number,
+  sensor: Sensor,
+  meta: Metadata | null
+): { from: string; to: string } | null {
+  const span = monthRange(year, month);
+  const ranges = meta?.available_date_ranges_by_sensor?.[sensor];
+  if (!ranges?.length) {
+    return isPeriodAvailable(`${year}-${pad2(month)}`, sensor, meta) ? span : null;
+  }
+  let minFrom: string | null = null;
+  let maxTo: string | null = null;
+  for (const r of ranges) {
+    const b = rangeBounds(r);
+    if (!b || b.to < span.from || b.from > span.to) continue;
+    const f = b.from > span.from ? b.from : span.from;
+    const t = b.to < span.to ? b.to : span.to;
+    if (f <= t) {
+      if (minFrom === null || f < minFrom) minFrom = f;
+      if (maxTo === null || t > maxTo) maxTo = t;
+    }
+  }
+  return minFrom && maxTo ? { from: minFrom, to: maxTo } : null;
 }
 
 /* -------------------------------------------------------------------------- */

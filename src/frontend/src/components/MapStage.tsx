@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import L from "leaflet";
 import type {
   Classification,
@@ -9,7 +9,6 @@ import type {
 } from "../api/types";
 import { CLASSIFICATION_LABELS, METRIC_LABELS, SENSOR_META } from "../api/types";
 import {
-  PERU_BOUNDS,
   PERU_CENTER,
   formatLatLon,
   rectRing,
@@ -73,6 +72,7 @@ interface Props {
   spreadTime: number;
   spreadHorizon: number;
   baseLayer: "dark" | "relief" | "satellite";
+  onBaseLayer: (b: "dark" | "relief" | "satellite") => void;
   /** Dirección del viento del día, 0–360°, desde dónde sopla. */
   windDirDeg: number | null;
   windSpeedMs: number | null;
@@ -80,6 +80,7 @@ interface Props {
   showWind: boolean;
   /** Cambia cuando el ancho disponible cambia; obliga a Leaflet a reencuadrar. */
   relayoutKey: string;
+  children?: ReactNode;
 }
 
 /** Punto de cierre del poligono: tolerancia en pixeles sobre el primer vertice. */
@@ -182,10 +183,12 @@ export function MapStage(props: Props) {
     spreadTime,
     spreadHorizon,
     baseLayer,
+    onBaseLayer,
     windDirDeg,
     windSpeedMs,
     showWind,
     relayoutKey,
+    children,
   } = props;
 
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -232,18 +235,10 @@ export function MapStage(props: Props) {
       attributionControl: true,
       zoomSnap: 0.25,
       wheelPxPerZoomLevel: 110,
-      minZoom: 4,
+      minZoom: 2,
       maxZoom: 18,
-      worldCopyJump: false,
+      worldCopyJump: true,
     });
-
-    // El trabajo es sobre el Peru: se acota el paneo con un margen generoso.
-    map.setMaxBounds(
-      L.latLngBounds(
-        L.latLng(PERU_BOUNDS.south - 6, PERU_BOUNDS.west - 8),
-        L.latLng(PERU_BOUNDS.north + 6, PERU_BOUNDS.east + 8)
-      )
-    );
 
     L.control.scale({ imperial: false, position: "bottomright", maxWidth: 160 }).addTo(map);
 
@@ -432,7 +427,14 @@ export function MapStage(props: Props) {
            ficha con datos del backend, y tener las dos cosas flotando sobre
            el mismo territorio se pisaba una a la otra. */
         poly
-          .on("click", () => onSelectTerritory(id))
+          /* El clic solo selecciona en modo mover, y no se propaga al mapa:
+             si no, dibujar un área sobre un territorio acababa cambiando el
+             territorio activo. Ese arreglo viene de la rama de analítica. */
+          .on("click", (e: L.LeafletMouseEvent) => {
+            if (handlers.current.mode !== "pan") return;
+            L.DomEvent.stopPropagation(e as unknown as Event);
+            onSelectTerritory(id);
+          })
           .on("mouseover", (e: L.LeafletMouseEvent) => {
             if (handlers.current.mode !== "pan") return;
             window.clearTimeout(leaveTimer.current);
@@ -504,13 +506,15 @@ export function MapStage(props: Props) {
       L.circleMarker([lat, lon], {
         renderer: rendererRef.current ?? undefined,
         radius,
-        stroke: false,
-        fillColor: SENSOR_META[pr.sensor]?.color ?? "#f8850c",
-        fillOpacity: low ? 0.32 : high ? 0.95 : 0.7,
-        interactive: zoom >= 8,
+        stroke: true,
+        color: "#0b0d10",
+        weight: 0.9,
+        fillColor: SENSOR_META[pr.sensor]?.color ?? "#ff9f1c",
+        fillOpacity: low ? 0.45 : high ? 0.95 : 0.78,
+        interactive: true,
       })
         .bindTooltip(
-          `<b>${SENSOR_META[pr.sensor]?.short ?? pr.sensor}</b> · ${pr.date}<br/>` +
+          `<b>${SENSOR_META[pr.sensor]?.long ?? pr.sensor}</b> (${SENSOR_META[pr.sensor]?.product ?? ""}) · ${pr.date}<br/>` +
             `${pr.frp_mw !== null && pr.frp_mw !== undefined ? `FRP ${pr.frp_mw} MW · ` : ""}` +
             `confianza ${conf ?? "—"}<br/>${lat.toFixed(4)}, ${lon.toFixed(4)}`,
           { direction: "top", opacity: 0.95 }
@@ -532,6 +536,7 @@ export function MapStage(props: Props) {
         fillColor: "#d8ff33",
         fillOpacity: 0.045,
         dashArray: "5 4",
+        interactive: false,
       }).addTo(layer);
       for (const v of ring) {
         L.circleMarker(v, {
@@ -641,6 +646,17 @@ export function MapStage(props: Props) {
 
   const areaKm2 = useMemo(() => (ring ? ringAreaKm2(ring) : 0), [ring]);
 
+  const fullExtentLabel = useMemo(() => {
+    const feats = territories?.features ?? [];
+    if (feats.length === 0) return "Territorios cargados";
+    const sources = feats.map((f) => f.properties.source ?? "");
+    if (sources.some((s) => /ucayali/i.test(s)) && sources.every((s) => !s || /ucayali/i.test(s))) {
+      return "Ucayali";
+    }
+    if (feats.length >= 150) return "Perú completo";
+    return "Territorios cargados";
+  }, [territories]);
+
   const hint =
     mode === "polygon"
       ? draft.length === 0
@@ -666,7 +682,7 @@ export function MapStage(props: Props) {
       />
 
       <div className="ov ov--tl">
-        <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa">
+        <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa" data-tour="map-toolbar">
           <button
             className={`btn${mode === "pan" ? " btn--on" : ""}`}
             onClick={() => {
@@ -721,6 +737,29 @@ export function MapStage(props: Props) {
             Limpiar
           </button>
         </div>
+        <div className="toolbar" role="group" aria-label="Mapa base" style={{ marginTop: 6 }}>
+          <button
+            className={`btn${baseLayer === "dark" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("dark")}
+            title="Mapa oscuro (OpenStreetMap)"
+          >
+            Oscuro
+          </button>
+          <button
+            className={`btn${baseLayer === "relief" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("relief")}
+            title="Relieve e hidrología (OpenTopoMap)"
+          >
+            Relieve
+          </button>
+          <button
+            className={`btn${baseLayer === "satellite" ? " btn--on" : ""}`}
+            onClick={() => onBaseLayer("satellite")}
+            title="Imagen satelital (Esri World Imagery)"
+          >
+            Satélite
+          </button>
+        </div>
       </div>
 
       <div className="ov ov--tr">
@@ -735,7 +774,7 @@ export function MapStage(props: Props) {
           </div>
           <div className="hud__row">
             <span>Area</span>
-            <b>{ring ? `${Math.round(areaKm2).toLocaleString("es-PE")} km²` : "Perú completo"}</b>
+            <b>{ring ? `${Math.round(areaKm2).toLocaleString("es-PE")} km²` : fullExtentLabel}</b>
           </div>
           <div className="hud__row">
             <span>Focos en vista</span>
@@ -871,6 +910,8 @@ export function MapStage(props: Props) {
           </div>
         </div>
       </div>
+
+      {children}
     </div>
   );
 }

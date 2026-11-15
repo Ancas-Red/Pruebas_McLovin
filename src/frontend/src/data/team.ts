@@ -16,8 +16,10 @@ export interface Member {
   role: string;
   /** Que hace en el proyecto, en una o dos lineas. */
   blurb: string;
-  /** Etiquetas cortas de su frente de trabajo. */
-  tags: string[];
+  /** URL del perfil de LinkedIn (opcional mientras se completa). */
+  linkedin?: string;
+  /** URL del perfil de GitHub (opcional mientras se completa). */
+  github?: string;
   /** Rama de GitHub que le corresponde. */
   branch: string;
 }
@@ -28,15 +30,16 @@ export const TEAM: Member[] = [
     name: "Angelo",
     role: "Procesamiento geoespacial",
     blurb: "Extrae los focos en Earth Engine y los agrega por territorio.",
-    tags: ["Earth Engine", "QA de sensores", "Agregación zonal"],
+    github: "https://github.com/Ancas-Red",
     branch: "feature/gee-data-pipeline",
   },
   {
     slug: "tom",
     name: "Tom",
-    role: "Analítica y armonización",
-    blurb: "Convierte las tablas en tasas, anomalías y el árbol de susceptibilidad.",
-    tags: ["Python", "Anomalías", "Árbol de reglas"],
+    role: "Líder y coordinación general",
+    blurb: "Lidera el proyecto y articula las áreas: datos, analítica, backend e interfaz.",
+    linkedin: "https://www.linkedin.com/in/tomjordanpl/",
+    github: "https://github.com/TomJordan1",
     branch: "feature/analytics-engine",
   },
   {
@@ -44,7 +47,6 @@ export const TEAM: Member[] = [
     name: "Jhan",
     role: "Backend e integración",
     blurb: "Construye la API de solo lectura y mantiene el contrato entre módulos.",
-    tags: ["FastAPI", "Contrato REST", "Integración"],
     branch: "feature/api-backend",
   },
   {
@@ -52,7 +54,6 @@ export const TEAM: Member[] = [
     name: "Sebastian",
     role: "Interfaz y experiencia",
     blurb: "Diseña y desarrolla la aplicación: mapa, calendario y simulación.",
-    tags: ["React", "Leaflet", "Diseño"],
     branch: "feature/frontend-dashboard",
   },
   {
@@ -60,7 +61,6 @@ export const TEAM: Member[] = [
     name: "Jean Pierrer",
     role: "Producto, calidad y relato",
     blurb: "Reúne las capas oficiales, verifica la evidencia y arma el relato.",
-    tags: ["Fuentes", "QA de producto", "Presentación"],
     branch: "feature/product-qa-demo",
   },
 ];

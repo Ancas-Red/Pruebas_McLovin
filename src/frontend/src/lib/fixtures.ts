@@ -405,7 +405,7 @@ export function fixtureActivity(q: {
   sensor: Sensor;
   from: string;
   to: string;
-}): { items: DailyRow[] } {
+}): { schema_version: string; territory: { type: TerritoryType; id: string }; sensor: Sensor; from: string; to: string; items: DailyRow[] } {
   const items: DailyRow[] = [];
   const a = splitIso(q.from);
   const b = splitIso(q.to);
@@ -427,7 +427,14 @@ export function fixtureActivity(q: {
       }
     }
   }
-  return { items };
+  return {
+    schema_version: "1.0",
+    territory: { type: q.type, id: q.id },
+    sensor: q.sensor,
+    from: q.from,
+    to: q.to,
+    items,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -655,10 +662,12 @@ export function fixtureSummary(q: {
 export function fixtureTerritoryMetrics(q: {
   type: TerritoryType;
   metric: MetricId;
-  date: string;
+  date?: string;
+  period?: string;
   sensor?: Sensor;
 }): MetricResponse {
-  const period = periodOf(q.date);
+  const period = q.period ?? (q.date ? periodOf(q.date) : "");
+  const refDate = q.date ?? (period ? `${period}-01` : "");
   const meta = fixtureMetadata();
 
   const items: MetricItem[] = seeds(q.type).map((s) => {
@@ -669,14 +678,14 @@ export function fixtureTerritoryMetrics(q: {
     } else if ((["t_amb_c", "t_suelo_c", "wind_dir_deg", "wind_speed_10m_ms", "elevation_m"] as string[]).includes(q.metric)) {
       // Variables ambientales: no dependen del sensor. Se toma el primero que
       // publique ese día solo para tener de dónde leerlas.
-      const sensor = q.sensor ?? SENSORS.find((x) => sensorAvailableOn(x, q.date)) ?? "MODIS_TERRA";
-      const row = sensorAvailableOn(sensor, q.date) ? dailyRow(q.type, s.id, sensor, q.date) : null;
+      const sensor = q.sensor ?? SENSORS.find((x) => sensorAvailableOn(x, refDate)) ?? "MODIS_TERRA";
+      const row = sensorAvailableOn(sensor, refDate) ? dailyRow(q.type, s.id, sensor, refDate) : null;
       value = row ? ((row as unknown as Record<string, number | null>)[q.metric] ?? null) : null;
     } else {
       const sensor = q.sensor ?? "MODIS_TERRA";
-      if (!sensorAvailableOn(sensor, q.date)) {
+      if (!sensorAvailableOn(sensor, refDate)) {
         value = null;
-      } else if (q.metric === "activity_rate" || q.metric === "observation_coverage") {
+      } else if (q.date && (q.metric === "activity_rate" || q.metric === "observation_coverage")) {
         const row = dailyRow(q.type, s.id, sensor, q.date);
         value = row[q.metric];
       } else {
@@ -690,7 +699,7 @@ export function fixtureTerritoryMetrics(q: {
 
   return {
     schema_version: "1.0",
-    date: q.date,
+    date: q.date ?? null,
     period,
     metric: q.metric,
     unit: meta.units[q.metric] ?? null,

@@ -73,13 +73,29 @@ npm run dev          # http://localhost:5173 (proxy /api -> localhost:8000)
 
 Mientras el backend no responda, el frontend cae en sus fixtures locales y lo indica de forma visible en la interfaz.
 
+## Infraestructura oficial (Azure App Service Free Tier + Cloudflare Pages / Azure SWA)
+
+* **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para habilitar vistas previas. Opera en modo de solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), conservando `ROOT = Path(__file__).resolve().parents[3]`, sin consultar GEE ni almacenamiento externo por petición HTTP.
+* **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (Plan Free, `infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL del Azure App Service.
+* **Puente de datos y estado de `data/processed/`:** **Azure Blob Storage (Free Tier)** resguarda `data/intermediate/` y `data/processed/` mediante `python -m src.analytics.azure_sync`. Actualmente `data/processed/` ya contiene `territories.geojson` (4 provincias + 20 cuencas de Ucayali), `ucayali_territories.geojson` y `ucayali_districts_static.csv`; los JSON de series diarias (`metadata.json`, `activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json`) se compilarán con `python -m src.analytics.run_pipeline` al ingresar los CSVs desde GEE (`data/fixtures/` cubre el modo de desarrollo/pruebas entretanto). `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
+
+## Ventana común verificada (Ucayali) y días útiles
+
+* **Ventana multisensor común verificada en GEE (`src/gee/gee_verified_dates.json`):** **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**), donde coinciden `MODIS_TERRA` (`MOD14A1`), `MODIS_AQUA` (`MYD14A1`), `VIIRS_SNPP` (`VNP14A1`) y `ERA5-Land` (~14.8 años > 5 años de línea base mínima), utilizando `COPERNICUS_DEM_GLO30`. Se retira la expectativa operativa de exportar bloques pre-2012 (`2000–2011`, nota *legacy* fuera de alcance).
+* **Tres opciones oficiales de exportación GEE (Ucayali):**
+  1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
+  2. **Línea base mínima (5 años):** `2018-01-01` a `2026-11-03`
+  3. **Ventana común completa en bloques de 2 años:** `2012-01-19`..`2014-01-01`, `2014-01-01`..`2016-01-01`, `2016-01-01`..`2018-01-01`, `2018-01-01`..`2020-01-01`, `2020-01-01`..`2022-01-01`, `2022-01-01`..`2024-01-01`, `2024-01-01`..`2026-11-03`.
+* **Política de días útiles:** `available_date_ranges_by_sensor` y `available_periods_by_sensor` en `/api/v1/metadata` reflejan **únicamente días útiles registrados** (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70`, `activity_rate` no nulo); el frontend habilita solo años, meses y días con datos útiles analizables.
+
 ## Qué hace la aplicación
 
-* **Inicio (`#/`):** portada por bloques sobre globo 3D (problema, solución, flujo de datos, equipo y alcance).
+* **Inicio (`#/`):** portada por bloques con cortina orbital (`OrbitalLoader`), globo 3D interactivo + campo estelar (`#inicio`, titular animado de la ventana `2012 — 2026`), propósito y límites (`#proyecto`), y sección de equipo **Los McLovin** (`#equipo`) con transición de opacidad suave entre bloques y enlace oficial en el emblema de lentes.
 * **Mapa (`#/mapa`):**
-  * **Calendario:** mapa del Perú con focos por sensor, selección de área, calendario longitudinal, serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
+  * **Calendario:** visor Leaflet del Perú / Ucayali con tour guiado inicial (`GuidedTour`), selector territorial, calendario longitudinal (`2012–2026`), serie diaria, indicadores, comparación multisensor y árbol de susceptibilidad.
   * **Simulación (Fase 2 opcional):** recorrido exploratorio desde una ignición hipotética con viento, humedad, vegetación, pendiente y horizonte configurables.
-* **Fotos del equipo:** dejar foto en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `jhan.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`).
+* **Tecnología (`#/tecnologia`):** vista dedicada con tarjetas filtrables por capa técnica (`src/frontend/src/data/tech.ts`) y terminal interactiva (`TechTerminal` en pestañas Bash / Python / API).
+* **Fotos del equipo:** archivos activos en `src/frontend/public/equipo/` (`angelo.jpg`, `tom.jpg`, `sebastian.jpg`, `jean-pierrer.jpg`; `jhan.jpg` queda pendiente y la interfaz muestra su monograma `"J"` automáticamente).
 
 ## Límites que la interfaz declara siempre
 
@@ -92,5 +108,5 @@ Mientras el backend no responda, el frontend cae en sus fixtures locales y lo in
 ## Créditos de datos
 
 * Focos activos: MODIS `MOD14A1.061` y `MYD14A1.061`, VIIRS `VNP14A1.002` (NASA LP DAAC).
-* Contexto ambiental: ERA5-Land (Copernicus/ECMWF), NASADEM / Copernicus DEM GLO-30, MapBiomas Perú.
+* Contexto ambiental: ERA5-Land (Copernicus/ECMWF), Copernicus DEM GLO-30 (`COPERNICUS_DEM_GLO30` para `2012–2026`), MapBiomas Perú / MINAM `CobVeg_180615.shp`.
 * Mapas base: OpenStreetMap, OpenTopoMap (CC-BY-SA), Esri World Imagery.

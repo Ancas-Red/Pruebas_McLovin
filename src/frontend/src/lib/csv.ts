@@ -165,7 +165,7 @@ export function calendarCsv(cells: MonthCell[], sensor: Sensor, origin: string):
       "month",
       "sensor",
       "fire_pixel_days_8_9",
-      "fire_pixel_days_7",
+      "fire_pixel_days_7_9",
       "activity_rate",
       "observation_coverage",
       "active_days",

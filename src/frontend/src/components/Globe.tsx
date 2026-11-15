@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
+import { createStars, drawStars, type Star } from "../lib/starfield";
 
 /**
  * Fondo de la portada: un planeta sobre campo de estrellas.
@@ -20,10 +21,11 @@ import { LAND, PERU_MARK, PULSE_POINTS, WATER } from "../data/landmask";
 interface Props {
   /** Posición horizontal del centro del globo, 0 a 1. */
   anchorX?: number;
+  /** Cuando pasa a false (al entrar en la sección de equipo), atenúa las luces del planeta. */
+  lightsActive?: boolean;
 }
 
 const POINTS = 22000;
-const STARS = 820;
 const LIGHT_LEVELS = 24;
 /** Resolución de la máscara de tierra, en grados por píxel ÷ 2. */
 const MASK_W = 720;
@@ -70,9 +72,16 @@ const SEA_PAL = ramp([5, 13, 26], [38, 104, 168]);
 /** Franja del amanecer: el terminador no es un corte, es una banda cálida. */
 const DUSK_PAL = ramp([26, 14, 16], [196, 104, 58]);
 
-export function Globe({ anchorX = 0.3 }: Props) {
+export function Globe({ anchorX = 0.3, lightsActive = true }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  /* El objetivo vive en una referencia para que cambiarlo no reinicie el
+     lienzo: el bucle de dibujo lo lee en cada cuadro y se acerca a él. */
+  const lightsTargetRef = useRef(lightsActive);
+
+  useEffect(() => {
+    lightsTargetRef.current = lightsActive;
+  }, [lightsActive]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -149,7 +158,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
     const peru = toVec(PERU_MARK);
 
     /* ------------------------------------------------ estrellas ---------- */
-    let stars: { x: number; y: number; z: number; r: number; tw: number }[] = [];
+    let stars: Star[] = [];
 
     /* -------------------------------------------------- estado ----------- */
     let W = 0;
@@ -177,16 +186,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
       // portada, y a tamaño pequeño el terminador y las luces no se apreciaban.
       R = W < 820 ? Math.min(W * 0.4, H * 0.29) : Math.min(W * 0.27, H * 0.43);
 
-      stars = [];
-      for (let i = 0; i < STARS; i++) {
-        stars.push({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          z: 0.25 + Math.random() * 0.75,
-          r: Math.random() < 0.82 ? 0.7 : 1.5,
-          tw: Math.random() * Math.PI * 2,
-        });
-      }
+      stars = createStars(W, H);
     }
     resize();
     const ro = new ResizeObserver(resize);
@@ -206,7 +206,8 @@ export function Globe({ anchorX = 0.3 }: Props) {
       return { x: x * cr - y * sr, y: x * sr + y * cr, z };
     }
 
-    function drawOrbit(o: Orbit, front: boolean) {
+    function drawOrbit(o: Orbit, front: boolean, alpha: number) {
+      if (alpha <= 0.004) return;
       const cx = cxOf();
       const cy = cyOf();
       const SEG = 140;
@@ -218,6 +219,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
         const sx = cx + R * p.x;
         const sy = cy - R * p.y;
         if (prev && p.z >= 0 === front) {
+          ctx!.globalAlpha = alpha;
           ctx!.strokeStyle = front ? "rgba(150,205,215,.3)" : "rgba(150,205,215,.1)";
           ctx!.beginPath();
           ctx!.moveTo(prev.sx, prev.sy);
@@ -226,9 +228,11 @@ export function Globe({ anchorX = 0.3 }: Props) {
         }
         prev = { sx, sy };
       }
+      ctx!.globalAlpha = 1;
     }
 
-    function drawSat(front: boolean) {
+    function drawSat(front: boolean, alpha: number) {
+      if (alpha <= 0.004) return;
       const o = ORBITS[0];
       const p = orbPt(o, satA);
       if (p.z >= 0 !== front) return;
@@ -242,7 +246,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.save();
       ctx!.translate(sx, sy);
       ctx!.rotate(ang + Math.PI / 4);
-      ctx!.globalAlpha = front ? 1 : 0.4;
+      ctx!.globalAlpha = (front ? 1 : 0.4) * alpha;
       ctx!.strokeStyle = "#cfe6f7";
       ctx!.fillStyle = "#06101c";
       ctx!.lineWidth = 1.2;
@@ -266,11 +270,26 @@ export function Globe({ anchorX = 0.3 }: Props) {
     let running = true;
     let prevT = 0;
     let t = 0;
+    let lights = lightsTargetRef.current ? 1 : 0;
 
     function frame(now: number) {
       const dt = Math.min(0.05, (now - (prevT || now)) / 1000);
       prevT = now;
       t += dt;
+
+      /* Atenuado: baja más rápido de lo que sube, para que al llegar a la
+         sección de equipo el planeta se apague con decisión y vuelva despacio. */
+      const lt = lightsTargetRef.current ? 1 : 0;
+      if (reduced) {
+        lights = lt;
+      } else {
+        const rate = lt < lights ? 7.5 : 4.5;
+        lights += (lt - lights) * Math.min(1, dt * rate);
+        if (Math.abs(lt - lights) < 0.004) lights = lt;
+      }
+      const beaconAlpha = Math.pow(lights, 1.6);
+      const orbitAlpha = Math.pow(lights, 1.3);
+      const surfaceAlpha = Math.pow(lights, 1.3);
 
       if (!dragging) {
         const target = -AUTO;
@@ -285,25 +304,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
       ctx!.clearRect(0, 0, W, H);
 
       /* --- estrellas --- */
-      for (const s of stars) {
-        s.x -= dt * 2.6 * s.z;
-        if (s.x < -2) {
-          s.x = W + 2;
-          s.y = Math.random() * H;
-        }
-        const tw = 0.42 + 0.58 * Math.sin(t * 1.5 * s.z + s.tw);
-        ctx!.globalAlpha = Math.min(1, 0.95 * s.z * tw);
-        ctx!.fillStyle = "#ffffff";
-        ctx!.beginPath();
-        ctx!.arc(s.x, s.y, s.r, 0, 7);
-        ctx!.fill();
-        if (s.r > 1 && tw > 0.82) {
-          ctx!.globalAlpha = (tw - 0.82) * 1.6 * s.z;
-          ctx!.fillRect(s.x - s.r * 3.4, s.y - 0.4, s.r * 6.8, 0.8);
-          ctx!.fillRect(s.x - 0.4, s.y - s.r * 3.4, 0.8, s.r * 6.8);
-        }
-      }
-      ctx!.globalAlpha = 1;
+      drawStars(ctx!, stars, W, H, dt, t);
 
       /* --- atmósfera exterior ---
          Un halo estrecho pegado al borde, no un disco. Con el radio grande y
@@ -317,15 +318,17 @@ export function Globe({ anchorX = 0.3 }: Props) {
         g.addColorStop(0.45, "rgba(70,140,200,.022)");
         g.addColorStop(1, "rgba(50,110,170,0)");
         ctx!.globalCompositeOperation = "lighter";
+        ctx!.globalAlpha = 0.45 + 0.55 * lights;
         ctx!.fillStyle = g;
         ctx!.beginPath();
         ctx!.arc(cx, cy, R * 1.22, 0, 7);
         ctx!.fill();
+        ctx!.globalAlpha = 1;
         ctx!.globalCompositeOperation = "source-over";
       }
 
-      ORBITS.forEach((o) => drawOrbit(o, false));
-      drawSat(false);
+      ORBITS.forEach((o) => drawOrbit(o, false, orbitAlpha));
+      drawSat(false, lights);
 
       /* --- disco base ---
          El relleno ya lleva la luz: claro del lado del sol y casi negro del
@@ -360,6 +363,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
       const sizeS = 3.1 * u;
       const last = LIGHT_LEVELS - 1;
 
+      ctx!.globalAlpha = surfaceAlpha;
       for (let i = 0; i < POINTS; i++) {
         const x0 = PX[i];
         const z0 = PZ[i];
@@ -403,11 +407,11 @@ export function Globe({ anchorX = 0.3 }: Props) {
           if (city > 0) {
             // Se apagan cerca del terminador para que no aparezcan de golpe.
             const fade = Math.min(1, (-sun - 0.07) * 9);
-            ctx!.globalAlpha = city * fade * (0.5 + 0.5 * z2);
+            ctx!.globalAlpha = city * fade * (0.5 + 0.5 * z2) * surfaceAlpha;
             ctx!.fillStyle = "#ffdcab";
             const s = 2 * u;
             ctx!.fillRect(sx - s / 2, sy - s / 2, s, s);
-            ctx!.globalAlpha = 1;
+            ctx!.globalAlpha = surfaceAlpha;
           }
         }
       }
@@ -416,8 +420,10 @@ export function Globe({ anchorX = 0.3 }: Props) {
          Un aro fino justo por dentro del limbo, más intenso del lado del sol.
          Es lo que separa el planeta del espacio y lo que lo hace parecer una
          esfera y no un recorte. */
+      ctx!.globalAlpha = 1;
       {
         ctx!.save();
+        ctx!.globalAlpha = 0.35 + 0.65 * lights;
         ctx!.beginPath();
         ctx!.arc(cx, cy, R, 0, 7);
         ctx!.clip();
@@ -448,7 +454,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
         const sun = hx * SUN.x + hy * SUN.y + hz2 * SUN.z;
         const night = Math.max(0.35, Math.min(1, 0.5 - sun));
         const pulse = (Math.sin(t * 2.2 + v.ph) + 1) / 2;
-        ctx!.globalAlpha = Math.min(1, hz2 * 2.2) * night;
+        ctx!.globalAlpha = Math.min(1, hz2 * 2.2) * night * beaconAlpha;
         ctx!.globalCompositeOperation = "lighter";
         ctx!.fillStyle = `rgba(255,120,50,${(0.16 + 0.22 * pulse).toFixed(2)})`;
         ctx!.beginPath();
@@ -472,7 +478,7 @@ export function Globe({ anchorX = 0.3 }: Props) {
           const sx = cx + R * hx;
           const sy = cy - R * hy;
           const ring = 6.5 + 3.5 * ((Math.sin(t * 1.5) + 1) / 2);
-          ctx!.globalAlpha = Math.min(1, hz2 * 2);
+          ctx!.globalAlpha = Math.min(1, hz2 * 2) * beaconAlpha;
           ctx!.strokeStyle = "rgba(216,255,51,.9)";
           ctx!.lineWidth = 1.4;
           ctx!.beginPath();
@@ -486,8 +492,8 @@ export function Globe({ anchorX = 0.3 }: Props) {
         }
       }
 
-      ORBITS.forEach((o) => drawOrbit(o, true));
-      drawSat(true);
+      ORBITS.forEach((o) => drawOrbit(o, true, orbitAlpha));
+      drawSat(true, lights);
 
       if (running) raf = requestAnimationFrame(frame);
     }

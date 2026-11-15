@@ -56,17 +56,23 @@ const NODE_TEXT: Record<string, string> = {
   "N3a:no": "Viento sin elevación estacional",
   "N3b:yes": "Pendiente sobre el umbral",
   "N3b:no": "Pendiente por debajo del umbral",
+  "buffer_150m:attenuate":
+    "Atenuación por buffer de agua superficial (150 m): reduce susceptibilidad máxima",
 };
 
 /** Nombre legible de cada variable del árbol. */
 const VAR_TEXT: Record<string, string> = {
   vegetation_area_pct: "Vegetación combustible",
+  effective_vegetation_area_pct: "Vegetación efectiva (fuera de buffer 150 m)",
   precip_30d_mm: "Precipitación 30 d",
   wind_speed_10m_ms: "Viento a 10 m",
   temperature_2m_c: "Temp. del aire",
+  relative_humidity_2m_pct: "Humedad relativa (2 m)",
+  slope_class_area_pct: "Pendiente sobre umbral",
   slope_pct: "Pendiente",
   soil_moisture_surface: "Humedad del suelo",
   water_area_pct: "Agua y humedales",
+  water_buffer_150m_pct: "Buffer de agua superficial (150 m)",
   ndvi_median: "NDVI mediano",
 };
 
@@ -334,6 +340,14 @@ export function AnalysisRail(p: Props) {
           <span className={SUSC_CHIP[cond.classification]}>
             {CLASSIFICATION_LABELS[cond.classification]}
           </span>
+
+          {cond.classification === "high" && (
+            <div className="note note--ember" role="alert" style={{ marginTop: 12 }}>
+              <b>Aviso de revisión prioritaria.</b> Esta zona poligonal (<code>{p.areaLabel}</code>)
+              registra condiciones ambientales muy favorables en el árbol de decisión. Verifica la
+              evidencia del período y compara los sensores antes de concluir.
+            </div>
+          )}
 
           <ol className="tree" style={{ marginTop: 13 }}>
             {cond.decision_path.map((node) => (

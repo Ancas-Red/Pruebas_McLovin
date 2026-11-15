@@ -1,0 +1,57 @@
+{
+  "author": "Angelo (Ancas-Red)",
+  "status": "testing_in_progress",
+  "region": "Ucayali",
+  "notes": "Fechas reales extraidas desde Google Earth Engine para interceptar la ventana multisensor comun. En pruebas locales antes de subir codigo definitivo a src/analytics/.",
+  "collections": {
+    "MOD14A1": {
+      "description": "Terra Focos",
+      "gee_id": "MODIS/061/MOD14A1",
+      "start": "2000-02-24",
+      "end": "2026-11-08"
+    },
+    "MYD14A1": {
+      "description": "Aqua Focos",
+      "gee_id": "MODIS/061/MYD14A1",
+      "start": "2002-07-04",
+      "end": "2026-11-08"
+    },
+    "VNP14A1": {
+      "description": "VIIRS Focos",
+      "gee_id": "NOAA/VIIRS/001/VNP14A1",
+      "start": "2012-01-19",
+      "end": "2026-11-02"
+    },
+    "MOD11A1": {
+      "description": "Terra LST",
+      "gee_id": "MODIS/061/MOD11A1",
+      "start": "2000-02-24",
+      "end": "2026-11-13"
+    },
+    "VNP21A1D": {
+      "description": "VIIRS LST",
+      "gee_id": "NOAA/VIIRS/001/VNP21A1D",
+      "start": "2012-01-19",
+      "end": "2026-11-02"
+    },
+    "ERA5_LAND": {
+      "description": "Clima y viento ERA5-Land",
+      "gee_id": "ECMWF/ERA5_LAND/DAILY_AGGR",
+      "start": "1950-01-01",
+      "end": "2026-11-08"
+    }
+  },
+  "common_window": {
+    "start": "2012-01-19",
+    "end": "2026-11-02",
+    "last_complete_common_month": "2026-10"
+  },
+  "ucayali_initial_params": {
+    "umbral_veg": 0.20,
+    "umbral_pend": 0.15,
+    "water_buffer_m": 150.0,
+    "max_cloud_fraction": 0.30,
+    "min_baseline_years": 5,
+    "include_all_vegetation": true
+  }
+}

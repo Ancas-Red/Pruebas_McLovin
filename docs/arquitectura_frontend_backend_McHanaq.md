@@ -2,7 +2,7 @@
 
 **Versión:** 1.2 (alineada con `McHanaq_documento_tecnico_operativo_v1.7.md` y `reto.txt`) — 14 de noviembre de 2026
 **Complementa:** [McHanaq_documento_tecnico_operativo_v1.7.md](McHanaq_documento_tecnico_operativo_v1.7.md) (secciones 5, 7, 8.4–8.6 y 11) y [reto.txt](reto.txt).
-**Destino sugerido en el repositorio:** `docs/frontend-backend-architecture.md`
+**Destino en el repositorio:** `docs/arquitectura_frontend_backend_McHanaq.md` (espejado en `docs/harness/arquitectura-frontend-backend.md`)
 
 ---
 
@@ -13,7 +13,7 @@ Todo lo descrito en las secciones 1 a 11 corresponde a la **Fase 1 (MVP)**, enfo
 Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de conflicto** y respetar las decisiones metodológicas del documento técnico v1.7:
 
 1. **Un backend mínimo, de solo lectura.** No calcula nada en tiempo de petición: lee los JSON preprocesados que Tom generó en `data/processed/` y los sirve filtrados.
-2. **Motor oficial GEE y armonización sin sumar sensores.** El procesamiento geoespacial se realiza en **Google Earth Engine (GEE)** (exportando por bloques de 1–2 años sobre el área piloto). Según la sección 7 (Etapa 3) de v1.7, `MODIS_TERRA` (`MOD14A1`, ~10:30 h, desde feb-2000), `MODIS_AQUA` (`MYD14A1`, ~13:30 h, desde jul-2002) y `VIIRS_SNPP` (`VNP14A1`) **nunca se suman ni se mezclan como conteos equivalentes** (tampoco existe un producto diario combinado `MCD14A1`; `MCD64A1` se usa solo como área quemada mensual retrospectiva). La armonización longitudinal (2000–presente) es semántica, temporal y estadística: cada sensor mantiene su propio denominador (`valid_land_pixel_days`) y se comparan en `sensor_comparison.json`.
+2. **Motor oficial GEE y armonización sin sumar sensores.** El procesamiento geoespacial se realiza en **Google Earth Engine (GEE)** (exportando por bloques de 1–2 años sobre el área piloto). Según la sección 7 (Etapa 3) de v1.7, `MODIS_TERRA` (`MOD14A1`, ~10:30 h, catálogo desde feb-2000), `MODIS_AQUA` (`MYD14A1`, ~13:30 h, catálogo desde jul-2002) y `VIIRS_SNPP` (`VNP14A1`, desde `2012-01-19`) **nunca se suman ni se mezclan como conteos equivalentes** (tampoco existe un producto diario combinado `MCD14A1`; `MCD64A1` se usa solo como área quemada mensual retrospectiva). La armonización operativa en Ucayali cubre la ventana común multisensor verificada **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**, ~14.8 años > 5 años de línea base mínima; el tramo pre-2012 `2000–2011` queda retirado de las exportaciones operativas como nota *legacy* fuera de alcance). Es una armonización semántica, temporal y estadística: cada sensor mantiene su propio denominador (`valid_land_pixel_days`) y se comparan en `sensor_comparison.json`.
 3. **Procesamiento longitudinal diario → mensual.** Las variables extras solicitadas (`T_amb`, `T_suelo`, `dirección del viento` diaria y `altura` DEM por época) se procesan a resolución **diaria** en `data/intermediate/` y luego Tom las agrega al calendario mensual y a las series diarias (`activity_daily.json`) y fichas (`conditions_assessment.json`).
 4. **El contrato `/api/v1` de v1.7 (sección 8.5) se mantiene.** Cuando se incorpore Jhan (Fase B), reemplaza o amplía la implementación y el frontend ni se entera.
 5. **Un solo escritor por archivo.** Nadie edita un archivo que otro genera.
@@ -24,7 +24,7 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
 ## 2. Vista general y proyecto longitudinal
 
 ```text
- Angelo (GEE — Serie diaria 2000→presente)         Tom (Python — analytics/)            Sebastian (React)
+ Angelo (GEE — Ventana común 2012→2026)        Tom (Python — analytics/)            Sebastian (React)
  ─────────────────────────────────────────         ─────────────────────────            ─────────────────
  data/intermediate/                                analytics/ ──genera──► data/processed/*.json
    daily_activity.csv          (MOD14/MYD14/VNP14)   • tasas y anomalías (MAD)    │
@@ -42,19 +42,22 @@ Mientras el backend lo vean Tom y Angelo, la regla es **minimizar superficie de 
                                                                       mapa · calendario · fichas · CSV
 ```
 
-### 2.1. Proyecto longitudinal de procesamiento (2000–presente)
+### 2.1. Proyecto longitudinal de procesamiento (ventana común verificada `2012-01-19` → `2026-11-02`)
 
 1. **Capa diaria en GEE (Angelo → `data/intermediate/`):**
-   * **Cobertura nacional (todo el Perú):** Todas las colecciones elegidas (`MOD14A1`, `MYD14A1`, `VNP14A1`, `MOD11A1`/`MYD11A1`, `VNP21A1D/N`, `ERA5-Land`, `NASADEM`/`SRTM`, `Copernicus GLO-30` y `MapBiomas Perú Col. 4`) cubren el 100 % del territorio peruano (`ee.Filter.bounds(territories)`).
-   * **`daily_activity.csv`:** conteos diarios por territorio y sensor (`MODIS_TERRA` 2000–2025, `MODIS_AQUA` 2002–2025, `VIIRS_SNPP` 2012/2018–2025) con clases `FireMask` 7 y 8–9, `valid_land_pixels`, `expected_land_pixels_per_day` y `observation_coverage` (sección 8.4 de v1.7).
+   * **Cobertura nacional (todo el Perú) y piloto Ucayali:** Todas las colecciones elegidas (`MOD14A1`, `MYD14A1`, `VNP14A1`, `MOD11A1`/`MYD11A1`, `VNP21A1D/N`, `ERA5-Land`, `Copernicus GLO-30` y `MapBiomas Perú Col. 4` / MINAM `CobVeg_180615.shp`) cubren el 100 % del territorio peruano (`ee.Filter.bounds(territories)`).
+   * **`daily_activity.csv`:** conteos diarios por territorio y sensor dentro de la ventana común multisensor verificada **`2012-01-19` a `2026-11-02`** (último mes completo común **`2026-10`**, donde coinciden `MODIS_TERRA`, `MODIS_AQUA`, `VIIRS_SNPP` y `ERA5-Land`) con clases `FireMask` 7 y 8–9, `valid_land_pixels`, `expected_land_pixels_per_day` y `observation_coverage` (sección 8.4 de v1.7). *(Nota legacy fuera de alcance operativo: se retira la expectativa de exportar bloques pre-2012 `2000–2011`).*
    * **Control de nubes y cobertura (`< 30%` de nubes):** se exige **`observation_coverage >= 0.70`** (y `lst_valid_pixel_pct >= 70%` para LST). Si un día supera el 30 % de nubes/huecos en el polígono, se conserva el registro con su cobertura real pero el valor térmico (`t_suelo_c`) se marca como `null` para no sesgar la serie.
    * **`environmental_daily.csv`:** serie longitudinal **diaria** por `(date, territory_type, territory_id)` con `t_amb_c`, `relative_humidity_2m_pct`, `t_suelo_c`, `lst_valid_pixel_pct`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m` y `dem_source` (sección 2.2).
-   * **`environmental_context.csv`:** tabla mensual por `(period_id, territory_type, territory_id)` generada por Tom (en `analytics/`) agregando `environmental_daily.csv` junto con MapBiomas anual, `MOD13A3` NDVI, `precip_30d_mm`, `soil_moisture_surface` (`volumetric_soil_water_layer_1`, `m³/m³`) y pendiente SRTM.
-   * **`gee_manifest.json`:** registra colecciones exactas, fechas reales disponibles en GEE, `min_baseline_years: 5`, modelo DEM aplicado por época y fuente de `t_amb_c`.
-   * **Regla operativa GEE:** exportar `daily_activity.csv` y `environmental_daily.csv` por bloques de 1–2 años sobre el área piloto (`Export.table.toDrive`) para evitar timeouts o límites de cuota EECU en la serie 2000–2025.
+   * **`environmental_context.csv`:** tabla mensual por `(period_id, territory_type, territory_id)` generada por Tom (en `analytics/`) agregando `environmental_daily.csv` junto con MapBiomas/MINAM, `MOD13A3` NDVI, `precip_30d_mm`, `soil_moisture_surface` (`volumetric_soil_water_layer_1`, `m³/m³`) y pendiente DEM.
+   * **`gee_manifest.json`:** registra colecciones exactas, fechas reales disponibles en GEE (`gee_verified_dates.json`), `min_baseline_years: 5`, modelo `COPERNICUS_DEM_GLO30` y fuente de `t_amb_c`.
+   * **Regla operativa GEE y opciones oficiales de exportación:** las tareas batch desde Earth Engine Code Editor exportan inicialmente vía `Export.table.toDrive` (o GCS) por bloques de 1–2 años sobre el área piloto para evitar timeouts o límites de cuota EECU, luego se descargan a `data/intermediate/` y se respaldan en **Azure Blob Storage (Free Tier)**. Las **3 opciones oficiales de exportación** para Ucayali son:
+     1. **Prueba rápida:** `2024-01-01` a `2026-11-03`
+     2. **Línea base mínima de 5 años:** `2018-01-01` a `2026-11-03`
+     3. **Ventana común completa en bloques de 2 años:** `2012-01-19`..`2014-01-01`, `2014-01-01`..`2016-01-01`, `2016-01-01`..`2018-01-01`, `2018-01-01`..`2020-01-01`, `2020-01-01`..`2022-01-01`, `2022-01-01`..`2024-01-01`, `2024-01-01`..`2026-11-03`.
 2. **Capa analítica longitudinal en Python (Tom → `analytics/` → `data/processed/`):**
    * **Agregación diario → mensual (media aritmética y ponderada):** para los reportes mensuales de `t_amb_c`, `t_suelo_c`, `relative_humidity_2m_pct` y `wind_speed_10m_ms`, se calcula tanto la **media aritmética** como la **media ponderada por cobertura válida diaria** ($\bar{X}_{\text{pond}} = \sum w_d X_d / \sum w_d$, donde $w_d$ es la fracción de píxeles válidos del día $d$). Para `wind_dir_deg` mensual se aplica promedio vectorial ponderado de $(\bar{u}, \bar{v})$.
-   * Calcula `activity_rate`, `observation_coverage`, `active_days`, `max_consecutive_active_days` y la anomalía histórica robusta (`robust_z` con mediana y MAD por mes calendario, exigiendo `min_baseline_years: 5`, cubierto tanto por MODIS 2000–2025 como por VIIRS 2018–2025) en `activity_summary.json`.
+   * Calcula `activity_rate`, `observation_coverage`, `active_days`, `max_consecutive_active_days` y la anomalía histórica robusta (`robust_z` con mediana y MAD por mes calendario, exigiendo `min_baseline_years: 5`, cubierto ampliamente por los ~14.8 años de la ventana común `2012-01-19`–`2026-11-02` para `MODIS_TERRA`, `MODIS_AQUA` y `VIIRS_SNPP`) en `activity_summary.json`.
    * Conserva el detalle diario (actividad + `t_amb_c`, `relative_humidity_2m_pct`, `t_suelo_c`, `lst_valid_pixel_pct`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`, `dem_source`) en `activity_daily.json`.
    * Evalúa el árbol de susceptibilidad contextual (Etapa 7 de v1.7, incluido el nodo N3a con `t_amb_c` y `relative_humidity_2m_pct`) en `conditions_assessment.json` y la concordancia multisensor en `sensor_comparison.json`.
 
@@ -67,8 +70,17 @@ Se exportan en `data/intermediate/environmental_daily.csv` con clave `(date, ter
 | **Temperatura ambiente (`T_amb`)** | `t_amb_c` | `°C` | Banda `temperature_2m` de `ECMWF/ERA5_LAND/HOURLY` convertida a Celsius (`temperature_2m - 273.15`), agregada por promedio diario sobre el territorio. |
 | **Humedad relativa (`HR`, para nodo N3a)** | `relative_humidity_2m_pct` | `%` (0–100) | Calculada por día desde `temperature_2m` ($T_C$) y `dewpoint_temperature_2m` ($T_{d,C}$) de `ERA5-Land` mediante la **ecuación de Magnus-Tetens**: $RH = 100 \times \exp(\frac{17.625\,T_{d,C}}{243.04 + T_{d,C}}) / \exp(\frac{17.625\,T_C}{243.04 + T_C})$, acotada a $[0, 100]$. |
 | **Temperatura del suelo (`T_suelo` / LST)** | `t_suelo_c` + `lst_valid_pixel_pct` | `°C` y `%` | Land Surface Temperature diaria de **MODIS** (`MODIS/061/MOD11A1` / `MYD11A1`, bandas `LST_Day_1km` / `LST_Night_1km` con **`QC_Day` / `QC_Night` bits 0–1 == 0**) y **VIIRS** (`NASA/VIIRS/002/VNP21A1D` / `VNP21A1N`, bandas `LST_1KM` / `QC`). Conversión exacta: **`valor * 0.02 - 273.15`**. Solo es válida si hay **`< 30%` de nubes (`lst_valid_pixel_pct >= 70%`)**. |
-| **Dirección del viento (diaria)** | `wind_dir_deg` + `wind_speed_10m_ms` | `grados` (0–360) y `m/s` | Procesada **por día** desde `u_component_of_wind_10m` y `v_component_of_wind_10m` de `ECMWF/ERA5_LAND/HOURLY` (~11.1 km, continuo 2000–2025). **Regla vectorial:** nunca promediar ángulos directamente; promediar `u` y `v` en el día/territorio y luego calcular `wind_dir_deg = (atan2(-u, -v) * 180 / π + 360) % 360` (convención meteorológica: *desde dónde* sopla, 0° = N, 90° = E, 180° = S, 270° = O) y `sqrt(u² + v²)`. *(Opcional: **NOAA ARL READY / `READYamet.php`** como contraste puntual en demo).* |
-| **Altura / Elevación (DEM por época)** | `elevation_m` + `dem_source` | `m s.n.m.` | **SRTM / NASADEM 30 m** (`USGS/SRTMGL1_003` o `NASA/NASADEM_HGT/001`, banda **`elevation`**) para el tramo **MODIS (2000–2011)**, y **Copernicus DEM GLO-30** (`COPERNICUS/DEM/GLO30`, banda **`DEM`**) para el tramo **VIIRS (2012–2025)**, registrando media/mediana del territorio. |
+| **Dirección del viento (diaria)** | `wind_dir_deg` + `wind_speed_10m_ms` | `grados` (0–360) y `m/s` | Procesada **por día** desde `u_component_of_wind_10m` y `v_component_of_wind_10m` de `ECMWF/ERA5_LAND/HOURLY` o `ECMWF/ERA5_LAND/DAILY_AGGR` (~11.1 km, continuo en `2012-01-19`–`2026-11-02`). **Regla vectorial:** nunca promediar ángulos directamente; promediar `u` y `v` en el día/territorio y luego calcular `wind_dir_deg = (atan2(-u, -v) * 180 / π + 360) % 360` (convención meteorológica: *desde dónde* sopla, 0° = N, 90° = E, 180° = S, 270° = O) y `sqrt(u² + v²)`. *(Opcional: **NOAA ARL READY / `READYamet.php`** como contraste puntual en demo).* |
+| **Altura / Elevación (DEM)** | `elevation_m` + `dem_source` | `m s.n.m.` | **Copernicus DEM GLO-30** (`COPERNICUS/DEM/GLO30`, banda **`DEM`**, 30 m) para la ventana común verificada **`2012-01-19`–`2026-11-02`**, registrando media/mediana del territorio (`COPERNICUS_DEM_GLO30`). *(Nota legacy fuera de alcance operativo: `NASADEM/SRTM` solo aplicaba a tramos históricos pre-2012 `2000–2011`).* |
+
+### 2.3. Almacenamiento en la nube y despliegue en Microsoft Azure Free Tier
+
+La arquitectura oficial de producción y almacenamiento en la nube utiliza **Microsoft Azure Free Tier** (`infra/azure/`):
+
+* **Puente de datos y Azure Blob Storage (Free Tier / Azure Storage):** las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage** junto con los paquetes procesados de `data/processed/`. Los artefactos de Ucayali se sincronizan hacia `data/processed/` de forma offline o en tiempo de build/deploy.
+* **Backend (`src/backend/`) en Azure App Service (Plan Free F1, Linux Python 3.11):** FastAPI en modo **solo lectura** sobre `data/processed/` en disco local (o `data/fixtures/` en CI/demo), con `requirements.txt` en la raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` para vistas previas, conservando `ROOT = Path(__file__).resolve().parents[3]`. Nunca consulta GEE ni descarga desde Azure Blob Storage o Google Drive por petición HTTP de usuario.
+* **Frontend (`src/frontend/`) en Cloudflare Pages o Azure Static Web Apps (Plan Free):** sirve la compilación estática `src/frontend/dist/` (`src/frontend/public/_headers` en Cloudflare Pages o `infra/azure/staticwebapp.config.json` en Azure SWA) con `VITE_API_BASE` (o `VITE_API_BASE_URL`) apuntando a la URL pública de Azure App Service (y ese origen habilitado en `MCHANAQ_CORS_ORIGINS` / `MCHANAQ_CORS_ORIGIN_REGEX`).
+* **Nota *legacy*:** `render.yaml` se conserva únicamente como referencia *legacy*/opcional.
 
 En desarrollo local:
 
@@ -87,7 +99,7 @@ El código de `backend/` tiene **un solo dueño: Tom**. Angelo participa en el b
 |---|---|---|
 | `data/intermediate/daily_activity.csv` | Angelo | Tom |
 | `data/intermediate/environmental_daily.csv` *(diario: `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`, `dem_source`)* | Angelo | Tom |
-| `data/intermediate/environmental_context.csv` *(mensual: MapBiomas, `MOD13A3`, ERA5-Land, pendiente SRTM)* | Angelo | Tom |
+| `data/intermediate/environmental_context.csv` *(mensual: CobVeg/MapBiomas, `MOD13A3`, ERA5-Land, pendiente `COPERNICUS_DEM_GLO30`)* | Angelo | Tom |
 | `data/intermediate/gee_manifest.json` *(colecciones, fechas disponibles, DEM por época, versiones)* | Angelo | Tom |
 | `data/processed/territories.geojson` | Angelo (validado con las capas de Jean) | Backend |
 | `data/processed/activity_daily.json`, `activity_summary.json`, `sensor_comparison.json`, `conditions_assessment.json` | Tom | Backend |
@@ -141,6 +153,7 @@ Lo que sí hace Angelo "en el back" (todo es de datos, no de código):
 | `GET /territories/{type}/{id}/activity?from=&to=&sensor=` | 2 | Serie **diaria** en el rango `from`/`to` (`YYYY-MM-DD`; o `period=YYYY-MM`): focos del sensor + contexto diario completo. |
 | `GET /territories/{type}/{id}/sensor-comparison?date=` | 2 | Comparación multisensor **diaria** (`date=YYYY-MM-DD`; opcional `period=YYYY-MM`). |
 | `GET /territories/{type}/{id}/export.csv?from=&to=&sensor=` | 2 | Descarga CSV de la serie diaria del territorio en el rango pedido (`reto.txt`). |
+| `GET /territories/{type}/{id}/calendar?sensor=` | 2 | Serie mensual longitudinal precomputada desde `activity_summary.json` (opcionales `from_period`, `to_period`). |
 | `GET /territories/{type}/{id}/hotspots?date=&sensor=` | 3 | Solo si existe `hotspots.geojson`. |
 
 `classification` en la ficha admite: `high`, `moderate`, `low`, `partial`, `not_evaluable`.
@@ -164,13 +177,14 @@ Un solo formato, sin trazas técnicas:
 
 ### 4.4. Validación de fechas y períodos
 
-El backend consulta `metadata.json` (`available_date_ranges_by_sensor` con formato `{"MODIS_TERRA": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}`, además de `available_periods_by_sensor`, `common_environmental_periods` y `common_analysis_periods`), sin calcular nada:
+El backend consulta `metadata.json` (`available_date_ranges_by_sensor` con formato `{"MODIS_TERRA": [{"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}]}`, además de `available_periods_by_sensor`, `common_environmental_periods`, `common_environmental_dates`, `common_analysis_periods` y `common_analysis_dates`), sin calcular nada:
 
+- **Política de días útiles:** `available_date_ranges_by_sensor` y `available_periods_by_sensor` reflejan **únicamente días útiles registrados** (`valid_land_pixels > 0`, nubosidad `< 30 %` / `observation_coverage >= 0.70`, `activity_rate` no nulo). El frontend habilita exclusivamente años, meses y días con datos útiles analizables.
 - Si `date` tiene formato inválido (ej. `2026-02-30` o distinto a `YYYY-MM-DD`), se responde **`400 INVALID_PARAMETER`**.
-- Ficha diaria (`/summary?date=YYYY-MM-DD`): `date` debe caer dentro de `available_date_ranges_by_sensor[sensor]` **y** su mes `YYYY-MM` en `common_environmental_periods`.
+- Ficha diaria (`/summary?date=YYYY-MM-DD`): `date` debe caer dentro de `available_date_ranges_by_sensor[sensor]` **y** `common_environmental_dates` (o su mes `YYYY-MM` en `common_environmental_periods`).
 - Serie o métrica diaria (`/activity`, `/territory-metrics` con `sensor`): `date` (o el rango `from`–`to`) dentro de `available_date_ranges_by_sensor[sensor]`.
-- Métrica ambiental sin `sensor` (`/territory-metrics`): el mes `date[:7]` dentro de `common_environmental_periods`.
-- Comparación multisensor (`/sensor-comparison`): el mes `date[:7]` dentro de `common_analysis_periods`.
+- Métrica ambiental sin `sensor` (`/territory-metrics`): `date` en `common_environmental_dates` (o `date[:7]` en `common_environmental_periods`).
+- Comparación multisensor (`/sensor-comparison`): `date` en `common_analysis_dates` (o `date[:7]` en `common_analysis_periods`).
 - Si una fecha sintácticamente válida no está publicada, se responde `422`. Nunca se rellena con ceros.
 
 ---
@@ -202,7 +216,7 @@ GET /territories/province/1501/sensor-comparison?date=2026-09-15
 
 **Reglas del lado del cliente:**
 
-1. Los meses y sensores que se ofrecen en los selectores salen de `/metadata`.
+1. Los años, meses, días y sensores que se ofrecen en los selectores salen exclusivamente de `/metadata` (`available_periods_by_sensor` y `available_date_ranges_by_sensor`), que reflejan únicamente días útiles analizables (`valid_land_pixels > 0`, `observation_coverage >= 0.70`, `activity_rate` no nulo).
 2. Cada cambio de mes, sensor o territorio cancela las peticiones en curso (`AbortController`). Si `fetch` lanza `AbortError`, **se ignora** y no se muestra estado de error.
 3. Las geometrías de `/territories` se piden una vez por tipo y se guardan en memoria.
 4. Cada panel tiene sus cuatro estados: cargando, con datos, sin datos (`null`) y error (`ApiError`).
@@ -216,7 +230,7 @@ GET /territories/province/1501/sensor-comparison?date=2026-09-15
 Todo `fetch` vive en `frontend/src/api/client.ts`. Los componentes nunca llaman a `fetch` directamente.
 
 ```ts
-// frontend/src/api/client.ts
+// src/frontend/src/api/client.ts (VITE_API_BASE o VITE_API_BASE_URL en infra/azure/)
 const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 export class ApiError extends Error {
@@ -269,7 +283,7 @@ server: { proxy: { "/api": "http://localhost:8000" } }
 Un solo archivo, `backend/app/main.py`, que carga los JSON al arrancar y los sirve filtrados. No calcula tasas, anomalías ni reglas. El punto de partida (Tom lo completa y lo prueba contra los fixtures):
 
 ```python
-# backend/app/main.py
+# src/backend/app/main.py (estructura unificada bajo src/, por eso usa parents[3])
 import json, os
 from pathlib import Path
 from datetime import date as dt_date
@@ -277,7 +291,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 DATA = Path(os.getenv("MCHANAQ_DATA_DIR", ROOT / "data" / "processed"))
 NO_CACHE = os.getenv("MCHANAQ_NO_CACHE", "0") == "1"
 TYPES = {"province", "hydro_unit"}
@@ -334,7 +348,7 @@ def check_date(date: str, sensor=None, full=False, comparison=False, env_only=Fa
     ok = True
     if sensor:
         rng = META.get("available_date_ranges_by_sensor", {}).get(sensor)
-        ok &= (rng["start"] <= date <= rng["end"]) if rng else (period in META.get("available_periods_by_sensor", {}).get(sensor, []))
+        ok &= any(r["from"] <= date <= r["to"] for r in rng) if rng else (period in META.get("available_periods_by_sensor", {}).get(sensor, []))
     if full or env_only: ok &= period in META.get("common_environmental_periods", [])
     if comparison: ok &= period in META.get("common_analysis_periods", [])
     if not ok: raise ApiError(422, "PERIOD_NOT_AVAILABLE", f"La fecha {date} no está publicada para esta consulta")
@@ -369,8 +383,8 @@ Puntos que cuidar:
 
 - **Solo lectura y sin cálculo.** Si falta un dato, se devuelve `null` o `422`, nunca un valor inventado.
 - **Dos modos con el mismo código:**
-  - Datos reales: `uvicorn backend.app.main:app --port 8000`
-  - Fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn backend.app.main:app --port 8000`
+  - Datos reales: `uvicorn src.backend.app.main:app --port 8000`
+  - Fixtures: `MCHANAQ_DATA_DIR=data/fixtures MCHANAQ_NO_CACHE=1 uvicorn src.backend.app.main:app --port 8000`
 - Los fixtures de Jean deben llamarse igual que los archivos de `data/processed/` y respetar el envoltorio `{"items": [...]}`.
 - La ficha (`summary`) combina `activity_summary.json` con `conditions_assessment.json` (incluyendo `t_amb_c`, `t_suelo_c`, `wind_dir_deg`, `wind_speed_10m_ms`, `elevation_m`) y arma la respuesta de la sección 8.5 de v1.7.
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
 import type {
@@ -18,10 +18,18 @@ import {
   SENSOR_LABELS,
   TERRITORY_LABELS,
 } from "../api/types";
-import { FIXTURE_FIRST_YEAR, FIXTURE_LAST_MONTH, FIXTURE_LAST_YEAR } from "../lib/fixtures";
 import type { MonthCell } from "../lib/calendar";
 import { calendarCsv, dailyCsv, download, hotspotsCsv, ringGeoJson } from "../lib/csv";
-import { getBackendState, isDateAvailable, monthRange } from "../api/client";
+import {
+  availablePeriodsForSensor,
+  getBackendState,
+  isDateAvailable,
+  isoDate,
+  monthRange,
+  pad2,
+  publishedDaysInMonth,
+  usefulDaysFromRows,
+} from "../api/client";
 import { insidePeru, ringAreaKm2, type LatLon } from "../lib/geo";
 
 const MONTHS = [
@@ -50,6 +58,8 @@ interface Props {
   onGranularity: (g: "day" | "month") => void;
   metadata: Metadata | null;
   daily: DailyRow[];
+  usefulDays?: number[];
+  dailyLoading?: boolean;
 
   /** Territorio: la clave de toda consulta del contrato. */
   territoryType: TerritoryType;
@@ -93,9 +103,59 @@ export function ControlRail(p: Props) {
   const [coordError, setCoordError] = useState<string | null>(null);
 
   const lastDay = Number(monthRange(p.year, p.month).to.slice(8));
-  const years: number[] = [];
-  for (let y = FIXTURE_LAST_YEAR; y >= FIXTURE_FIRST_YEAR; y--) years.push(y);
-  const monthDisabled = (m: number) => p.year === FIXTURE_LAST_YEAR && m > FIXTURE_LAST_MONTH;
+
+  const availablePeriods = useMemo(
+    () => availablePeriodsForSensor(p.sensor, p.metadata),
+    [p.metadata, p.sensor]
+  );
+
+  const years = useMemo(() => {
+    if (!p.metadata) return [p.year];
+    const yearSet = new Set<number>();
+    for (const pr of availablePeriods) {
+      const y = Number(pr.slice(0, 4));
+      if (Number.isFinite(y)) yearSet.add(y);
+    }
+    return [...yearSet].sort((a, b) => b - a);
+  }, [p.metadata, availablePeriods, p.year]);
+
+  const validMonths = useMemo(() => {
+    if (!p.metadata) return [p.month];
+    return Array.from({ length: 12 }, (_, i) => i + 1).filter((m) =>
+      availablePeriods.has(`${p.year}-${pad2(m)}`)
+    );
+  }, [p.metadata, availablePeriods, p.year, p.month]);
+
+  const publishedDays = useMemo(
+    () => publishedDaysInMonth(p.year, p.month, p.sensor, p.metadata),
+    [p.year, p.month, p.sensor, p.metadata]
+  );
+  const minDay = publishedDays[0] ?? 1;
+  const maxDay = publishedDays[publishedDays.length - 1] ?? lastDay;
+  const monthDaysSpan = useMemo(
+    () => Array.from({ length: Math.max(0, maxDay - minDay + 1) }, (_, i) => minDay + i),
+    [minDay, maxDay]
+  );
+
+  const usefulDays = useMemo(
+    () =>
+      p.usefulDays ??
+      usefulDaysFromRows(p.daily, p.year, p.month, p.sensor, p.metadata),
+    [p.usefulDays, p.daily, p.year, p.month, p.sensor, p.metadata]
+  );
+  const usefulSet = useMemo(() => new Set(usefulDays), [usefulDays]);
+  const activeUsefulIdx = useMemo(() => {
+    const idx = usefulDays.indexOf(p.day);
+    return idx >= 0 ? idx : Math.max(0, usefulDays.length - 1);
+  }, [usefulDays, p.day]);
+
+  const dailyByDate = useMemo(() => {
+    const map = new Map<string, DailyRow>();
+    for (const r of p.daily) {
+      if (!r.sensor || r.sensor === p.sensor) map.set(r.date, r);
+    }
+    return map;
+  }, [p.daily, p.sensor]);
 
   const features = p.territories?.features ?? [];
   const stamp = `${p.year}${String(p.month).padStart(2, "0")}`;
@@ -131,24 +191,43 @@ export function ControlRail(p: Props) {
             <label className="field__label" htmlFor="sel-year">Año</label>
             <select
               id="sel-year"
-              value={p.year}
+              value={years.includes(p.year) ? p.year : (years[0] ?? "")}
+              disabled={!p.metadata || years.length === 0}
               onChange={(e) => {
                 const y = Number(e.target.value);
-                const m = y === FIXTURE_LAST_YEAR && p.month > FIXTURE_LAST_MONTH ? FIXTURE_LAST_MONTH : p.month;
+                const monthsInYear = Array.from({ length: 12 }, (_, i) => i + 1).filter((mm) =>
+                  availablePeriods.has(`${y}-${pad2(mm)}`)
+                );
+                const m = monthsInYear.includes(p.month)
+                  ? p.month
+                  : (monthsInYear[monthsInYear.length - 1] ?? p.month);
                 p.onPeriod(y, m);
               }}
             >
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              {years.length === 0 ? (
+                <option value="" disabled>Sin años disponibles</option>
+              ) : (
+                years.map((y) => <option key={y} value={y}>{y}</option>)
+              )}
             </select>
           </div>
           <div className="field">
             <label className="field__label" htmlFor="sel-month">Mes</label>
-            <select id="sel-month" value={p.month} onChange={(e) => p.onPeriod(p.year, Number(e.target.value))}>
-              {MONTHS.map((name, i) => (
-                <option key={name} value={i + 1} disabled={monthDisabled(i + 1)}>
-                  {name}{monthDisabled(i + 1) ? " — sin datos" : ""}
-                </option>
-              ))}
+            <select
+              id="sel-month"
+              value={validMonths.includes(p.month) ? p.month : (validMonths[validMonths.length - 1] ?? "")}
+              disabled={!p.metadata || validMonths.length === 0}
+              onChange={(e) => p.onPeriod(p.year, Number(e.target.value))}
+            >
+              {validMonths.length === 0 ? (
+                <option value="" disabled>Sin meses disponibles</option>
+              ) : (
+                validMonths.map((m) => (
+                  <option key={m} value={m}>
+                    {MONTHS[m - 1]}
+                  </option>
+                ))
+              )}
             </select>
           </div>
           <div className="field">
@@ -158,19 +237,73 @@ export function ControlRail(p: Props) {
             <input
               id="sel-day"
               type="range"
-              min={1}
-              max={lastDay}
+              min={0}
+              max={Math.max(0, usefulDays.length - 1)}
               step={1}
-              value={Math.min(p.day, lastDay)}
+              disabled={Boolean(p.dailyLoading) || usefulDays.length <= 1}
+              value={activeUsefulIdx}
               onChange={(e) => {
-                p.onDay(Number(e.target.value));
-                p.onGranularity("day");
+                const nextDay = usefulDays[Number(e.target.value)];
+                if (nextDay !== undefined) {
+                  p.onDay(nextDay);
+                  p.onGranularity("day");
+                }
               }}
             />
             <div className="legend__scale">
-              <span>01</span>
-              <span>{String(lastDay).padStart(2, "0")}</span>
+              <span>{pad2(usefulDays[0] ?? minDay)}</span>
+              <span>
+                {p.dailyLoading
+                  ? "Cargando…"
+                  : `${usefulDays.length} ${usefulDays.length === 1 ? "día útil" : "días útiles"}`}
+              </span>
+              <span>{pad2(usefulDays[usefulDays.length - 1] ?? maxDay)}</span>
             </div>
+
+            {monthDaysSpan.length > 0 && (
+              <div className="day-grid" role="group" aria-label="Días del mes con datos útiles">
+                {monthDaysSpan.map((d) => {
+                  const iso = isoDate(p.year, p.month, d);
+                  const row = dailyByDate.get(iso);
+                  const isUseful = usefulSet.has(d);
+                  const isSelected = isUseful && p.day === d;
+                  const covPct =
+                    row?.observation_coverage != null
+                      ? `${Math.round(row.observation_coverage * 100)} %`
+                      : null;
+                  const title = isUseful
+                    ? `Día ${iso}${covPct ? ` · cobertura ${covPct}` : ""}`
+                    : !isDateAvailable(iso, p.sensor, p.metadata)
+                      ? `Día ${iso} · sin publicación en metadata`
+                      : row?.activity_rate == null
+                        ? `Día ${iso} · sin observación válida`
+                        : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      className="day-pill"
+                      disabled={Boolean(p.dailyLoading) || !isUseful}
+                      aria-pressed={isSelected}
+                      title={title}
+                      onClick={() => {
+                        p.onDay(d);
+                        p.onGranularity("day");
+                      }}
+                    >
+                      {pad2(d)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {!p.dailyLoading && usefulDays.length === 0 && (
+              <div className="note note--warn" style={{ marginTop: 8 }}>
+                Sin días útiles en {MONTHS[p.month - 1]} {p.year} para{" "}
+                {SENSOR_LABELS[p.sensor].long} (cobertura ≥ 70 % requerida).
+              </div>
+            )}
           </div>
 
           {p.metadata && !isDateAvailable(p.dateIso, p.sensor, p.metadata) && (

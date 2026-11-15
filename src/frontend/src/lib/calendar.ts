@@ -24,6 +24,7 @@
  * la anomalía donde corresponde. Anotado en `docs/harness/README.md`.
  */
 
+import type { CalendarItem } from "../api/client";
 import type { AnomalyStatus, DailyRow, Sensor } from "../api/types";
 
 /** Una celda del calendario: un mes de un sensor en un territorio. */
@@ -130,6 +131,58 @@ export function monthlyCells(rows: DailyRow[], sensor: Sensor): MonthCell[] {
     });
   }
 
+  return cells.sort((a, b) => a.period.localeCompare(b.period));
+}
+
+export const aggregateMonthly = monthlyCells;
+
+/**
+ * Normaliza la serie mensual devuelta por `GET /territories/{type}/{id}/calendar`
+ * al formato interno `MonthCell` usado por el calendario y las exportaciones.
+ */
+export function calendarFromApi(items: CalendarItem[]): MonthCell[] {
+  const cells: MonthCell[] = [];
+  for (const it of items) {
+    const period =
+      it.period ??
+      it.period_id ??
+      (it.year && it.month ? `${it.year}-${String(it.month).padStart(2, "0")}` : "");
+    if (!period || period.length < 7) continue;
+    const year = it.year ?? Number(period.slice(0, 4));
+    const month = it.month ?? Number(period.slice(5, 7));
+    if (!Number.isFinite(year) || !Number.isFinite(month)) continue;
+
+    const anomObj =
+      it.historical_anomaly && typeof it.historical_anomaly === "object"
+        ? it.historical_anomaly
+        : null;
+    const historical_anomaly = anomObj
+      ? anomObj.value
+      : typeof it.historical_anomaly === "number"
+        ? it.historical_anomaly
+        : null;
+    const anomaly_status = anomObj
+      ? anomObj.status
+      : (it.anomaly_status ?? "not_estimable");
+    const baseline_years = anomObj ? anomObj.baseline_years : (it.baseline_years ?? 0);
+
+    cells.push({
+      year,
+      month,
+      period,
+      detections: it.detections ?? it.fire_pixel_days_8_9 ?? 0,
+      detections_low: it.detections_low ?? it.fire_pixel_days_7_9 ?? it.fire_pixel_days_7 ?? 0,
+      activity_rate: it.activity_rate ?? null,
+      observation_coverage: it.observation_coverage ?? null,
+      active_days: it.active_days ?? 0,
+      max_consecutive_active_days: it.max_consecutive_active_days ?? 0,
+      unobserved_days: it.unobserved_days ?? 0,
+      days_with_data: it.days_with_data ?? 0,
+      historical_anomaly,
+      anomaly_status,
+      baseline_years,
+    });
+  }
   return cells.sort((a, b) => a.period.localeCompare(b.period));
 }
 

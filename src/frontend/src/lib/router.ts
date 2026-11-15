@@ -7,10 +7,13 @@ import { useEffect, useState } from "react";
  * estaticos y debe poder abrirse tambien desde `file://` o desde una subcarpeta,
  * donde no hay servidor que reescriba rutas.
  */
-export type Route = "inicio" | "mapa";
+export type Route = "inicio" | "mapa" | "tecnologia";
 
 function parse(hash: string): Route {
-  return hash.replace(/^#\/?/, "").split("?")[0] === "mapa" ? "mapa" : "inicio";
+  const seg = hash.replace(/^#\/?/, "").split("?")[0];
+  if (seg === "mapa") return "mapa";
+  if (seg === "tecnologia") return "tecnologia";
+  return "inicio";
 }
 
 export function useRoute(): [Route, (r: Route) => void] {
@@ -23,7 +26,9 @@ export function useRoute(): [Route, (r: Route) => void] {
   }, []);
 
   const go = (r: Route) => {
-    window.location.hash = r === "mapa" ? "#/mapa" : "#/";
+    if (r === "mapa") window.location.hash = "#/mapa";
+    else if (r === "tecnologia") window.location.hash = "#/tecnologia";
+    else window.location.hash = "#/";
   };
 
   return [route, go];
