@@ -41,6 +41,13 @@ Uso
 
 El resultado va a `data/intermediate/`, que es justo donde `run_pipeline.py` busca
 `*daily_activity*.csv`.
+
+Por defecto solo se queda con focos entre 2012-01-19 y 2026-11-02 (la ventana
+operativa comun a MODIS_TERRA + MODIS_AQUA + VIIRS_SNPP + ERA5-Land segun
+AGENTS.md). Si tu carpeta `firms_peru/` trae anios anteriores a 2012 (legacy,
+solo 2 de 3 sensores), se descartan automaticamente para no inflar el tamano
+del `activity_daily.json` final sin aportar nada comparable entre sensores.
+Para cambiar la ventana: `--since AAAA-MM-DD --until AAAA-MM-DD`.
 """
 
 from __future__ import annotations
@@ -88,11 +95,29 @@ def _modis_sensor(raw_satellite: str) -> str | None:
     return None
 
 
+#: Ventana operativa oficial del proyecto (AGENTS.md): comun a MODIS_TERRA +
+#: MODIS_AQUA + VIIRS_SNPP + ERA5-Land. Todo lo anterior a 2012-01-19 es
+#: "legacy" fuera de alcance (solo 2 de 3 sensores, infla el tamano de los
+#: JSON sin aportar nada comparable) y se descarta por defecto.
+DEFAULT_SINCE = "2012-01-19"
+DEFAULT_UNTIL = "2026-11-02"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--firms-dir", required=True, type=Path, help="Carpeta firms_peru/ con subcarpetas viirs-snpp/ y modis/")
     parser.add_argument("--territories", required=True, type=Path, help="GeoJSON de territorios (data/processed/peru_territories.geojson)")
     parser.add_argument("--out", required=True, type=Path, help="CSV de salida (data/intermediate/daily_activity_firms.csv)")
+    parser.add_argument(
+        "--since",
+        default=DEFAULT_SINCE,
+        help=f"Fecha minima (inclusive, YYYY-MM-DD). Por defecto {DEFAULT_SINCE}: inicio de la ventana operativa comun a los 3 sensores.",
+    )
+    parser.add_argument(
+        "--until",
+        default=DEFAULT_UNTIL,
+        help=f"Fecha maxima (inclusive, YYYY-MM-DD). Por defecto {DEFAULT_UNTIL}: ultimo mes completo verificado en GEE.",
+    )
     args = parser.parse_args()
 
     import geopandas as gpd  # import diferido: falla con mensaje claro si falta la dependencia
@@ -131,6 +156,18 @@ def main() -> None:
 
     points = pd.concat(frames, ignore_index=True)
     points["date"] = points["acq_date"].astype(str).str[:10]
+
+    n_before = len(points)
+    points = points[(points["date"] >= args.since) & (points["date"] <= args.until)]
+    print(
+        f"Filtro de ventana [{args.since}, {args.until}]: {n_before} -> {len(points)} focos "
+        f"({n_before - len(points)} descartados por estar fuera de la ventana operativa)."
+    )
+    if points.empty:
+        raise ValueError(
+            f"No quedo ningun foco dentro de [{args.since}, {args.until}]. Revisa las fechas de los CSV de entrada."
+        )
+
     points["confidence_bucket"] = [
         _confidence_bucket(sensor, conf)
         for sensor, conf in zip(points["sensor"], points["confidence"].astype(str))
