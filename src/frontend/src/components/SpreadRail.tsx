@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { renderSpreadReport } from "../lib/spreadReport";
+import { formatUtm, toUtm } from "../lib/utm";
 import { Drawer } from "./Drawer";
 import type { DockItem } from "./DockBar";
 import { API_BASE } from "../api/client";
@@ -67,7 +69,7 @@ interface Props {
   dateIso?: string;
 }
 
-type PreviewAsset = "simulacion_48h.gif" | "infografia_impacto_48h.png" | "panel_modelo_48h.png" | null;
+type PreviewAsset = "simulacion_48h.gif" | null;
 
 const GLOBAL_PRESETS: Array<{ label: string; lat: number; lon: number }> = [
   { label: "Ucayali", lat: -8.198, lon: -75.267 },
@@ -85,6 +87,29 @@ export function SpreadRail(p: Props) {
   const [exportInfo, setExportInfo] = useState<string | null>(null);
   const [previewAsset, setPreviewAsset] = useState<PreviewAsset>(null);
   const [previewRev, setPreviewRev] = useState(0);
+  const [showReport, setShowReport] = useState(false);
+  // Infografía generada en el navegador a partir de la simulación ACTUAL
+  // (antes se mostraba un PNG precalculado del servidor con otra zona fija).
+  const reportUrl = useMemo(() => {
+    if (!p.result) return null;
+    try {
+      return renderSpreadReport({
+        result: p.result,
+        ignition: p.ignition,
+        horizonHours: v.horizonHours,
+        windSpeedMs: v.windSpeedMs,
+        windDirDeg: v.windDirDeg,
+        fuelMoisturePct: v.fuelMoisturePct,
+        vegetationPct: v.vegetationPct,
+        slopeMeanDeg: v.slopeMeanDeg,
+        locationLabel: p.globalTelemetry?.locationLabel,
+        dateIso: p.dateIso,
+      });
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.result, p.ignition, p.globalTelemetry?.locationLabel, p.dateIso]);
   const defaultPt = p.ignition ?? p.center ?? [-8.198, -75.267];
   const [quickLat, setQuickLat] = useState(() => defaultPt[0].toFixed(3));
   const [quickLon, setQuickLon] = useState(() => defaultPt[1].toFixed(3));
@@ -155,25 +180,43 @@ export function SpreadRail(p: Props) {
         </button>
         <button
           type="button"
-          className={`btn${previewAsset === "infografia_impacto_48h.png" ? " btn--on" : ""}`}
-          onClick={() =>
-            setPreviewAsset((cur) =>
-              cur === "infografia_impacto_48h.png" ? null : "infografia_impacto_48h.png"
-            )
-          }
+          className={`btn${showReport ? " btn--on" : ""}`}
+          disabled={!reportUrl}
+          title={reportUrl ? undefined : "Ejecuta una simulación primero"}
+          onClick={() => {
+            setPreviewAsset(null);
+            setShowReport((v) => !v);
+          }}
         >
           Ver infografía
         </button>
-        <button
-          type="button"
-          className={`btn${previewAsset === "panel_modelo_48h.png" ? " btn--on" : ""}`}
-          onClick={() =>
-            setPreviewAsset((cur) => (cur === "panel_modelo_48h.png" ? null : "panel_modelo_48h.png"))
-          }
-        >
-          Panel SAVI+DEM
-        </button>
+        {reportUrl && (
+          <a
+            className="btn"
+            href={reportUrl}
+            download={`mchanaq_infografia_${Math.round(v.horizonHours)}h.png`}
+          >
+            Descargar infografía
+          </a>
+        )}
       </div>
+      {showReport && reportUrl && (
+        <div
+          style={{
+            marginTop: 8,
+            border: "1px solid var(--line-strong)",
+            background: "var(--surface-1)",
+            padding: 6,
+          }}
+        >
+          <img
+            src={reportUrl}
+            alt="Infografía de la simulación actual (coordenadas UTM)"
+            style={{ display: "block", width: "100%", height: "auto", cursor: "zoom-in" }}
+            onClick={() => window.open(reportUrl, "_blank")}
+          />
+        </div>
+      )}
       {previewAsset && (
         <div
           style={{
@@ -206,9 +249,11 @@ export function SpreadRail(p: Props) {
         <a className="btn" href={`${API_BASE}/spread-outputs/simulacion_48h.gif${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">GIF 48h</a>
         <a className="btn" href={`${API_BASE}/spread-outputs/pronostico_48h.mp4${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">MP4 48h</a>
         <a className="btn" href={`${API_BASE}/spread-outputs/mchanaq_propagacion_48h_qgis.zip${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Shapefiles QGIS</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/infografia_impacto_48h.png${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Infografía</a>
-        <a className="btn" href={`${API_BASE}/spread-outputs/panel_modelo_48h.png${previewRev ? `?r=${previewRev}` : ""}`} target="_blank" rel="noreferrer">Panel 48h</a>
       </div>
+      <p className="mono-sm" style={{ marginTop: 6, color: "var(--ink-3)" }}>
+        GIF, MP4 y Shapefiles son muestras precalculadas en el servidor (zona de referencia); la
+        infografía sí corresponde a tu simulación actual.
+      </p>
     </div>
   );
 
@@ -230,9 +275,9 @@ export function SpreadRail(p: Props) {
             <dt>Área de interés</dt>
             <dd data-null={!p.ring}>{p.ring ? `${p.ring.length} vértices` : "Sin definir"}</dd>
             <dt>Ignición</dt>
-            <dd data-null={!p.ignition}>{p.ignition ? formatLatLon(p.ignition, 3) : "Sin definir"}</dd>
+            <dd data-null={!p.ignition}>{p.ignition ? `${formatUtm(toUtm(p.ignition[0], p.ignition[1]))} (${formatLatLon(p.ignition, 3)})` : "Sin definir"}</dd>
             <dt>Centro del territorio</dt>
-            <dd data-null={!p.center}>{p.center ? formatLatLon(p.center, 3) : "Sin definir"}</dd>
+            <dd data-null={!p.center}>{p.center ? `${formatUtm(toUtm(p.center[0], p.center[1]))} (${formatLatLon(p.center, 3)})` : "Sin definir"}</dd>
           </dl>
           <div className="field" style={{ marginTop: 12 }}>
             <label className="field__label" htmlFor="sp-date">
