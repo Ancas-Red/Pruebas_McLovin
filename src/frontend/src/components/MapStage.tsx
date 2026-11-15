@@ -740,6 +740,12 @@ export function MapStage(props: Props) {
   }, [ring, draft, cursor, mode, ignition]);
 
   /* ------------------------------------------------- superposicion de fuego */
+  // Crea la capa UNA sola vez por simulacion (cuando cambia `spread`, es
+  // decir, cuando hay una corrida nueva). Si en cada tick de la reproduccion
+  // se destruye y se vuelve a crear el <img> (como antes), la animacion CSS
+  // de aparicion (`mchanaq-fire-in`, 0.4s) se reinicia en cada frame y nunca
+  // llega a opacity:1 — por eso solo se veian destellos en vez de un fuego
+  // visible y estable.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -761,6 +767,18 @@ export function MapStage(props: Props) {
       className: "spread-overlay",
     }).addTo(map);
     spreadOverlay.current.setZIndex(350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spread]);
+
+  // En cada tick de la reproduccion (mismo `spread`, solo avanza el tiempo)
+  // actualizamos el bitmap de la capa YA existente con `setUrl`, sin tocar el
+  // <img> del DOM: asi la animacion de aparicion corre una sola vez al
+  // iniciar la simulacion y el fuego queda visible y estable mientras avanza.
+  useEffect(() => {
+    if (!spread || !spreadOverlay.current) return;
+    const url = renderSpreadPNG(spread, spreadTime, spreadHorizon);
+    if (!url) return;
+    spreadOverlay.current.setUrl(url);
   }, [spread, spreadTime, spreadHorizon]);
 
   /* ----------------------------------- encuadrar el frente recien calculado */

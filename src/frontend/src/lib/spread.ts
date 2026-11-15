@@ -510,9 +510,10 @@ export function renderSpreadPNG(
 
   coreCtx.putImageData(img, 0, 0);
 
-  // Paso 2: lienzo final ampliado con un halo difuso de calor debajo del
-  // nucleo nitido (suavizado, ya no "pixelated" duro). El halo comunica
-  // "esto es fuego" sin desplazar donde esta realmente el frente.
+  // Paso 2: lienzo final ampliado SIN desenfoque ni suavizado. Cada celda del
+  // modelo debe verse como lo que es: un pixel de la simulacion, fiel a
+  // `arrival` (antes aqui se aplicaba un blur fuerte que convertia la grilla
+  // en un destello difuso y borraba la ubicacion real de cada celda).
   const scale = 6;
   const out = document.createElement("canvas");
   out.width = cols * scale;
@@ -520,15 +521,18 @@ export function renderSpreadPNG(
   const outCtx = out.getContext("2d");
   if (!outCtx) return core.toDataURL("image/png");
 
-  outCtx.save();
-  outCtx.filter = `blur(${scale * 1.7}px)`;
-  outCtx.globalAlpha = 0.85;
+  // Sin filtro, sin globalCompositeOperation: solo escalado "nearest
+  // neighbor" (imageSmoothingEnabled = false) para que el pixel se vea
+  // cuadrado y nitido, no interpolado ni borroso.
+  outCtx.imageSmoothingEnabled = false;
   outCtx.drawImage(core, 0, 0, out.width, out.height);
-  outCtx.restore();
 
+  // Un halo muy sutil detras (sin tapar los pixeles nitidos de arriba) para
+  // que siga leyendose como "calor" a simple vista, sin perder el detalle.
   outCtx.save();
-  outCtx.filter = `blur(${scale * 0.3}px)`;
-  outCtx.globalCompositeOperation = "screen";
+  outCtx.globalCompositeOperation = "destination-over";
+  outCtx.filter = `blur(${scale * 0.8}px)`;
+  outCtx.globalAlpha = 0.35;
   outCtx.drawImage(core, 0, 0, out.width, out.height);
   outCtx.restore();
 
