@@ -29,11 +29,11 @@ McHanaq/
 │   ├── harness/            # ESTO: ancla de IA + fuente de verdad
 │   └── …                   # documentación propia adicional
 ├── src/
-│   ├── frontend/           # Sebastian — React + Vite + TypeScript + Leaflet
-│   ├── backend/            # Jhan (Fase B) / Tom (Fase A) — FastAPI de solo lectura
-│   ├── analytics/          # Tom — métricas, anomalías, árbol de reglas
-│   └── gee/                # Angelo — pipelines de Google Earth Engine
-├── contracts/              # contrato de API y esquemas JSON
+│   ├── frontend/           # Sebastian — React + Vite + TypeScript + Leaflet (hosting, dominio y despliegue)
+│   ├── backend/            # Angelo — FastAPI de solo lectura
+│   ├── analytics/          # Tom — motor analítico longitudinal; Angelo — spread_model.py (Fase 2)
+│   └── gee/                # Angelo — pipelines GEE e ingesta ambiental (fuentes abiertas y NASA)
+├── contracts/              # Jean Pierrer — contrato de API y esquemas JSON
 ├── data/
 │   ├── reference/          # capas territoriales oficiales
 │   ├── fixtures/           # datos de muestra para desarrollo
@@ -51,8 +51,8 @@ más, así que ahí va `parents[3]` (arranque desde la raíz: `uvicorn src.backe
 
 ## 2.1. Operación, almacenamiento, mapas base y despliegue
 
-* **Ownership actual (Fase A):** Tom lleva `src/analytics/` y `src/backend/` con apoyo de datos de Angelo (`src/gee/`); Sebastian lleva `src/frontend/`; Jean Pierrer lleva `contracts/`, `data/fixtures/`, `data/reference/`, `docs/`, `tests/acceptance/` y `presentation/`.
-* **Puente de datos y Azure Blob Storage (Free Tier):** Las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan localmente a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage (Free Tier / Azure Storage)** junto con los paquetes procesados de `data/processed/`. Tom genera `data/processed/` y sincroniza los paquetes con Azure Blob Storage offline o en tiempo de build/deploy. El backend nunca consulta GEE ni lee Azure Blob Storage o Google Drive por petición HTTP de usuario.
+* **Ownership actual (equipo de 4 integrantes):** Tom lleva el liderazgo general, el motor analítico longitudinal (`src/analytics/`) y la integración entre módulos; Angelo lleva `src/backend/` (API FastAPI y validación de contrato), la ingesta de datos ambientales de fuentes abiertas y obligatorias de NASA (`src/gee/`) y la implementación del modelo de propagación (`src/analytics/spread_model.py`, Fase 2); Sebastian lleva el frontend inicial (`src/frontend/`), hosting, dominio propio y configuración completa del despliegue; Jean Pierrer lleva la documentación (`docs/`, `contracts/`, `AI_USAGE.md`), el desarrollo de la presentación (`presentation/`), revisiones exhaustivas de documentación para evitar omisiones clave, además de capas de referencia (`data/reference/`), `data/fixtures/` y QA (`tests/acceptance/`).
+* **Puente de datos y Azure Blob Storage (Free Tier):** Las tareas batch desde GEE Code Editor exportan inicialmente a Google Drive o GCS; luego se descargan localmente a `data/intermediate/` (ignorado en Git) y se espejan en **Azure Blob Storage (Free Tier / Azure Storage)** junto con los paquetes procesados de `data/processed/`. Tom genera `data/processed/` desde `src/analytics/` y coordina la integración con `src/backend/` (Angelo) y la configuración de despliegue (Sebastian), sincronizándose los paquetes con Azure Blob Storage offline o en tiempo de build/deploy. El backend nunca consulta GEE ni lee Azure Blob Storage o Google Drive por petición HTTP de usuario.
 * **Despliegue oficial (`infra/azure/` + Cloudflare Pages):**
   * **Backend (`src/backend/`):** **Azure App Service (Plan Free F1, Linux Python 3.11)** usando el `requirements.txt` raíz para Oryx, `infra/azure/startup.sh`, sonda `GET /` para warm-up y `MCHANAQ_CORS_ORIGIN_REGEX` (vistas previas `*.pages.dev`), en modo solo lectura sobre `data/processed/` local (o `data/fixtures/` en CI/demo), manteniendo `ROOT = Path(__file__).resolve().parents[3]` y `< 1 MB` en `territories.geojson` (paquete de datos `< 30–40 MB`).
   * **Frontend (`src/frontend/`):** **Cloudflare Pages** (`src/frontend/public/_headers`, recomendado) o **Azure Static Web Apps (`infra/azure/staticwebapp.config.json`)** sirviendo `src/frontend/dist/` con `VITE_API_BASE` (o `VITE_API_BASE_URL` en `infra/azure/`) apuntando a la URL del Azure App Service.
@@ -116,7 +116,7 @@ Están en `src/frontend/src/api/types.ts` (`DailyEnv`) y en
 
 Es **opcional y desacoplada**. No toca ningún endpoint de Fase 1. En el frontend vive en
 `src/frontend/src/lib/spread.ts` (`SpreadRail.tsx`), y en Python en
-`src/analytics/spread_model.py` (`heuristic_wind_slope_spread_v1`, documentada en
+`src/analytics/spread_model.py` (implementado por Angelo, `heuristic_wind_slope_spread_v1`, documentada en
 `docs/Fase2_Simulacion_Espacial_Propagacion_48h.md`). Integra **SAVI (Huete, 1988)**,
 **topografía/pendiente DEM** y **viento horario hasta 48 h** (`+6`, `+12`, `+24`, `+36`, `+48 h`),
 genera `data/processed/spread_forecasts.json` y salidas en `data/processed/spread_outputs/`
@@ -193,6 +193,6 @@ como referencia *legacy*/opcional). El backend debe incluir el origen del fronte
 Prueba sin interfaz (Chrome headless) contra `uvicorn` + `data/fixtures`: cabecera
 estática sin solapar el contenido, bloques de la portada a la altura exacta del
 contenedor, sin `scroll-snap`, ningún texto visible con `opacity: 0`, sin capas de
-composición retenidas, los 5 espacios de foto del equipo, territorios desde
+composición retenidas, los 4 espacios de foto del equipo, territorios desde
 `/territories`, e indicadores desde `/summary`. Cero peticiones desperdiciadas: ningún
 `422` en el arranque.

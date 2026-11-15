@@ -1,6 +1,6 @@
 # Backend — McHanaq
 
-API de solo lectura en **FastAPI** (`src/backend/app/main.py`) mantenida en Fase A por Tom (relevo planificado con Jhan en Fase B).
+API en **FastAPI** (`src/backend/app/main.py`) — solo lectura en Fase 1 y módulo opcional Fase 2 — mantenida por **Angelo** (backend, ingesta ambiental Open-Meteo/NASA FIRMS y `src/analytics/spread_model.py`), con co-revisión de arquitectura e integración de **Tom** y configuración de hosting/despliegue en la nube por **Sebastian**.
 
 El contrato completo está en [contracts/api-contract.md](../../contracts/api-contract.md) y [docs/harness/README.md](../../docs/harness/README.md).
 Cuando `/api/v1` responde con datos completos, la interfaz muestra la serie real; mientras falten datos o no responda, usa las muestras locales etiquetadas en UI.
