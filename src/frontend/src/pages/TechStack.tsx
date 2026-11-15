@@ -17,6 +17,7 @@ import {
 interface Props {
   onOpenMap: () => void;
   onOpenLanding: () => void;
+  onOpenConventions?: () => void;
 }
 
 const TECH_SECTIONS = [
@@ -27,7 +28,7 @@ const TECH_SECTIONS = [
   { id: "convenciones", label: "Convenciones" },
 ];
 
-export function TechStack({ onOpenMap, onOpenLanding }: Props) {
+export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [activeSection, setActiveSection] = useState(0);
   const [category, setCategory] = useState<TechCategory>("todas");
@@ -363,6 +364,14 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
               </div>
             ))}
           </div>
+
+          {onOpenConventions && (
+            <div style={{ marginTop: 22 }} data-reveal>
+              <button type="button" className="btn" onClick={onOpenConventions}>
+                Ver marco normativo y reglamentos completos →
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="tech-foot-band">
@@ -371,6 +380,7 @@ export function TechStack({ onOpenMap, onOpenLanding }: Props) {
               route="tecnologia"
               onNavigate={(r) => {
                 if (r === "mapa") onOpenMap();
+                else if (r === "convenciones") onOpenConventions?.();
                 else if (r === "inicio") onOpenLanding();
                 else goTo("arquitectura");
               }}

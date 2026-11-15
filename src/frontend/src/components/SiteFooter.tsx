@@ -30,9 +30,32 @@ export function SiteFooter({
 
         <div className="site-foot__actions">
           {route === "inicio" ? (
-            <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
-              Tecnología y stack →
-            </button>
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
+                Convenciones →
+              </button>
+              <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
+                Tecnología y stack →
+              </button>
+            </>
+          ) : route === "tecnologia" ? (
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("convenciones")}>
+                Convenciones →
+              </button>
+              <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
+                Abrir el mapa →
+              </button>
+            </>
+          ) : route === "convenciones" ? (
+            <>
+              <button type="button" className="btn" onClick={() => onNavigate("tecnologia")}>
+                Tecnología y stack →
+              </button>
+              <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
+                Abrir el mapa →
+              </button>
+            </>
           ) : (
             <button type="button" className="btn btn--primary" onClick={() => onNavigate("mapa")}>
               Abrir el mapa →

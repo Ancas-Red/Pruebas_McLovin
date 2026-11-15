@@ -253,6 +253,7 @@ interface Props {
   tab: ToolTab;
   onBackend: (s: BackendState) => void;
   onContextChange?: (ctx: NavContext) => void;
+  onOpenConventions?: () => void;
   suspendLoader?: boolean;
   suspendTour?: boolean;
   tourTrigger?: number;
@@ -262,6 +263,7 @@ export function MapTool({
   tab,
   onBackend,
   onContextChange,
+  onOpenConventions,
   suspendLoader = false,
   suspendTour = false,
   tourTrigger = 0,
@@ -1757,6 +1759,7 @@ export function MapTool({
             <AnalysisRail
               section={rightOpen}
               onClose={() => setRightOpen(null)}
+              onOpenConventions={onOpenConventions}
               cell={cell}
               summary={summary}
               comparison={comparison}

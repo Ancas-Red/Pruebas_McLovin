@@ -80,6 +80,7 @@ const VAR_TEXT: Record<string, string> = {
 interface Props {
   section: string;
   onClose: () => void;
+  onOpenConventions?: () => void;
   cell: MonthCell | undefined;
   /** Ficha del territorio tal como la devuelve la API. */
   summary: TerritorySummary | null;
@@ -472,6 +473,17 @@ export function AnalysisRail(p: Props) {
             <dt>Cero suma cruzada</dt>
             <dd>Terra, Aqua y VIIRS no se suman entre sí (distinta órbita)</dd>
           </dl>
+
+          {p.onOpenConventions && (
+            <button
+              type="button"
+              className="btn btn--full"
+              style={{ marginTop: 14 }}
+              onClick={p.onOpenConventions}
+            >
+              Ver reglamentos y convenciones →
+            </button>
+          )}
         </Drawer>
       );
     }
