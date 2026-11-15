@@ -1099,7 +1099,7 @@ export function MapStage(props: Props) {
               </button>
             )}
             {showHighMarkers && priorityZones.length > 0 && (
-              <div className="legend__item">
+              <div className="legend__item legend__item--zone">
                 <i className="legend__swatch legend__swatch--poly" />
                 <span>Subzona / envolvente prioritaria</span>
               </div>
