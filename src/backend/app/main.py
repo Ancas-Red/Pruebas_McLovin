@@ -665,6 +665,82 @@ def _is_low_confidence_row(sensor: str, raw: str | None) -> bool:
         return False
 
 
+_FIRMS_HIST_POINTS_CACHE_TTL_S = 6 * 3600.0
+_FIRMS_HIST_POINTS_CACHE_MAX = 2000
+_FIRMS_HIST_POINTS_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
+_FIRMS_HIST_POINTS_CACHE_LOCK = threading.Lock()
+
+
+def _fetch_firms_historical_points(t_type: str, t_id: str, sensor: str, date: str) -> list[dict] | None:
+    """Igual que _fetch_firms_historical_day pero devolviendo un Feature GeoJSON por
+    detección real (lat/lon exactos de NASA FIRMS), para /hotspots cuando no existe
+    hotspots.geojson local (no hay archivo con puntos precalculados en este despliegue).
+    Nunca se inventan coordenadas: si la consulta en vivo falla o no hay FIRMS_MAP_KEY,
+    devuelve None y el llamador cae a "sin puntos" (lista vacía), nunca a una muestra."""
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    since = _SENSOR_HISTORICAL_SINCE.get(sensor)
+    src = _FIRMS_HIST_SOURCE_BY_SENSOR.get(sensor)
+    if not firms_key or not since or not src or date < since:
+        return None
+    bbox = _territory_bbox(t_type, t_id)
+    if not bbox:
+        return None
+    firms_source, sat_filter = src
+
+    key = (t_type, t_id, sensor, date)
+    now = time.monotonic()
+    with _FIRMS_HIST_POINTS_CACHE_LOCK:
+        hit = _FIRMS_HIST_POINTS_CACHE.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+
+    west, south, east, north = bbox
+    bbox_str = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/{firms_source}/{bbox_str}/1/{date}"
+    result: list[dict] | None
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            text = resp.text.strip()
+        if not text or text.lower().startswith("invalid"):
+            result = []
+        else:
+            rows = _parse_firms_csv_tuples(text)
+            if sat_filter:
+                rows = [r for r in rows if r[6] == sat_filter]
+            result = [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
+                    "properties": {
+                        "territory_type": t_type,
+                        "territory_id": t_id,
+                        "date": date,
+                        "sensor": sensor,
+                        "confidence": conf,
+                        "frp_mw": frp_v,
+                        "satellite": sat,
+                        "daynight": daynight,
+                        "low_confidence": _is_low_confidence_row(sensor, conf),
+                        "source_product": "FIRMS_SP_live_query",
+                        "data_origin": "firms_live_historical",
+                    },
+                }
+                for (lat_v, lon_v, acq_d, acq_t, conf, frp_v, sat, daynight) in rows
+            ]
+    except Exception:
+        result = None
+
+    with _FIRMS_HIST_POINTS_CACHE_LOCK:
+        if result is not None:
+            if len(_FIRMS_HIST_POINTS_CACHE) >= _FIRMS_HIST_POINTS_CACHE_MAX and key not in _FIRMS_HIST_POINTS_CACHE:
+                oldest_key = next(iter(_FIRMS_HIST_POINTS_CACHE))
+                _FIRMS_HIST_POINTS_CACHE.pop(oldest_key, None)
+            _FIRMS_HIST_POINTS_CACHE[key] = (now + _FIRMS_HIST_POINTS_CACHE_TTL_S, result)
+    return result
+
+
 _FIRMS_HIST_RANGE_CACHE_TTL_S = 6 * 3600.0
 _FIRMS_HIST_RANGE_CACHE_MAX = 500
 _FIRMS_HIST_RANGE_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
@@ -1141,15 +1217,23 @@ def territory_hotspots(type: str, id: str, date: str = Query(...), sensor: str =
     check_sensor(sensor)
     check_date(date, sensor=sensor)
     find_territory(type, id)
-    if not HOTSPOTS:
-        raise ApiError(404, "NOT_FOUND", "hotspots.geojson no está disponible")
-    feats = [
-        f for f in HOTSPOTS.get("features", [])
-        if f.get("properties", {}).get("territory_type") == type
-        and str(f.get("properties", {}).get("territory_id")) == id
-        and f.get("properties", {}).get("date") == date
-        and f.get("properties", {}).get("sensor") == sensor
-    ]
+    feats: list[dict] = []
+    if HOTSPOTS:
+        feats = [
+            f for f in HOTSPOTS.get("features", [])
+            if f.get("properties", {}).get("territory_type") == type
+            and str(f.get("properties", {}).get("territory_id")) == id
+            and f.get("properties", {}).get("date") == date
+            and f.get("properties", {}).get("sensor") == sensor
+        ]
+    if not feats:
+        # No hay hotspots.geojson precalculado en este despliegue (no existe el archivo):
+        # se complementa con las coordenadas reales de NASA FIRMS para ese día/sensor,
+        # igual que /summary y /activity. Si la consulta en vivo falla, se devuelve una
+        # lista vacía (sin puntos) — nunca una muestra inventada.
+        live_feats = _fetch_firms_historical_points(type, id, sensor, date)
+        if live_feats is not None:
+            feats = live_feats
     return {"schema_version": "1.0", "type": "FeatureCollection", "features": feats}
 
 

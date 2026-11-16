@@ -713,7 +713,6 @@ export function MapTool({
    * Si la fecha o el período no está publicado para ese endpoint, se omite
    * la llamada para evitar `422 PERIOD_NOT_AVAILABLE` innecesarios.
    */
-  const activityOk = metadata ? isDateAvailable(dateIso, sensor, metadata) : false;
   const monthActivityOk = metadata
     ? availablePeriods.has(period) && isPeriodAvailable(period, sensor, metadata)
     : false;
@@ -745,8 +744,7 @@ export function MapTool({
     const ctrl = new AbortController();
     getHotspots(
       { type: territoryType, id: territoryId, date: dateIso, sensor },
-      ctrl.signal,
-      !activityOk
+      ctrl.signal
     )
       .then((r) => {
         setHotspots(r.data?.features ?? []);
@@ -757,7 +755,7 @@ export function MapTool({
         if (!isAbort(e)) setHotspots([]);
       });
     return () => ctrl.abort();
-  }, [ready, liveFirms, activityOk, territoryType, territoryId, dateIso, sensor]);
+  }, [ready, liveFirms, territoryType, territoryId, dateIso, sensor]);
 
   /* ------------------------------------------- serie diaria del mes ------ */
   useEffect(() => {
@@ -2267,7 +2265,7 @@ export function MapTool({
           <span className="chip chip--term">Indicators from /api/v1</span>
         )}
         {origin === "api" && hotspotsOrigin === "fixture" && (
-          <span className="chip chip--warn">Sample hotspots · the backend does not publish /hotspots</span>
+          <span className="chip chip--warn">Sample hotspots · could not reach the backend</span>
         )}
         {span.from !== span.to && (
           <span className="status__src">{`${span.from} → ${span.to}`}</span>
