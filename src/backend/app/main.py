@@ -680,9 +680,9 @@ def _fetch_firms_historical_range(
     (31, un mes) para no disparar decenas de peticiones a NASA FIRMS por un rango
     arbitrario; un rango más largo que eso simplemente no se complementa (lo sigue
     resolviendo la tabla local cuando exista, o queda vacío como antes).
-    Devuelve una fila por (fecha, territorio, sensor) con al menos una detección — los
-    días sin foco no generan fila, igual que en el pipeline offline no hay manera de
-    distinguir "sin fuego" de "sin observación" solo con la Area API de puntos."""
+    Devuelve una fila por CADA día del rango (0 focos si no hubo ninguno), igual que
+    _fetch_firms_historical_day responde fire_pixels_nominal_high=0 para un día puntual
+    sin detecciones — nunca omite el día, para no confundir "cero fuego" con "sin dato"."""
     firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
     since = _SENSOR_HISTORICAL_SINCE.get(sensor)
     src = _FIRMS_HIST_SOURCE_BY_SENSOR.get(sensor)
@@ -716,7 +716,12 @@ def _fetch_firms_historical_range(
     # respondido bien.
     with httpx.Client(timeout=15.0) as client:
         while chunk_end >= start:
-            span_days = min(10, (chunk_end - start).days + 1)
+            # Probado en vivo: para la fuente histórica (Standard Processing) la Area
+            # API de FIRMS responde vacío si day_range > 5 (a diferencia del límite de
+            # 10 días documentado para las fuentes NRT) — day_range=6 ya devolvía "" en
+            # vez de error, así que fallaba en silencio. No subir este tope sin volver a
+            # probar contra la API real.
+            span_days = min(5, (chunk_end - start).days + 1)
             chunk_start = chunk_end - timedelta(days=span_days - 1)
             url = (
                 f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/"
