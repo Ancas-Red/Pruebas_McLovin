@@ -1,5 +1,6 @@
 """McHanaq API — Backend de solo lectura (Fase 1, resolución diaria por defecto)."""
 
+import calendar
 import csv
 import io
 import json
@@ -614,18 +615,7 @@ def _fetch_firms_historical_day(t_type: str, t_id: str, sensor: str, date: str) 
             if sat_filter:
                 rows = [r for r in rows if r[6] == sat_filter]
 
-            def _is_low_confidence(raw: str | None) -> bool:
-                # Mismo criterio que src/analytics/firms_to_daily_activity.py
-                # (_confidence_bucket): VIIRS usa letras l/n/h, MODIS usa 0-100.
-                raw_s = (raw or "").strip().lower()
-                if sensor == "VIIRS_SNPP":
-                    return raw_s in {"l", "low"}
-                try:
-                    return float(raw_s) < 50
-                except ValueError:
-                    return False
-
-            fire_low = sum(1 for r in rows if _is_low_confidence(r[4]))
+            fire_low = sum(1 for r in rows if _is_low_confidence_row(sensor, r[4]))
             # fire_pixels_nominal_high es acumulado (low + nominal/high), igual que en
             # firms_to_daily_activity.py, para que el resto de la app lo lea como siempre.
             result = {
@@ -660,6 +650,121 @@ def _fetch_firms_historical_day(t_type: str, t_id: str, sensor: str, date: str) 
             oldest_key = next(iter(_FIRMS_HIST_CACHE))
             _FIRMS_HIST_CACHE.pop(oldest_key, None)
         _FIRMS_HIST_CACHE[key] = (now + _FIRMS_HIST_CACHE_TTL_S, result)
+    return result
+
+
+def _is_low_confidence_row(sensor: str, raw: str | None) -> bool:
+    """Mismo criterio que firms_to_daily_activity.py (_confidence_bucket): VIIRS usa
+    letras l/n/h, MODIS usa 0-100."""
+    raw_s = (raw or "").strip().lower()
+    if sensor == "VIIRS_SNPP":
+        return raw_s in {"l", "low"}
+    try:
+        return float(raw_s) < 50
+    except ValueError:
+        return False
+
+
+_FIRMS_HIST_RANGE_CACHE_TTL_S = 6 * 3600.0
+_FIRMS_HIST_RANGE_CACHE_MAX = 500
+_FIRMS_HIST_RANGE_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
+_FIRMS_HIST_RANGE_CACHE_LOCK = threading.Lock()
+
+
+def _fetch_firms_historical_range(
+    t_type: str, t_id: str, sensor: str, from_date: str, to_date: str, max_days: int = 31
+) -> list[dict]:
+    """Igual que _fetch_firms_historical_day pero para un rango (la "serie diaria" del
+    mes en /activity, que sin esto queda vacía para años sin tabla local: /summary ya
+    complementaba el día puntual, pero /activity solo leía DAILY). Acotado a max_days
+    (31, un mes) para no disparar decenas de peticiones a NASA FIRMS por un rango
+    arbitrario; un rango más largo que eso simplemente no se complementa (lo sigue
+    resolviendo la tabla local cuando exista, o queda vacío como antes).
+    Devuelve una fila por (fecha, territorio, sensor) con al menos una detección — los
+    días sin foco no generan fila, igual que en el pipeline offline no hay manera de
+    distinguir "sin fuego" de "sin observación" solo con la Area API de puntos."""
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    since = _SENSOR_HISTORICAL_SINCE.get(sensor)
+    src = _FIRMS_HIST_SOURCE_BY_SENSOR.get(sensor)
+    if not firms_key or not since or not src or from_date < since:
+        return []
+    if (dt_date.fromisoformat(to_date) - dt_date.fromisoformat(from_date)).days + 1 > max_days:
+        return []
+    bbox = _territory_bbox(t_type, t_id)
+    if not bbox:
+        return []
+    firms_source, sat_filter = src
+
+    key = (t_type, t_id, sensor, from_date, to_date)
+    now = time.monotonic()
+    with _FIRMS_HIST_RANGE_CACHE_LOCK:
+        hit = _FIRMS_HIST_RANGE_CACHE.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+
+    west, south, east, north = bbox
+    bbox_str = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
+    by_date: dict[str, list] = {}
+    try:
+        start = dt_date.fromisoformat(from_date)
+        end = dt_date.fromisoformat(to_date)
+        chunk_end = end
+        with httpx.Client(timeout=15.0) as client:
+            while chunk_end >= start:
+                span_days = min(10, (chunk_end - start).days + 1)
+                chunk_start = chunk_end - timedelta(days=span_days - 1)
+                url = (
+                    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/"
+                    f"{firms_source}/{bbox_str}/{span_days}/{chunk_end.isoformat()}"
+                )
+                resp = client.get(url)
+                resp.raise_for_status()
+                text = resp.text.strip()
+                if text and not text.lower().startswith("invalid"):
+                    for r in _parse_firms_csv_tuples(text):
+                        if sat_filter and r[6] != sat_filter:
+                            continue
+                        d = r[2] or ""
+                        if from_date <= d <= to_date:
+                            by_date.setdefault(d, []).append(r)
+                chunk_end = chunk_start - timedelta(days=1)
+    except Exception:
+        with _FIRMS_HIST_RANGE_CACHE_LOCK:
+            _FIRMS_HIST_RANGE_CACHE[key] = (now + _FIRMS_HIST_RANGE_CACHE_TTL_S, [])
+        return []
+
+    result: list[dict] = []
+    for d, rows in sorted(by_date.items()):
+        fire_low = sum(1 for r in rows if _is_low_confidence_row(sensor, r[4]))
+        result.append({
+            "date": d,
+            "territory_type": t_type,
+            "territory_id": t_id,
+            "sensor": sensor,
+            "fire_pixels_low": fire_low,
+            "fire_pixels_nominal_high": len(rows),
+            "valid_land_pixels": None,
+            "expected_land_pixels_per_day": None,
+            "observation_coverage": None,
+            "cloud_ok_lt30pct": None,
+            "activity_rate": None,
+            "t_amb_c": None,
+            "relative_humidity_2m_pct": None,
+            "t_suelo_c": None,
+            "lst_valid_pixel_pct": None,
+            "wind_dir_deg": None,
+            "wind_speed_10m_ms": None,
+            "elevation_m": None,
+            "dem_source": None,
+            "source_product": "FIRMS_SP_live_query",
+            "processing_version": META.get("processing_version"),
+            "data_origin": "firms_live_historical",
+        })
+    with _FIRMS_HIST_RANGE_CACHE_LOCK:
+        if len(_FIRMS_HIST_RANGE_CACHE) >= _FIRMS_HIST_RANGE_CACHE_MAX and key not in _FIRMS_HIST_RANGE_CACHE:
+            oldest_key = next(iter(_FIRMS_HIST_RANGE_CACHE))
+            _FIRMS_HIST_RANGE_CACHE.pop(oldest_key, None)
+        _FIRMS_HIST_RANGE_CACHE[key] = (now + _FIRMS_HIST_RANGE_CACHE_TTL_S, result)
     return result
 
 
@@ -848,6 +953,18 @@ def territory_activity(
         and r.get("sensor") == sensor
         and ((from_date <= r.get("date", "") <= to_date) if (from_date and to_date) else r.get("date", "").startswith(period))
     ]
+    if not rows:
+        # Sin filas locales (p. ej. un mes de 2012-2021): se complementa con una
+        # consulta en vivo a NASA FIRMS, igual que /summary para un día puntual, pero
+        # acotada a <=31 días (un mes) para no disparar decenas de peticiones por un
+        # rango arbitrario (ver _fetch_firms_historical_range).
+        if from_date and to_date:
+            eff_from, eff_to = from_date, to_date
+        else:
+            eff_from = f"{period}-01"
+            last_day = calendar.monthrange(int(period[:4]), int(period[5:7]))[1]
+            eff_to = f"{period}-{last_day:02d}"
+        rows = _fetch_firms_historical_range(type, id, sensor, eff_from, eff_to)
     rows.sort(key=lambda r: r.get("date", ""))
     return {
         "schema_version": "1.0",
