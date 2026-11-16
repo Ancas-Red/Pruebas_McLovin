@@ -23,12 +23,12 @@ interface Props {
 }
 
 const TECH_SECTIONS = [
-  { id: "arquitectura", label: "Arquitectura" },
-  { id: "fases", label: "Fase 1 y Fase 2" },
-  { id: "stack", label: "Stack y APIs" },
-  { id: "ruta-datos", label: "Ruta de datos" },
-  { id: "parametros", label: "Parámetros" },
-  { id: "convenciones", label: "Convenciones" },
+  { id: "arquitectura", label: "Architecture" },
+  { id: "fases", label: "Phase 1 & Phase 2" },
+  { id: "stack", label: "Stack & APIs" },
+  { id: "ruta-datos", label: "Data path" },
+  { id: "parametros", label: "Parameters" },
+  { id: "convenciones", label: "Conventions" },
 ];
 
 export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props) {
@@ -154,7 +154,7 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
         <Starfield />
       </div>
 
-      <nav className="dots" aria-label="Secciones de arquitectura">
+      <nav className="dots" aria-label="Architecture sections">
         {TECH_SECTIONS.map((s, i) => (
           <button
             key={s.id}
@@ -174,22 +174,22 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-hero__grid">
             <div className="tech-hero__head">
               <p className="eyebrow" data-reveal>
-                00 · Arquitectura y Stack Técnico
+                00 · Architecture & Technical Stack
               </p>
               <h1 className="tech-hero__title" data-reveal>
-                Cómo convertimos órbitas en
-                <span className="hero__accent">evidencia territorial.</span>
+                How we turn orbits into
+                <span className="hero__accent">territorial evidence.</span>
               </h1>
               <p className="block__lead tech-hero__lead" data-reveal>
-                McHanaq separa el cómputo satelital pesado de la consulta web interactiva. Google
-                Earth Engine extrae y agrega las series diarias; Python normaliza tasas, anomalías y
-                reglas explicables; y FastAPI sirve artefactos precomputados de solo lectura hacia el
-                visor Leaflet.
+                McHanaq separates heavy satellite computing from interactive web queries. Google
+                Earth Engine extracts and aggregates the daily series; Python normalizes rates, anomalies and
+                explainable rules; and FastAPI serves read-only precomputed artifacts to the
+                Leaflet viewer.
               </p>
 
               <div className="hero__cta tech-hero__cta" data-reveal>
                 <button className="btn btn--lg" onClick={() => goTo("stack")}>
-                  Explorar tecnologías ↓
+                  Explore technologies ↓
                 </button>
               </div>
             </div>
@@ -202,16 +202,16 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
 
           <dl className="facts tech-facts" data-reveal>
             <div>
-              <dt>Ventana común Perú</dt>
+              <dt>Common window Peru</dt>
               <dd>2012-01-19 — 2026-11-02</dd>
             </div>
             <div>
-              <dt>Cobertura mínima diaria</dt>
-              <dd>Nubosidad &lt; 30 % (≥ 0.70)</dd>
+              <dt>Minimum daily coverage</dt>
+              <dd>Cloudiness &lt; 30 % (≥ 0.70)</dd>
             </div>
             <div>
-              <dt>Modelo de ejecución HTTP</dt>
-              <dd>Solo lectura · 0 consultas a GEE</dd>
+              <dt>HTTP execution model</dt>
+              <dd>Read-only · 0 GEE queries</dd>
             </div>
           </dl>
         </div>
@@ -223,15 +223,15 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                01 · Dos fases analíticas desacopladas
+                01 · Two decoupled analytical phases
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Árbol contextual (N0–N3) y propagación física a 48{"\u00A0"}h.
+                Contextual tree (N0–N3) and physical spread at 48{"\u00A0"}h.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              La Fase 1 evalúa históricamente la susceptibilidad territorial mediante reglas
-              auditables; la Fase 2 añade un simulador elíptico opcional ante una ignición hipotética.
+              Phase 1 historically assesses territorial susceptibility through auditable
+              rules; Phase 2 adds an optional elliptical simulator for a hypothetical ignition.
             </p>
           </div>
 
@@ -245,22 +245,22 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                02 · Stack, sensores y servicios
+                02 · Stack, sensors and services
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Plataformas y motores que sostienen cada capa.
+                Platforms and engines that support every layer.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Cada herramienta cumple un rol acotado y trazable dentro de la ruta de datos, desde la
-              decodificación de píxeles térmicos hasta el despliegue en la nube.
+              Each tool plays a bounded, traceable role within the data path, from the
+              decoding of thermal pixels to deployment in the cloud.
             </p>
           </div>
 
           <div
             className="tech-filters"
             role="tablist"
-            aria-label="Filtrar tecnologías por capa"
+            aria-label="Filter technologies by layer"
             data-reveal
           >
             {TECH_CATEGORIES.map((cat) => (
@@ -293,15 +293,15 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                03 · Ruta de datos desacoplada
+                03 · Decoupled data path
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Cuatro etapas del píxel crudo al navegador.
+                Four stages from the raw pixel to the browser.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Ninguna petición del usuario dispara descargas externas ni cálculos sobre Earth Engine:
-              toda la serie histórica se compila antes del despliegue.
+              No user request triggers external downloads or Earth Engine computations:
+              the whole historical series is compiled before deployment.
             </p>
           </div>
 
@@ -315,15 +315,15 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
                 <h3 className="pipeline__title">{stage.title}</h3>
                 <dl className="pipeline__meta">
                   <div>
-                    <dt>Entrada</dt>
+                    <dt>Input</dt>
                     <dd>{stage.input}</dd>
                   </div>
                   <div>
-                    <dt>Transformación</dt>
+                    <dt>Transformation</dt>
                     <dd>{stage.process}</dd>
                   </div>
                   <div>
-                    <dt>Salida</dt>
+                    <dt>Output</dt>
                     <dd className="pipeline__out">{stage.output}</dd>
                   </div>
                 </dl>
@@ -339,15 +339,15 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                04 · Rigor metodológico y umbrales
+                04 · Methodological rigor and thresholds
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Parámetros verificados a escala nacional (Perú).
+                Parameters verified at national scale (Peru).
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Reglas explícitas definidas en la documentación técnica y validadas mediante contratos
-              de datos automatizados.
+              Explicit rules defined in the technical documentation and validated through automated
+              data contracts.
             </p>
           </div>
 
@@ -369,15 +369,15 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                05 · Convenciones internacionales y nomenclatura
+                05 · International conventions and nomenclature
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Por qué cada etiqueta significa exactamente eso.
+                Why each label means exactly what it means.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Terminología alineada con UNDRR, FAO, Copernicus EFFIS y NASA FIRMS para distinguir
-              susceptibilidad contextual, vacíos observacionales e incertidumbre.
+              Terminology aligned with UNDRR, FAO, Copernicus EFFIS and NASA FIRMS to distinguish
+              contextual susceptibility, observational gaps and uncertainty.
             </p>
           </div>
 
@@ -394,7 +394,7 @@ export function TechStack({ onOpenMap, onOpenLanding, onOpenConventions }: Props
           {onOpenConventions && (
             <div style={{ marginTop: 22 }} data-reveal>
               <button type="button" className="btn" onClick={onOpenConventions}>
-                Explorar marco normativo completo →
+                Explore the full regulatory framework →
               </button>
             </div>
           )}
@@ -438,8 +438,8 @@ function TechCard({ item }: { item: TechItem }) {
           href={item.href}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Documentación oficial de ${item.name}`}
-          aria-label={`Documentación oficial de ${item.name}`}
+          title={`Official documentation for ${item.name}`}
+          aria-label={`Official documentation for ${item.name}`}
         >
           ↗
         </a>
@@ -448,7 +448,7 @@ function TechCard({ item }: { item: TechItem }) {
       <p className="tech-card__summary">{item.summary}</p>
 
       <div className="tech-card__uses">
-        <span className="tech-card__uses-label">Usos en McHanaq</span>
+        <span className="tech-card__uses-label">Uses in McHanaq</span>
         <ul>
           {item.uses.map((use) => (
             <li key={use}>{use}</li>

@@ -90,12 +90,12 @@ export function Lightbox({ src, title, downloadName, onClose }: Props) {
         }}
       >
         <b style={{ flex: 1, minWidth: 120, fontSize: 13 }}>{title}</b>
-        <button type="button" style={btn} onClick={() => zoomBy(0.8)} aria-label="Alejar">−</button>
+        <button type="button" style={btn} onClick={() => zoomBy(0.8)} aria-label="Zoom out">−</button>
         <span style={{ fontSize: 12, minWidth: 44, textAlign: "center" }}>{Math.round(zoom * 100)} %</span>
-        <button type="button" style={btn} onClick={() => zoomBy(1.25)} aria-label="Acercar">+</button>
-        <button type="button" style={btn} onClick={reset}>Restablecer</button>
-        <a style={btn} href={src} download={downloadName}>Descargar</a>
-        <button type="button" style={btn} onClick={onClose}>Cerrar ✕</button>
+        <button type="button" style={btn} onClick={() => zoomBy(1.25)} aria-label="Zoom in">+</button>
+        <button type="button" style={btn} onClick={reset}>Reset</button>
+        <a style={btn} href={src} download={downloadName}>Download</a>
+        <button type="button" style={btn} onClick={onClose}>Close ✕</button>
       </div>
       <div
         style={{

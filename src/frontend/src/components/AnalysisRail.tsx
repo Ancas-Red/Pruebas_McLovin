@@ -23,10 +23,10 @@ import {
 import type { MonthCell } from "../lib/calendar";
 
 export const ANALYSIS_ITEMS: DockItem[] = [
-  { id: "indicadores", label: "Indicadores del período", icon: "gauge" },
-  { id: "multisensor", label: "Comparación multisensor", icon: "compare" },
-  { id: "arbol", label: "Árbol de susceptibilidad", icon: "tree" },
-  { id: "convenciones", label: "Convenciones y lectura", icon: "book" },
+  { id: "indicadores", label: "Period indicators", icon: "gauge" },
+  { id: "multisensor", label: "Multi-sensor comparison", icon: "compare" },
+  { id: "arbol", label: "Susceptibility tree", icon: "tree" },
+  { id: "convenciones", label: "Conventions and reading", icon: "book" },
 ];
 
 const STATUS_CHIP: Record<ComparisonStatus, string> = {
@@ -47,34 +47,34 @@ const SUSC_CHIP: Record<Classification, string> = {
 
 /** Lectura en castellano de cada nodo del árbol de decisión. */
 const NODE_TEXT: Record<string, string> = {
-  "N0:pass": "Compuerta de calidad superada",
-  "N0:fail": "Sin datos suficientes para clasificar",
-  "N1:yes": "Vegetación combustible sobre el umbral",
-  "N1:no": "Poca vegetación combustible",
-  "N2:yes": "Señal de sequedad presente",
-  "N2:no": "Sin señal de sequedad",
-  "N3a:yes": "Viento por encima de su percentil estacional",
-  "N3a:no": "Viento sin elevación estacional",
-  "N3b:yes": "Pendiente sobre el umbral",
-  "N3b:no": "Pendiente por debajo del umbral",
+  "N0:pass": "Quality gate passed",
+  "N0:fail": "Not enough data to classify",
+  "N1:yes": "Combustible vegetation above the threshold",
+  "N1:no": "Little combustible vegetation",
+  "N2:yes": "Dryness signal present",
+  "N2:no": "No dryness signal",
+  "N3a:yes": "Wind above its seasonal percentile",
+  "N3a:no": "Wind not seasonally elevated",
+  "N3b:yes": "Slope above the threshold",
+  "N3b:no": "Slope below the threshold",
   "buffer_150m:attenuate":
-    "Atenuación por buffer de agua superficial (150 m): reduce susceptibilidad máxima",
+    "Surface-water buffer attenuation (150 m): reduces maximum susceptibility",
 };
 
 /** Nombre legible de cada variable del árbol. */
 const VAR_TEXT: Record<string, string> = {
-  vegetation_area_pct: "Vegetación combustible",
-  effective_vegetation_area_pct: "Vegetación efectiva (fuera de buffer 150 m)",
-  precip_30d_mm: "Precipitación 30 d",
-  wind_speed_10m_ms: "Viento a 10 m",
-  temperature_2m_c: "Temp. del aire",
-  relative_humidity_2m_pct: "Humedad relativa (2 m)",
-  slope_class_area_pct: "Pendiente sobre umbral",
-  slope_pct: "Pendiente",
-  soil_moisture_surface: "Humedad del suelo",
-  water_area_pct: "Agua y humedales",
-  water_buffer_150m_pct: "Buffer de agua superficial (150 m)",
-  ndvi_median: "NDVI mediano",
+  vegetation_area_pct: "Combustible vegetation",
+  effective_vegetation_area_pct: "Effective vegetation (outside 150 m buffer)",
+  precip_30d_mm: "Precipitation 30 d",
+  wind_speed_10m_ms: "Wind at 10 m",
+  temperature_2m_c: "Air temp.",
+  relative_humidity_2m_pct: "Relative humidity (2 m)",
+  slope_class_area_pct: "Slope above threshold",
+  slope_pct: "Slope",
+  soil_moisture_surface: "Soil moisture",
+  water_area_pct: "Water and wetlands",
+  water_buffer_150m_pct: "Surface-water buffer (150 m)",
+  ndvi_median: "Median NDVI",
 };
 
 interface Props {
@@ -111,35 +111,35 @@ export function AnalysisRail(p: Props) {
       const unobserved = p.dayRow ? isUnobserved(p.dayRow) : false;
 
       return (
-        <Drawer title="Indicadores" note={p.periodLabel} onClose={p.onClose}>
+        <Drawer title="Indicators" note={p.periodLabel} onClose={p.onClose}>
           {quality && (
             <span className={`chip${quality.status === "usable" ? " chip--term" : " chip--warn"}`}>
-              Calidad: {QUALITY_LABELS[quality.status]}
+              Quality: {QUALITY_LABELS[quality.status]}
             </span>
           )}
 
           {!p.summary && !p.dayRow && (
             <div className="note note--warn" style={{ marginTop: quality ? 10 : 0 }}>
-              <b>Datos no disponibles.</b> La data de este territorio o fecha no es válida o no está
-              disponible en este momento.
+              <b>Data not available.</b> The data for this territory or date is not valid or is not
+              available at this time.
             </div>
           )}
 
           {quality?.status === "insufficient" && (
             <div className="note note--warn" style={{ marginTop: 10 }}>
-              <b>Calidad insuficiente.</b> La data actual no alcanza los requisitos mínimos de
-              cobertura o línea base para validar estos indicadores.
+              <b>Insufficient quality.</b> The current data does not meet the minimum coverage or
+              baseline requirements to validate these indicators.
             </div>
           )}
 
           <div className="metric-grid" style={{ marginTop: quality || (!p.summary && !p.dayRow) ? 11 : 0 }}>
             <div className="metric">
-              <div className="metric__label">Tasa de actividad</div>
+              <div className="metric__label">Activity rate</div>
               <div className="metric__value">
                 {rate != null ? (
                   <>
                     {(rate * 1000).toFixed(2)}
-                    <span className="metric__unit">‰ píxel-día</span>
+                    <span className="metric__unit">‰ pixel-day</span>
                   </>
                 ) : (
                   <span style={{ fontSize: 15, color: "var(--fg-faint)" }}>{NOT_ESTIMABLE}</span>
@@ -147,7 +147,7 @@ export function AnalysisRail(p: Props) {
               </div>
             </div>
             <div className="metric">
-              <div className="metric__label">Cobertura</div>
+              <div className="metric__label">Coverage</div>
               <div className="metric__value">
                 {cov != null ? (
                   <>
@@ -160,16 +160,16 @@ export function AnalysisRail(p: Props) {
               </div>
             </div>
             <div className="metric">
-              <div className="metric__label">Días activos</div>
+              <div className="metric__label">Active days</div>
               <div className="metric__value">{activeDays ?? "—"}</div>
             </div>
             <div className="metric">
-              <div className="metric__label">Racha máxima</div>
+              <div className="metric__label">Longest streak</div>
               <div className="metric__value">
                 {streak != null ? (
                   <>
                     {streak}
-                    <span className="metric__unit">días</span>
+                    <span className="metric__unit">days</span>
                   </>
                 ) : (
                   "—"
@@ -179,58 +179,58 @@ export function AnalysisRail(p: Props) {
           </div>
 
           <div className="legend__title" style={{ marginTop: 15 }}>
-            Contexto del día · {p.dateIso}
+            Day context · {p.dateIso}
           </div>
 
           {unobserved && (
             <div className="note note--warn" style={{ marginBottom: 10 }}>
-              <b>{NO_OBSERVATION}.</b> Ese día no hubo píxeles de tierra válidos. No significa que
-              no hubiera fuego: significa que el satélite no alcanzó a ver.
+              <b>{NO_OBSERVATION}.</b> On that day there were no valid land pixels. It does not mean
+              there was no fire: it means the satellite could not see.
             </div>
           )}
 
           <dl className="kv">
-            <dt>Detecciones 8–9</dt>
+            <dt>Detections 8–9</dt>
             <dd data-null={p.dayRow?.fire_pixels_nominal_high == null}>
               {p.dayRow?.fire_pixels_nominal_high != null
                 ? p.dayRow.fire_pixels_nominal_high.toLocaleString("es-PE")
                 : NO_DATA}
             </dd>
-            <dt>Confianza baja (7)</dt>
+            <dt>Low confidence (7)</dt>
             <dd data-null={p.dayRow?.fire_pixels_low == null}>
               {p.dayRow?.fire_pixels_low != null
                 ? p.dayRow.fire_pixels_low.toLocaleString("es-PE")
                 : NO_DATA}
             </dd>
-            <dt>Temp. del aire</dt>
+            <dt>Air temp.</dt>
             <dd data-null={p.dayRow?.t_amb_c == null}>
               {p.dayRow?.t_amb_c != null ? `${p.dayRow.t_amb_c} °C` : NO_DATA}
             </dd>
-            <dt>Temp. de la superficie</dt>
+            <dt>Surface temp.</dt>
             <dd data-null={p.dayRow?.t_suelo_c == null}>
               {p.dayRow?.t_suelo_c != null
                 ? `${p.dayRow.t_suelo_c} °C`
                 : p.dayRow
-                  ? "Nublado (>30 %)"
+                  ? "Cloudy (>30 %)"
                   : NO_DATA}
             </dd>
-            <dt>Viento</dt>
+            <dt>Wind</dt>
             <dd data-null={p.dayRow?.wind_dir_deg == null}>
               {p.dayRow?.wind_dir_deg != null
-                ? `${p.dayRow.wind_speed_10m_ms ?? "—"} m/s · ${Math.round(p.dayRow.wind_dir_deg)}° (desde)`
+                ? `${p.dayRow.wind_speed_10m_ms ?? "—"} m/s · ${Math.round(p.dayRow.wind_dir_deg)}° (from)`
                 : NO_DATA}
             </dd>
-            <dt>Elevación</dt>
+            <dt>Elevation</dt>
             <dd data-null={p.dayRow?.elevation_m == null}>
-              {p.dayRow?.elevation_m != null ? `${p.dayRow.elevation_m} m s.n.m.` : NO_DATA}
+              {p.dayRow?.elevation_m != null ? `${p.dayRow.elevation_m} m a.s.l.` : NO_DATA}
             </dd>
-            <dt>Modelo DEM</dt>
+            <dt>DEM model</dt>
             <dd data-null={!p.dayRow?.dem_source}>{p.dayRow?.dem_source ?? NO_DATA}</dd>
           </dl>
 
-          <div className="legend__title" style={{ marginTop: 15 }}>Anomalía mensual</div>
+          <div className="legend__title" style={{ marginTop: 15 }}>Monthly anomaly</div>
           <dl className="kv">
-            <dt>Anomalía robusta</dt>
+            <dt>Robust anomaly</dt>
             <dd data-null={anom?.value == null}>
               {anom?.value != null
                 ? `z = ${anom.value.toFixed(2)}`
@@ -238,30 +238,30 @@ export function AnalysisRail(p: Props) {
                   ? ANOMALY_LABELS[anom.status]
                   : NOT_ESTIMABLE}
             </dd>
-            <dt>Años de línea base</dt>
+            <dt>Baseline years</dt>
             <dd data-null={!anom?.baseline_years}>
               {anom?.baseline_years
-                ? `${anom.baseline_years} (mín. ${minBaseline})`
-                : "Historial insuficiente"}
+                ? `${anom.baseline_years} (min. ${minBaseline})`
+                : "Insufficient history"}
             </dd>
           </dl>
 
           {p.summary?.provenance && (
             <>
-              <div className="legend__title" style={{ marginTop: 15 }}>Procedencia</div>
+              <div className="legend__title" style={{ marginTop: 15 }}>Provenance</div>
               <dl className="kv">
-                <dt>Productos</dt>
+                <dt>Products</dt>
                 <dd>{p.summary.provenance.source_products.join(" · ") || NO_DATA}</dd>
-                <dt>Versión</dt>
+                <dt>Version</dt>
                 <dd>{p.summary.provenance.processing_version ?? NO_DATA}</dd>
               </dl>
             </>
           )}
 
           <p className="mono-sm" style={{ marginTop: 12 }}>
-            La tasa normaliza las detecciones por observación válida. No es probabilidad de incendio
-            ni superficie quemada. Un <code>0</code> significa «se observó y no hubo detecciones»;
-            «{NO_DATA}» significa que no se sabe.
+            The rate normalizes detections per valid observation. It is not fire probability
+            or burned area. A <code>0</code> means “observed and no detections”;
+            “{NO_DATA}” means it is not known.
           </p>
         </Drawer>
       );
@@ -270,10 +270,10 @@ export function AnalysisRail(p: Props) {
     case "multisensor": {
       if (!p.comparison) {
         return (
-          <Drawer title="Comparación multisensor" note={p.periodLabel} onClose={p.onClose}>
+          <Drawer title="Multi-sensor comparison" note={p.periodLabel} onClose={p.onClose}>
             <div className="note note--warn">
-              La data de comparación multisensor no es válida en este momento o no está disponible
-              para esta fecha.
+              The multi-sensor comparison data is not valid at this time or is not available
+              for this date.
             </div>
           </Drawer>
         );
@@ -282,14 +282,14 @@ export function AnalysisRail(p: Props) {
       const minCov = p.metadata?.parameters?.min_observation_coverage_for_comparison ?? 0.5;
 
       return (
-        <Drawer title="Comparación multisensor" note={p.periodLabel} onClose={p.onClose}>
+        <Drawer title="Multi-sensor comparison" note={p.periodLabel} onClose={p.onClose}>
           <span className={STATUS_CHIP[p.comparison.status]}>
             {COMPARISON_LABELS[p.comparison.status]}
           </span>
 
           <table className="cmp" style={{ marginTop: 12 }}>
             <thead>
-              <tr><th>Sensor</th><th>Tasa ‰</th><th>z</th><th>Cob.</th></tr>
+              <tr><th>Sensor</th><th>Tasa ‰</th><th>z</th><th>Cov.</th></tr>
             </thead>
             <tbody>
               {SENSORS.map((s) => {
@@ -325,9 +325,9 @@ export function AnalysisRail(p: Props) {
             return d?.available && d.signal_status === null;
           }) && (
             <p className="mono-sm" style={{ marginTop: 10 }}>
-              Un sensor disponible pero sin señal declarada no llegó a la cobertura mínima
-              ({Math.round(minCov * 100)} %): no se puede afirmar nada de él, ni a favor ni en
-              contra.
+              An available sensor with no declared signal did not reach the minimum coverage
+              ({Math.round(minCov * 100)} %): nothing can be claimed about it, either for or
+              against.
             </p>
           )}
 
@@ -336,8 +336,8 @@ export function AnalysisRail(p: Props) {
           )}
 
           <p className="mono-sm" style={{ marginTop: 10 }}>
-            Cada sensor se clasifica contra su propio umbral estacional antes de compararlos. Nunca
-            se suman conteos entre sensores: cambian la hora de sobrevuelo y el instrumento.
+            Each sensor is classified against its own seasonal threshold before being compared. Counts
+            are never added across sensors: the overpass time and the instrument change.
           </p>
         </Drawer>
       );
@@ -348,26 +348,26 @@ export function AnalysisRail(p: Props) {
 
       if (!cond) {
         return (
-          <Drawer title="Árbol de susceptibilidad" note={p.areaLabel} onClose={p.onClose}>
+          <Drawer title="Susceptibility tree" note={p.areaLabel} onClose={p.onClose}>
             <div className="note note--warn">
-              La evaluación contextual no es válida en este momento o no está disponible para esta
-              fecha.
+              The contextual assessment is not valid at this time or is not available for this
+              date.
             </div>
           </Drawer>
         );
       }
 
       return (
-        <Drawer title="Árbol de susceptibilidad" note={p.areaLabel} onClose={p.onClose}>
+        <Drawer title="Susceptibility tree" note={p.areaLabel} onClose={p.onClose}>
           <span className={SUSC_CHIP[cond.classification]}>
             {CLASSIFICATION_LABELS[cond.classification]}
           </span>
 
           {cond.classification === "high" && (
             <div className="note note--ember" role="alert" style={{ marginTop: 12 }}>
-              <b>Aviso de revisión prioritaria.</b> Esta zona poligonal (<code>{p.areaLabel}</code>)
-              registra condiciones ambientales muy favorables en el árbol de decisión. Verifica la
-              evidencia del período y compara los sensores antes de concluir.
+              <b>Priority review notice.</b> This polygonal zone (<code>{p.areaLabel}</code>)
+              shows very favorable environmental conditions in the decision tree. Check the
+              evidence for the period and compare the sensors before concluding.
             </div>
           )}
 
@@ -382,7 +382,7 @@ export function AnalysisRail(p: Props) {
 
           {cond.modifiers.length > 0 && (
             <>
-              <div className="legend__title" style={{ marginTop: 13 }}>Modificadores informativos</div>
+              <div className="legend__title" style={{ marginTop: 13 }}>Informational modifiers</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {cond.modifiers.map((m) => (
                   <span className="chip" key={m}>{m}</span>
@@ -393,18 +393,18 @@ export function AnalysisRail(p: Props) {
 
           {cond.missing_variables.length > 0 && (
             <div className="note note--warn" style={{ marginTop: 12 }}>
-              <b>Faltan variables:</b> {cond.missing_variables.join(", ")}. Por eso la evaluación
-              queda parcial en vez de dar un resultado completo.
+              <b>Missing variables:</b> {cond.missing_variables.join(", ")}. That is why the assessment
+              stays partial instead of giving a complete result.
             </div>
           )}
 
           {cond.factors.length > 0 && (
             <>
-              <div className="legend__title" style={{ marginTop: 14 }}>Evidencia del período</div>
+              <div className="legend__title" style={{ marginTop: 14 }}>Evidence for the period</div>
               <dl className="kv">
                 {cond.factors.map((f) => (
                   <div key={f.variable} style={{ display: "contents" }}>
-                    <dt title={f.source_product ? `Fuente: ${f.source_product}` : undefined}>
+                    <dt title={f.source_product ? `Source: ${f.source_product}` : undefined}>
                       {VAR_TEXT[f.variable] ?? f.variable}
                     </dt>
                     <dd data-null={f.value == null}>
@@ -414,17 +414,17 @@ export function AnalysisRail(p: Props) {
                 ))}
               </dl>
               <p className="mono-sm">
-                Cada variable se compara contra su propio percentil estacional, no contra un valor
-                fijo: lo seco en la selva no es lo seco en la costa.
+                Each variable is compared against its own seasonal percentile, not against a fixed
+                value: what is dry in the jungle is not what is dry on the coast.
               </p>
             </>
           )}
 
           <div className="note note--warn" style={{ marginTop: 13 }}>
-            <b>Lectura cualitativa.</b> Describe qué tan favorables son las condiciones observadas
-            a que un fuego se extienda, si llegara a ocurrir. No estima probabilidad de ignición,
-            no predice dónde ni cuándo empezará un incendio, y no está validada contra incendios
-            reales.
+            <b>Qualitative reading.</b> Describes how favorable the observed conditions are
+            for a fire to spread, should one occur. It does not estimate ignition probability,
+            does not predict where or when a fire will start, and is not validated against real
+            fires.
           </div>
         </Drawer>
       );
@@ -432,46 +432,46 @@ export function AnalysisRail(p: Props) {
 
     case "convenciones": {
       return (
-        <Drawer title="Convenciones" note="UNDRR · FIRMS" onClose={p.onClose}>
-          <div className="legend__title">Susceptibilidad contextual (UNDRR / FAO / EFFIS)</div>
+        <Drawer title="Conventions" note="UNDRR · FIRMS" onClose={p.onClose}>
+          <div className="legend__title">Contextual susceptibility (UNDRR / FAO / EFFIS)</div>
           <div className="note">
-            Se usan <b>Susceptibilidad alta</b>, <b>moderada</b> y <b>baja</b> siguiendo la
-            jerarquía de UNDRR/FAO y EFFIS: <i>Susceptibilidad</i> mide predisposición del entorno
-            (vegetación combustible, sequedad &lt; p25, viento &gt; p75 y pendiente), a diferencia
-            de <i>Peligro</i> (intensidad del frente) o <i>Riesgo</i> (Peligro × Exposición ×
-            Vulnerabilidad). No predice ignición.
+            <b>High</b>, <b>moderate</b> and <b>low susceptibility</b> are used following the
+            UNDRR/FAO and EFFIS hierarchy: <i>Susceptibility</i> measures how predisposed the environment is
+            (combustible vegetation, dryness &lt; p25, wind &gt; p75 and slope), unlike
+            <i>Hazard</i> (front intensity) or <i>Risk</i> (Hazard × Exposure ×
+            Vulnerability). It does not predict ignition.
           </div>
 
           <div className="legend__title" style={{ marginTop: 14 }}>
-            Evaluación parcial vs. No evaluable (Compuerta N0)
+            Partial assessment vs. Not assessable (Gate N0)
           </div>
           <dl className="kv kv--conv">
             <dt>
-              <span className="chip">Evaluación parcial</span>
+              <span className="chip">Partial assessment</span>
             </dt>
-            <dd>Falta ≥ 1 bloque o &lt; 5 años de línea base, pero hay evidencia parcial</dd>
+            <dd>Missing ≥ 1 block or &lt; 5 baseline years, but there is partial evidence</dd>
             <dt>
-              <span className="chip">No evaluable</span>
+              <span className="chip">Not assessable</span>
             </dt>
-            <dd>Compuerta N0 cerrada sin evidencia utilizable</dd>
+            <dd>Gate N0 closed with no usable evidence</dd>
           </dl>
           <p className="mono-sm">
-            McHanaq no rellena variables faltantes para forzar un nivel alto/bajo. En modo «Datos de
-            muestra», también se simula una fracción menor de períodos con cobertura parcial.
+            McHanaq does not fill in missing variables to force a high/low level. In “Sample
+            data” mode, a smaller fraction of periods with partial coverage is also simulated.
           </p>
 
           <div className="legend__title" style={{ marginTop: 14 }}>
-            Valores térmicos y calidad (NASA FIRMS / OMM)
+            Thermal values and quality (NASA FIRMS / WMO)
           </div>
           <dl className="kv kv--conv">
             <dt>0</dt>
-            <dd>Observado (cobertura ≥ 70 %) y 0 detecciones clase 8–9</dd>
-            <dt>Sin observación</dt>
-            <dd>0 píxeles de tierra válidos o nubosidad ≥ 30 % (null ≠ 0)</dd>
-            <dt>No estimable</dt>
-            <dd>Menos de {minBaseline} años válidos para calcular anomalía z σ</dd>
-            <dt>Cero suma cruzada</dt>
-            <dd>Terra, Aqua y VIIRS no se suman entre sí (distinta órbita)</dd>
+            <dd>Observed (coverage ≥ 70 %) and 0 class 8–9 detections</dd>
+            <dt>No observation</dt>
+            <dd>0 valid land pixels or cloudiness ≥ 30 % (null ≠ 0)</dd>
+            <dt>Not estimable</dt>
+            <dd>Fewer than {minBaseline} valid years to compute the z σ anomaly</dd>
+            <dt>No cross sums</dt>
+            <dd>Terra, Aqua and VIIRS are not added together (different orbit)</dd>
           </dl>
 
           {p.onOpenConventions && (
@@ -481,7 +481,7 @@ export function AnalysisRail(p: Props) {
               style={{ marginTop: 14 }}
               onClick={p.onOpenConventions}
             >
-              Ver marco normativo y estándares →
+              See regulatory framework and standards →
             </button>
           )}
         </Drawer>

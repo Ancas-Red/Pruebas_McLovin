@@ -55,7 +55,7 @@ export function OrbitalLoader({
         .join(" ")}
       role="status"
       aria-live="polite"
-      aria-label={label ?? "Cargando"}
+      aria-label={label ?? "Loading"}
     >
       <div className="orbital-curtain__stage">
         <div className="orbital-curtain__halo" aria-hidden="true" />

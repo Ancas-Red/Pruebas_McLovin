@@ -16,10 +16,10 @@ import type { MonthCell } from "../lib/calendar";
 import { cividisCss } from "../lib/palette";
 import { CalendarTerrain3D } from "./CalendarTerrain3D";
 
-const M_SHORT = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+const M_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const M_FULL = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 interface Props {
@@ -131,8 +131,8 @@ export function CalendarStrip(p: Props) {
         className="calstrip__resizer"
         role="separator"
         aria-orientation="horizontal"
-        aria-label="Arrastra para ajustar la altura del calendario"
-        title="Mantén clic y arrastra hacia arriba o abajo para ajustar la altura (doble clic para restaurar)"
+        aria-label="Drag to adjust the calendar height"
+        title="Hold click and drag up or down to adjust the height (double-click to restore)"
         onPointerDown={(e) => {
           e.preventDefault();
           dragRef.current = { active: true, startY: e.clientY, startH: panelHeight };
@@ -144,28 +144,28 @@ export function CalendarStrip(p: Props) {
       </div>
       <header className="panel__head">
         <span className="panel__idx">06</span>
-        <h2 className="panel__title">Calendario de actividad térmica</h2>
+        <h2 className="panel__title">Thermal activity calendar</h2>
         <div className="calstrip__controls">
-          <div className="calstrip__mode" role="group" aria-label="Modo de visualización del calendario">
+          <div className="calstrip__mode" role="group" aria-label="Calendar display mode">
             <button
               type="button"
               className="tab"
               aria-selected={viewMode === "2d"}
               onClick={() => setViewMode("2d")}
-              title="Mapa de calor plano por mes y año"
+              title="Flat heat map by month and year"
               style={{ padding: "4px 9px", fontSize: 10 }}
             >
-              2D Calor
+              2D Heat
             </button>
             <button
               type="button"
               className="tab"
               aria-selected={viewMode === "3d"}
               onClick={() => setViewMode("3d")}
-              title="Superficie 3D interactiva de valles y crestas"
+              title="Interactive 3D surface of valleys and ridges"
               style={{ padding: "4px 9px", fontSize: 10 }}
             >
-              3D Relieve
+              3D Relief
             </button>
           </div>
           <div style={{ display: "flex", gap: 2 }}>
@@ -175,7 +175,7 @@ export function CalendarStrip(p: Props) {
                 className="tab"
                 aria-selected={p.sensor === s}
                 onClick={() => p.onSensor(s)}
-                title={`${SENSOR_META[s].product} · desde ${SENSOR_META[s].since}`}
+                title={`${SENSOR_META[s].product} · since ${SENSOR_META[s].since}`}
                 style={{ padding: "4px 9px", fontSize: 10 }}
               >
                 {SENSOR_META[s].short}
@@ -187,10 +187,10 @@ export function CalendarStrip(p: Props) {
           type="button"
           className="calstrip__hide"
           onClick={p.onHide}
-          aria-label="Minimizar el calendario"
-          title="Minimizar el calendario (puedes volver a abrirlo desde la barra inferior)"
+          aria-label="Minimize the calendar"
+          title="Minimize the calendar (you can reopen it from the bottom bar)"
         >
-          ▼ Minimizar
+          ▼ Minimize
         </button>
       </header>
 
@@ -200,9 +200,9 @@ export function CalendarStrip(p: Props) {
           style={{ display: "grid", placeItems: "center", minHeight: 160 }}
         >
           <p className="mono-sm" style={{ textAlign: "center", maxWidth: 520, lineHeight: 1.6 }}>
-            Selecciona una provincia o cuenca en el mapa (o desde el panel
-            «Territorio» a la izquierda) para ver su calendario de actividad
-            térmica.
+            Select a province or basin on the map (or from the “Territory”
+            panel on the left) to see its thermal activity
+            calendar.
           </p>
         </div>
       ) : (
@@ -248,7 +248,7 @@ export function CalendarStrip(p: Props) {
 
         <div className="calstrip__side">
           <div className="calstrip__legend">
-            <div className="legend__title">Detecciones (clases 8–9)</div>
+            <div className="legend__title">Detections (classes 8–9)</div>
             <div className="legend__ramp">
               {Array.from({ length: 24 }, (_, i) => (
                 <i key={i} style={{ background: cividisCss(i / 23) }} />
@@ -261,23 +261,23 @@ export function CalendarStrip(p: Props) {
             </div>
             <div
               className="calstrip__flag-legend"
-              title="Triángulo superior derecho en celda: mes con anomalía histórica robusta z ≥ 2 respecto a su línea base"
+              title="Upper-right triangle in a cell: month with a robust historical anomaly z ≥ 2 relative to its baseline"
             >
               <span className="calstrip__flag-sample" aria-hidden="true" />
-              <span>Esquina: anomalía fuerte (z ≥ 2)</span>
+              <span>Corner: strong anomaly (z ≥ 2)</span>
             </div>
           </div>
 
           <div className="calstrip__chart">
             <div className="legend__title">
-              Serie diaria · {M_FULL[month - 1]} {year} · {p.areaLabel}
+              Daily series · {M_FULL[month - 1]} {year} · {p.areaLabel}
               <span style={{ color: "var(--acid)", marginLeft: 8 }}>
-                día {p.selectedDate.slice(8)}
+                day {p.selectedDate.slice(8)}
               </span>
             </div>
             {p.daily.length === 0 ? (
               <div className="calstrip__chart-empty">
-                La data diaria no es válida en este momento o no está disponible para este período.
+                The daily data is not valid at this time or is not available for this period.
               </div>
             ) : (
               <>
@@ -296,9 +296,9 @@ export function CalendarStrip(p: Props) {
                       cursor={{ fill: "rgba(216,255,51,0.08)" }}
                       labelFormatter={(d: string) => {
                         const row = p.daily.find((r) => r.date === d);
-                        if (!row) return `Día ${d}`;
+                        if (!row) return `Day ${d}`;
                         if (isUnobserved(row) || row.fire_pixels_nominal_high == null) {
-                          return `Día ${d} · ${NO_OBSERVATION}`;
+                          return `Day ${d} · ${NO_OBSERVATION}`;
                         }
                         if (row.data_origin === "firms_live_historical") {
                           return `Día ${d} · consulta en vivo a NASA FIRMS (sin cobertura/tasa validada)`;
@@ -308,15 +308,15 @@ export function CalendarStrip(p: Props) {
                             row.observation_coverage != null
                               ? `${Math.round(row.observation_coverage * 100)}%`
                               : "—";
-                          return `Día ${d} · Cobertura ${pct} (< 70 %, no útil)`;
+                          return `Day ${d} · Coverage ${pct} (< 70 %, not usable)`;
                         }
-                        return `Día ${d}`;
+                        return `Day ${d}`;
                       }}
                       formatter={(v) => [
                         typeof v === "number" && Number.isFinite(v)
                           ? v.toLocaleString("es-PE")
                           : NO_OBSERVATION,
-                        "Detecciones",
+                        "Detections",
                       ]}
                       labelStyle={{ color: "var(--fg-dim)" }}
                     />
@@ -342,7 +342,7 @@ export function CalendarStrip(p: Props) {
                 </ResponsiveContainer>
                 {usefulDates.size === 0 && (
                   <p className="mono-sm" style={{ color: "#ffd480", marginTop: 4 }}>
-                    Sin días válidos (cobertura ≥ 70 %) para {SENSOR_META[p.sensor].label} en este mes.
+                    No valid days (coverage ≥ 70 %) for {SENSOR_META[p.sensor].label} this month.
                   </p>
                 )}
               </>
@@ -351,31 +351,31 @@ export function CalendarStrip(p: Props) {
 
           {!selected && (
             <p className="mono-sm" style={{ color: "#ffd480", margin: "0 0 2px" }}>
-              Resumen mensual no válido o no disponible para este período.
+              Monthly summary not valid or not available for this period.
             </p>
           )}
           <dl className="kv calstrip__kv">
-            <dt>Detecciones del mes</dt>
+            <dt>Detections of the month</dt>
             <dd>{selected ? selected.detections.toLocaleString("es-PE") : "—"}</dd>
-            <dt>Días activos</dt>
+            <dt>Active days</dt>
             <dd>{selected ? selected.active_days : "—"}</dd>
-            <dt>Racha máxima</dt>
+            <dt>Longest streak</dt>
             <dd>{selected ? `${selected.max_consecutive_active_days} d` : "—"}</dd>
-            <dt>Cobertura observada</dt>
+            <dt>Observed coverage</dt>
             <dd data-null={selected?.observation_coverage == null}>
               {selected?.observation_coverage != null
                 ? `${Math.round(selected.observation_coverage * 100)} %`
-                : "Sin datos"}
+                : "No data"}
             </dd>
-            <dt>Anomalía robusta</dt>
+            <dt>Robust anomaly</dt>
             <dd data-null={selected?.historical_anomaly == null}>
               {selected?.historical_anomaly != null
                 ? `z = ${selected.historical_anomaly.toFixed(2)}`
-                : "No estimable"}
+                : "Not estimable"}
             </dd>
-            <dt>Años de línea base</dt>
+            <dt>Baseline years</dt>
             <dd data-null={!selected?.baseline_years}>
-              {selected?.baseline_years ? selected.baseline_years : "Historial insuficiente"}
+              {selected?.baseline_years ? selected.baseline_years : "Insufficient history"}
             </dd>
           </dl>
         </div>
@@ -424,13 +424,13 @@ function MonthRow({
             onClick={() => onPick(year, m)}
             title={
               `${M_FULL[monthIndex]} ${year}\n` +
-              `${cell.detections.toLocaleString("es-PE")} detecciones\n` +
+              `${cell.detections.toLocaleString("es-PE")} detections\n` +
               (cell.observation_coverage != null
-                ? `cobertura ${Math.round(cell.observation_coverage * 100)}%\n`
-                : "cobertura sin datos\n") +
-              (anomaly != null ? `anomalía z = ${anomaly.toFixed(2)}` : "anomalía no estimable")
+                ? `coverage ${Math.round(cell.observation_coverage * 100)}%\n`
+                : "coverage: no data\n") +
+              (anomaly != null ? `anomaly z = ${anomaly.toFixed(2)}` : "anomaly not estimable")
             }
-            aria-label={`${M_FULL[monthIndex]} de ${year}, ${cell.detections} detecciones`}
+            aria-label={`${M_FULL[monthIndex]} ${year}, ${cell.detections} detections`}
           >
             {anomaly != null && anomaly >= 2 && <i className="cal__flag" aria-hidden="true" />}
           </button>

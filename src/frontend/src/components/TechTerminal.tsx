@@ -24,13 +24,13 @@ const SESSIONS: TermSession[] = [
     lines: [
       { kind: "cmd", text: "$ python -m src.analytics.run_pipeline --processed data/processed" },
       { kind: "spacer", text: "" },
-      { kind: "accent", text: "> [[ MCHANAQ PIPELINE · PERÚ ]]" },
+      { kind: "accent", text: "> [[ MCHANAQ PIPELINE · PERU ]]" },
       { kind: "kv", text: "> window........: 2012-01-19 -> 2026-11-02 (14.8 yr)" },
       { kind: "kv", text: "> sensors.......: MODIS_TERRA | MODIS_AQUA | VIIRS_SNPP" },
       { kind: "kv", text: "> cloud_gate....: observation_coverage >= 0.70" },
       { kind: "kv", text: "> water_buffer..: 150 m (JRC GSW + CobVeg)" },
       { kind: "kv", text: "> artifacts.....: metadata.json, activity_daily.json, territories.geojson" },
-      { kind: "ok", text: "> status........: READY (solo lectura · 0 llamadas a GEE por HTTP)" },
+      { kind: "ok", text: "> status........: READY (read-only · 0 GEE calls per HTTP)" },
     ],
   },
   {
@@ -66,7 +66,7 @@ const SESSIONS: TermSession[] = [
       { kind: "kv", text: '    "MODIS_TERRA": { "observation_coverage": 0.89, "activity_rate": 0.42 },' },
       { kind: "kv", text: '    "VIIRS_SNPP":  { "observation_coverage": 0.94, "activity_rate": 0.68 }' },
       { kind: "code", text: "  }," },
-      { kind: "ok", text: '  "note": "sin suma cruzada entre sensores; null != 0"' },
+      { kind: "ok", text: '  "note": "no cross-sensor sums; null != 0"' },
       { kind: "code", text: "}" },
     ],
   },
@@ -147,13 +147,13 @@ export function TechTerminal() {
     <div
       className="tech-term"
       role="region"
-      aria-label="Terminal interactiva del flujo técnico de McHanaq"
+      aria-label="Interactive terminal of the McHanaq technical flow"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
       <div className="tech-term__bar">
         <span className="tech-term__host">{session.hostPrompt}</span>
-        <div className="tech-term__tabs" role="tablist" aria-label="Lenguajes del flujo">
+        <div className="tech-term__tabs" role="tablist" aria-label="Flow languages">
           {SESSIONS.map((s, idx) => (
             <button
               key={s.id}

@@ -15,18 +15,18 @@ export function PhaseEngines({ onOpenMap }: Props) {
       <article className="phase-card phase-card--p1" data-reveal>
         <div className="phase-card__head">
           <div className="phase-card__tags">
-            <span className="phase-badge phase-badge--core">Fase 1 · Principal</span>
+            <span className="phase-badge phase-badge--core">Phase 1 · Core</span>
             <code className="phase-code">src/analytics/decision_rules.py</code>
           </div>
-          <h3 className="phase-card__title">Árbol de decisión contextual (N0 → N3)</h3>
+          <h3 className="phase-card__title">Contextual decision tree (N0 → N3)</h3>
           <p className="phase-card__lead">
-            Clasifica la susceptibilidad del entorno por territorio y fecha usando compuertas
-            determinísticas 100 % auditables, sin modelos opacos ni ceros inventados.
+            Classifies environmental susceptibility by territory and date using 100 % auditable
+            deterministic gates, with no opaque models and no invented zeros.
           </p>
         </div>
 
         {/* Esquema visual del árbol N0 -> N3 */}
-        <div className="phase-diagram" aria-label="Esquema del árbol de decisión N0 a N3">
+        <div className="phase-diagram" aria-label="Diagram of the N0 to N3 decision tree">
           <svg
             className="phase-diagram__svg"
             viewBox="0 0 460 118"
@@ -50,7 +50,7 @@ export function PhaseEngines({ onOpenMap }: Props) {
               N0
             </text>
             <text x="46" y="56" textAnchor="middle" fill="#b7cabf" fontSize="8.5" fontFamily="monospace">
-              ≥ 5a · QA
+              ≥ 5y · QA
             </text>
             <text x="73" y="96" fill="#8ea396" fontSize="8.5" fontFamily="monospace">
               partial / null
@@ -74,10 +74,10 @@ export function PhaseEngines({ onOpenMap }: Props) {
               N2
             </text>
             <text x="268" y="56" textAnchor="middle" fill="#b7cabf" fontSize="8.5" fontFamily="monospace">
-              &lt; p25 seco
+              &lt; p25 dry
             </text>
             <text x="295" y="96" fill="#d8ff33" fontSize="8.5" fontFamily="monospace">
-              N3b: pend
+              N3b: slope
             </text>
 
             {/* Nodo N3 + buffer 150 m */}
@@ -86,7 +86,7 @@ export function PhaseEngines({ onOpenMap }: Props) {
               N3 · Buf 150m
             </text>
             <text x="395" y="56" textAnchor="middle" fill="#d7e2db" fontSize="8.5" fontFamily="monospace">
-              Viento · T · HR
+              Wind · T · RH
             </text>
             <text x="408" y="96" fill="#ff8e72" fontSize="8.5" fontWeight="700" fontFamily="monospace">
               high / mod
@@ -109,11 +109,11 @@ export function PhaseEngines({ onOpenMap }: Props) {
 
         <div className="phase-card__foot">
           <div className="phase-card__note">
-            <span>Salida por consulta:</span>{" "}
+            <span>Output per query:</span>{" "}
             <code>classification · decision_path · evidence[]</code>
           </div>
           <button type="button" className="btn" onClick={onOpenMap}>
-            Ver susceptibilidad en el mapa →
+            See susceptibility on the map →
           </button>
         </div>
       </article>
@@ -122,19 +122,19 @@ export function PhaseEngines({ onOpenMap }: Props) {
       <article className="phase-card phase-card--p2" data-reveal>
         <div className="phase-card__head">
           <div className="phase-card__tags">
-            <span className="phase-badge phase-badge--opt">Fase 2 · Opcional y desacoplada</span>
+            <span className="phase-badge phase-badge--opt">Phase 2 · Optional and decoupled</span>
             <code className="phase-code">src/analytics/spread_model.py</code>
           </div>
-          <h3 className="phase-card__title">Simulador espacial de propagación (48 h)</h3>
+          <h3 className="phase-card__title">Spatial spread simulator (48 h)</h3>
           <p className="phase-card__lead">
-            Ante una ignición hipotética puntual, proyecta isócronas horarias hasta 48 h integrando
-            combustible SAVI (Sentinel-2), relieve Copernicus DEM y viento y humedad en vivo de
-            Open-Meteo; los focos NRT de NASA FIRMS completan lo posterior al snapshot histórico.
+            For a hypothetical point ignition, projects hourly isochrones up to 48 h integrating
+            SAVI fuel (Sentinel-2), Copernicus DEM terrain and live wind and humidity from
+            Open-Meteo; NASA FIRMS NRT hotspots cover everything after the historical snapshot.
           </p>
         </div>
 
         {/* Esquema visual de elipses / isocronas de propagacion */}
-        <div className="phase-diagram" aria-label="Esquema elíptico de isócronas 6h a 48h">
+        <div className="phase-diagram" aria-label="Elliptical diagram of 6h to 48h isochrones">
           <svg
             className="phase-diagram__svg"
             viewBox="0 0 460 118"
@@ -163,23 +163,23 @@ export function PhaseEngines({ onOpenMap }: Props) {
 
             {/* Leyenda derecha limpia dentro del visor */}
             <text x="260" y="30" fill="#d8ff33" fontSize="9.2" fontWeight="700" fontFamily="monospace">
-              ISÓCRONAS DE AVANCE
+              SPREAD ISOCHRONES
             </text>
             <circle cx="265" cy="48" r="3.4" fill="#ff4a24" />
             <text x="275" y="51" fill="#e8efe9" fontSize="8.8" fontFamily="monospace">
-              6 h · ignición hipotética t₀
+              6 h · hypothetical ignition t₀
             </text>
             <circle cx="265" cy="65" r="3.4" fill="#ffb224" />
             <text x="275" y="68" fill="#b7cabf" fontSize="8.8" fontFamily="monospace">
-              12–24 h · frente elíptico L/B
+              12–24 h · elliptical front L/B
             </text>
             <circle cx="265" cy="82" r="3.4" fill="#39e08a" />
             <text x="275" y="85" fill="#b7cabf" fontSize="8.8" fontFamily="monospace">
-              36 h · ajuste DEM + humedad
+              36 h · DEM + humidity adjustment
             </text>
             <circle cx="265" cy="99" r="3.4" fill="#d8ff33" />
             <text x="275" y="102" fill="#d8ff33" fontSize="8.8" fontFamily="monospace">
-              48 h · horizonte exploratorio
+              48 h · exploratory horizon
             </text>
           </svg>
         </div>
@@ -200,11 +200,11 @@ export function PhaseEngines({ onOpenMap }: Props) {
 
         <div className="phase-card__foot">
           <div className="phase-card__note">
-            <span>Alcance:</span>{" "}
-            <code>Escenario hipotético · no predice ignición real</code>
+            <span>Scope:</span>{" "}
+            <code>Hypothetical scenario · does not predict a real ignition</code>
           </div>
           <button type="button" className="btn btn--primary" onClick={onOpenMap}>
-            Simular propagación 48 h →
+            Simulate 48 h spread →
           </button>
         </div>
       </article>

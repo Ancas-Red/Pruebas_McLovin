@@ -25,7 +25,7 @@ export function DockBar({ items, open, onOpen, side }: Props) {
   return (
     <nav
       className={`dockbar dockbar--${side}`}
-      aria-label="Paneles"
+      aria-label="Panels"
       data-tour={`${side}-dock`}
     >
       {items.map((it) => {

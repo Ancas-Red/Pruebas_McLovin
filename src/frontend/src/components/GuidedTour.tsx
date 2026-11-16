@@ -15,59 +15,59 @@ export const MAP_TOUR_STEPS: TourStep[] = [
   {
     id: "periodo",
     selector: '[data-tour="dock-periodo"]',
-    title: "Período y días útiles",
+    title: "Period and usable days",
     body:
-      "Elige aquí el año, mes y los días útiles disponibles. Solo se habilitan jornadas con observación válida y menor a 30 % de nubosidad.",
+      "Choose the year, month and available usable days here. Only days with valid observation and less than 30 % cloudiness are enabled.",
     placement: "right",
   },
   {
     id: "territorio",
     selector: '[data-tour="dock-area"]',
-    title: "Territorio (Provincias y Cuencas)",
+    title: "Territory (Provinces and Basins)",
     body:
-      "Alterna entre las provincias y unidades hidrográficas del Perú, o cambia la variable ambiental pintada en el mapa.",
+      "Switch between the provinces and hydrographic units of Peru, or change the environmental variable painted on the map.",
     placement: "right",
   },
   {
     id: "sensores",
     selector: '[data-tour="dock-sensores"]',
-    title: "Sensor satelital activo",
+    title: "Active satellite sensor",
     body:
-      "Selecciona MODIS Terra, MODIS Aqua o VIIRS S-NPP. Cada consulta lee un sensor por separado: nunca se suman detecciones entre instrumentos.",
+      "Select MODIS Terra, MODIS Aqua or VIIRS S-NPP. Each query reads one sensor separately: detections are never added across instruments.",
     placement: "right",
   },
   {
     id: "mapa",
     selector: '[data-tour="map-toolbar"]',
-    title: "Mapa y zona poligonal",
+    title: "Map and polygonal zone",
     body:
-      "Haz clic sobre cualquier polígono del Perú para inspeccionarlo, o usa las herramientas para trazar un área e ignición en la simulación exploratoria.",
+      "Click any polygon of Peru to inspect it, or use the tools to draw an area and ignition in the exploratory simulation.",
     placement: "bottom",
   },
   {
     id: "calendario",
     selector: '[data-tour="calendar-strip"]',
     fallbackSelector: '[data-tour="dock-periodo"]',
-    title: "Calendario de actividad térmica (2D y 3D)",
+    title: "Thermal activity calendar (2D and 3D)",
     body:
-      "Alterna entre 2D Calor y 3D Relieve (arrastra para rotar y usa la rueda del ratón para hacer zoom en valles y crestas), o revisa la serie diaria de días útiles. Haz clic en una celda, cresta/valle o barra para saltar a esa fecha.",
+      "Switch between 2D Heat and 3D Relief (drag to rotate and use the mouse wheel to zoom into valleys and ridges), or check the daily series of usable days. Click a cell, ridge/valley or bar to jump to that date.",
     placement: "top",
   },
   {
     id: "analisis",
     selector: '[data-tour="dock-arbol"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "Árbol de susceptibilidad e indicadores",
+    title: "Susceptibility tree and indicators",
     body:
-      "Abre aquí los indicadores normalizados, la comparación multisensor y el árbol de decisión ambiental. Si una zona poligonal presenta susceptibilidad alta, verás un aviso prioritario en pantalla.",
+      "Open the normalized indicators, the multi-sensor comparison and the environmental decision tree here. If a polygonal zone shows high susceptibility, you will see a priority notice on screen.",
     placement: "left",
   },
   {
     id: "simulacion-tab",
     selector: '[data-tour="tab-simulacion"]',
-    title: "Simulación exploratoria · Fase 2 global",
+    title: "Exploratory simulation · Global Phase 2",
     body:
-      "Cambia a Simulación para modelar extensión hipotética del fuego (hasta 48 h) en el Perú o cualquier coordenada del mundo con viento Open-Meteo, DEM Copernicus GLO-90 y salidas GIF/MP4/QGIS. Al abrirla, pulsa ? Guía para ver su recorrido específico.",
+      "Switch to Simulation to model hypothetical fire spread (up to 48 h) in Peru or any coordinate in the world with Open-Meteo wind, Copernicus GLO-90 DEM and GIF/MP4/QGIS outputs. Once it is open, press ? Guide to see its specific walkthrough.",
     placement: "bottom",
   },
 ];
@@ -77,44 +77,44 @@ export const SPREAD_TOUR_STEPS: TourStep[] = [
     id: "spread-quick",
     selector: '[data-tour="spread-quick"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "Simulación global en 1 clic",
+    title: "Global simulation in 1 click",
     body:
-      "Elige Perú, California, Grecia o escribe cualquier latitud/longitud del planeta y pulsa «Simular extensión aquí»: traza el dominio, sitúa la ignición, consulta clima/DEM reales y anima el frente sobre el mapa.",
+      "Choose Peru, California, Greece or type any latitude/longitude on the planet and press “Simulate spread here”: it draws the domain, places the ignition, queries real weather/DEM and animates the front on the map.",
     placement: "left",
   },
   {
     id: "spread-env",
     selector: '[data-tour="spread-env"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "Ignición y clima en vivo (Open-Meteo + FIRMS)",
+    title: "Ignition and live weather (Open-Meteo + FIRMS)",
     body:
-      "También puedes colocar manualmente la ignición en cualquier punto e importar temperatura, humedad relativa, viento a 10 m y focos NRT mediante /api/v1/realtime/area.",
+      "You can also place the ignition manually at any point and import temperature, relative humidity, 10 m wind and NRT hotspots through /api/v1/realtime/area.",
     placement: "left",
   },
   {
     id: "spread-poly",
     selector: '[data-tour="map-toolbar"]',
-    title: "Área libre y Condiciones físicas",
+    title: "Free area and Physical conditions",
     body:
-      "Usa POLIGONO o RECT para delimitar un recorte exacto sobre el mapa y ajusta viento, humedad del combustible, vegetación SAVI, pendiente y horizonte (hasta 48 h) en el cajón Condiciones.",
+      "Use POLYGON or RECT to delimit an exact cut on the map and adjust wind, fuel moisture, SAVI vegetation, slope and horizon (up to 48 h) in the Conditions drawer.",
     placement: "bottom",
   },
   {
     id: "spread-exports",
     selector: '[data-tour="spread-exports"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "Visualización y salidas 48 h (GIF, MP4, QGIS)",
+    title: "48 h visualization and outputs (GIF, MP4, QGIS)",
     body:
-      "Previsualiza aquí el GIF animado 48 h, infografía ejecutiva o panel SAVI+DEM, genera nuevos paquetes bajo demanda con el backend Python o descarga los Shapefiles para QGIS.",
+      "Preview the animated 48 h GIF, the executive infographic or the SAVI+DEM panel here, generate new packages on demand with the Python backend or download the Shapefiles for QGIS.",
     placement: "left",
   },
   {
     id: "spread-result",
     selector: '[data-tour="dock-resultado"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "Reproducción temporal e isócronas",
+    title: "Time playback and isochrones",
     body:
-      "En Resultado y reproducción puedes animar hora por hora la mancha Inferno sobre el mapa e inspeccionar hectáreas alcanzadas, ROS (m/min) y fuentes reales empleadas.",
+      "In Result and playback you can animate the Inferno patch hour by hour on the map and inspect hectares reached, ROS (m/min) and the real sources used.",
     placement: "left",
   },
 ];
@@ -313,23 +313,23 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
       <div className="tour-overlay" role="dialog" aria-modal="true" aria-labelledby="tour-prompt-title">
         <div className="tour-modal">
           <div className="tour-modal__head">
-            <span className="tour-kicker">Guía visual · Primera visita</span>
+            <span className="tour-kicker">Visual guide · First visit</span>
             <button
               type="button"
               className="drawer__close"
               onClick={() => onDismiss(dontShow)}
-              aria-label="Cerrar aviso de guía"
+              aria-label="Close guide notice"
             >
               ×
             </button>
           </div>
           <h2 className="tour-modal__title" id="tour-prompt-title">
-            ¿Deseas recorrer cómo funciona la página?
+            Would you like a walkthrough of how the page works?
           </h2>
           <p className="tour-modal__body">
-            Te mostraremos en {steps.length} pasos breves dónde seleccionar fechas útiles,
-            explorar las provincias y unidades hidrográficas del Perú, interpretar el calendario
-            térmico y revisar el árbol de susceptibilidad.
+            In {steps.length} short steps we will show you where to select usable dates,
+            explore the provinces and hydrographic units of Peru, interpret the thermal
+            calendar and review the susceptibility tree.
           </p>
 
           <label className="tour-check">
@@ -338,15 +338,15 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
               checked={dontShow}
               onChange={(e) => setDontShow(e.target.checked)}
             />
-            <span>No volver a mostrar esta guía en futuros ingresos</span>
+            <span>Do not show this guide again on future visits</span>
           </label>
 
           <div className="tour-actions">
             <button type="button" className="btn" onClick={() => onDismiss(dontShow)}>
-              No, continuar al mapa
+              No, continue to the map
             </button>
             <button type="button" className="btn btn--primary" onClick={onStart}>
-              Sí, iniciar guía →
+              Yes, start the guide →
             </button>
           </div>
         </div>
@@ -386,13 +386,13 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
         >
         <div className="tour-modal__head">
           <span className="tour-kicker">
-            Paso {stepIdx + 1} de {steps.length}
+            Step {stepIdx + 1} of {steps.length}
           </span>
           <button
             type="button"
             className="drawer__close"
             onClick={() => onDismiss(dontShow)}
-            aria-label="Cerrar guía"
+            aria-label="Close guide"
           >
             ×
           </button>
@@ -409,17 +409,17 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
             checked={dontShow}
             onChange={(e) => setDontShow(e.target.checked)}
           />
-          <span>No volver a mostrar en futuros ingresos</span>
+          <span>Do not show again on future visits</span>
         </label>
 
         <div className="tour-actions">
           <button type="button" className="btn" onClick={() => onDismiss(dontShow)}>
-            Cerrar
+            Close
           </button>
           <span className="tour-actions__spacer" />
           {!isFirst && (
             <button type="button" className="btn" onClick={() => setStepIdx((i) => Math.max(0, i - 1))}>
-              Atrás
+              Back
             </button>
           )}
           <button
@@ -430,7 +430,7 @@ export function GuidedTour({ phase, steps = MAP_TOUR_STEPS, onStart, onDismiss }
               else setStepIdx((i) => Math.min(steps.length - 1, i + 1));
             }}
           >
-            {isLast ? "Finalizar" : "Siguiente"}
+            {isLast ? "Finish" : "Next"}
           </button>
         </div>
       </div>

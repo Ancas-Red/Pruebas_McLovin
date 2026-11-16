@@ -43,7 +43,7 @@ const MUTED = "#8b98a5";
 const ACCENT = "#d4ff3a";
 const MONO = "13px 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace";
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const cardinal = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 
 /** Pinta una grilla del modelo (cols x rows) dentro de un rectángulo, píxel a píxel. */
@@ -150,12 +150,12 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   // ---------------------------------------------------------------- cabecera
   ctx.fillStyle = ACCENT;
   ctx.font = "700 26px 'Space Grotesk', 'Inter', system-ui, sans-serif";
-  ctx.fillText("McHanaq · Simulación de propagación de fuego", 40, 50);
+  ctx.fillText("McHanaq · Fire spread simulation", 40, 50);
   ctx.fillStyle = MUTED;
   ctx.font = MONO;
   const horizon = Math.round(c.horizonHours);
   ctx.fillText(
-    `Fase 2 (exploratoria) · horizonte ${horizon} h · modelo ${SPREAD_MODEL_NAME}${c.dateIso ? ` · ${c.dateIso}` : ""}`,
+    `Phase 2 (exploratory) · horizon ${horizon} h · model ${SPREAD_MODEL_NAME}${c.dateIso ? ` · ${c.dateIso}` : ""}`,
     40,
     76
   );
@@ -177,7 +177,7 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   const mapX = 40;
   const mapY = 125;
   const mapS = 800; // panel cuadrado
-  panelFrame(ctx, mapX, mapY, mapS, mapS + 40, `Tiempo de llegada del frente · UTM zona ${zone}${sw.hemisphere}`);
+  panelFrame(ctx, mapX, mapY, mapS, mapS + 40, `Front arrival time · UTM zone ${zone}${sw.hemisphere}`);
 
   // área útil para la grilla (con márgenes para ejes)
   const gx = mapX + 90;
@@ -242,11 +242,11 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
     ctx.fillText(label, gx - 8 - ctx.measureText(label).width, py + 4);
   }
   ctx.fillStyle = TEXT;
-  ctx.fillText("Este (km, UTM)", gx + gw / 2 - 45, gy + gh + 34);
+  ctx.fillText("East (km, UTM)", gx + gw / 2 - 45, gy + gh + 34);
   ctx.save();
   ctx.translate(mapX + 22, gy + gh / 2 + 50);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillText("Norte (km, UTM)", 0, 0);
+  ctx.fillText("North (km, UTM)", 0, 0);
   ctx.restore();
 
   // punto de ignición
@@ -301,18 +301,18 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   ctx.restore();
   ctx.fillStyle = ACCENT;
   ctx.font = "700 11px 'JetBrains Mono', ui-monospace, monospace";
-  ctx.fillText("VIENTO", wx - 22, wy + 34);
+  ctx.fillText("WIND", wx - 18, wy + 34);
 
   rampBar(ctx, gx, mapY + mapS + 14, 260, 10, (t) => inferno(0.15 + 0.85 * (1 - t)), "0 h", `${horizon} h`);
   ctx.fillStyle = MUTED;
   ctx.font = "11px 'JetBrains Mono', ui-monospace, monospace";
-  ctx.fillText("llegada del frente (más claro = más temprano)", gx + 275, mapY + mapS + 23);
+  ctx.fillText("front arrival (lighter = earlier)", gx + 275, mapY + mapS + 23);
 
   // ---------------------------------------------------- paneles secundarios
   const sx = mapX + mapS + 30;
   const sw2 = W - sx - 40;
   const miniS = (sw2 - 20) / 2;
-  panelFrame(ctx, sx, mapY, miniS, miniS + 30, "Combustible (modelo)");
+  panelFrame(ctx, sx, mapY, miniS, miniS + 30, "Fuel (model)");
   drawGrid(ctx, cols, rows, sx + 12, mapY + 30, miniS - 24, miniS - 24, (i) => {
     const [r, g, b] = greenRamp(Math.max(0, Math.min(1, fuel[i])));
     return [r, g, b, 255];
@@ -326,10 +326,10 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
     if (elevation[i] > eHi) eHi = elevation[i];
   }
   const ex = sx + miniS + 20;
-  panelFrame(ctx, ex, mapY, miniS, miniS + 30, reliefBasemap ? "Relieve (real, OpenTopoMap)" : "Relieve (modelo)");
+  panelFrame(ctx, ex, mapY, miniS, miniS + 30, reliefBasemap ? "Terrain (real, OpenTopoMap)" : "Terrain (model)");
   if (reliefBasemap) {
-    // Relieve REAL del lugar (OpenTopoMap/SRTM), no un degradado sintético
-    // del DEM del modelo: se ve el río/quebrada/curvas de nivel reales.
+    // REAL terrain for this location (OpenTopoMap/SRTM), not a synthetic
+    // gradient from the model's DEM: shows the actual river/ravine/contours.
     ctx.drawImage(reliefBasemap.canvas, ex + 12, mapY + 30, miniS - 24, miniS - 24);
   } else {
     drawGrid(ctx, cols, rows, ex + 12, mapY + 30, miniS - 24, miniS - 24, (i) => {
@@ -343,16 +343,16 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   // -------------------------------------------------------------- métricas
   const my = mapY + miniS + 50;
   const mh = 290;
-  panelFrame(ctx, sx, my, sw2, mh, "Resultado");
+  panelFrame(ctx, sx, my, sw2, mh, "Result");
   const rowsTxt: [string, string][] = [
-    ["Superficie alcanzada", `${result.totalAreaHa.toLocaleString("es-PE")} ha`],
-    ["Avance de cabeza", `${result.headRosMMin.toFixed(1)} m/min`],
-    ["Relación largo/ancho", `${result.lengthToBreadth.toFixed(2)} : 1`],
-    ["Viento", `${c.windSpeedMs.toFixed(1)} m/s desde ${Math.round(c.windDirDeg)}° (${cardinal(c.windDirDeg)})`],
-    ["Humedad combustible", `${c.fuelMoisturePct.toFixed(0)} %`],
-    ["Vegetación combustible", `${c.vegetationPct.toFixed(0)} % · SAVI ${result.saviMean.toFixed(2)}`],
-    ["Pendiente media", `${c.slopeMeanDeg.toFixed(0)}°`],
-    ["Resolución / grilla", `${Math.round(result.cellSizeM)} m · ${cols} × ${rows}`],
+    ["Area reached", `${result.totalAreaHa.toLocaleString("es-PE")} ha`],
+    ["Head advance", `${result.headRosMMin.toFixed(1)} m/min`],
+    ["Length/width ratio", `${result.lengthToBreadth.toFixed(2)} : 1`],
+    ["Wind", `${c.windSpeedMs.toFixed(1)} m/s from ${Math.round(c.windDirDeg)}° (${cardinal(c.windDirDeg)})`],
+    ["Fuel moisture", `${c.fuelMoisturePct.toFixed(0)} %`],
+    ["Combustible vegetation", `${c.vegetationPct.toFixed(0)} % · SAVI ${result.saviMean.toFixed(2)}`],
+    ["Mean slope", `${c.slopeMeanDeg.toFixed(0)}°`],
+    ["Resolution / grid", `${Math.round(result.cellSizeM)} m · ${cols} × ${rows}`],
   ];
   ctx.font = MONO;
   rowsTxt.forEach(([k, v], i) => {
@@ -366,7 +366,7 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   const by = my + 48 + rowsTxt.length * 24 + 12;
   ctx.fillStyle = MUTED;
   ctx.font = "600 12px 'JetBrains Mono', ui-monospace, monospace";
-  ctx.fillText("ISÓCRONAS · SUPERFICIE ACUMULADA", sx + 14, by);
+  ctx.fillText("ISOCHRONES · CUMULATIVE AREA", sx + 14, by);
   ctx.font = MONO;
   const bandTxt = result.bands.map((b) => `${b.hours} h: ${b.areaHa} ha`).join("   ");
   ctx.fillStyle = TEXT;
@@ -375,16 +375,16 @@ export async function renderSpreadReport(c: ReportContext): Promise<string> {
   // ---------------------------------------------------- coordenadas UTM
   const uy = my + mh + 16;
   const uh = mapY + mapS + 40 - uy;
-  panelFrame(ctx, sx, uy, sw2, uh, `Coordenadas UTM (WGS84) · zona ${zone}${sw.hemisphere}`);
+  panelFrame(ctx, sx, uy, sw2, uh, `UTM coordinates (WGS84) · zone ${zone}${sw.hemisphere}`);
   const coords: [string, string][] = [];
-  if (c.ignition) coords.push(["Ignición", formatUtm(toUtm(c.ignition[0], c.ignition[1], zone))]);
-  coords.push(["Esquina NO", formatUtm(nw)]);
-  coords.push(["Esquina SE", formatUtm(se)]);
+  if (c.ignition) coords.push(["Ignition", formatUtm(toUtm(c.ignition[0], c.ignition[1], zone))]);
+  coords.push(["NW corner", formatUtm(nw)]);
+  coords.push(["SE corner", formatUtm(se)]);
   if (result.reachedBounds) {
     const rb = result.reachedBounds;
     const cy = (rb.south + rb.north) / 2;
     const cxx = (rb.west + rb.east) / 2;
-    coords.push(["Centro del frente", formatUtm(toUtm(cy, cxx, zone))]);
+    coords.push(["Front center", formatUtm(toUtm(cy, cxx, zone))]);
   }
   ctx.font = MONO;
   coords.forEach(([k, v], i) => {
