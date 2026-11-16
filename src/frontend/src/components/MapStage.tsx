@@ -181,13 +181,13 @@ const BASE_LAYERS = {
   relief: {
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution:
-      'Mapa &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Estilo: <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+      'Mapa &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Style: <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
     maxZoom: 17,
     filtered: false,
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Imágenes: Esri, Maxar, Earthstar Geographics",
+    attribution: "Imagery: Esri, Maxar, Earthstar Geographics",
     maxZoom: 18,
     filtered: false,
   },
@@ -613,10 +613,10 @@ export function MapStage(props: Props) {
           interactive: true,
         });
         poly.bindTooltip(
-          `<b>${isEnclosure ? "Polígono envolvente prioritario" : "Subcuenca en susceptibilidad alta"}</b>` +
+          `<b>${isEnclosure ? "Priority enclosing polygon" : "Sub-basin with high susceptibility"}</b>` +
             `<br/>${z.label}` +
             `${z.detail ? `<br/>${z.detail}` : ""}` +
-            `<br/><span style="color:#ff9b7a">Clic → abrir árbol de susceptibilidad</span>`,
+            `<br/><span style="color:#ff9b7a">Click → open susceptibility tree</span>`,
           { direction: "top", sticky: true, opacity: 0.96 }
         );
         poly.on("click", (e) => {
@@ -632,10 +632,10 @@ export function MapStage(props: Props) {
       const anchorY = m.kind === "territory" ? 22 : 19;
       const tipPrefix =
         m.kind === "subbasin"
-          ? "Subcuenca en susceptibilidad alta"
+          ? "Sub-basin with high susceptibility"
           : m.kind === "cluster"
-            ? "Foco prioritario dentro de región alta"
-            : "Susceptibilidad alta";
+            ? "Priority hotspot within a high region"
+            : "High susceptibility";
 
       const safeName = m.name.replace(/"/g, "&quot;");
       const icon = L.divIcon({
@@ -643,7 +643,7 @@ export function MapStage(props: Props) {
         iconSize: [size, size],
         iconAnchor: [size / 2, anchorY],
         html:
-          `<button type="button" class="high-susc-pin__btn" aria-label="${tipPrefix}: ${safeName}. Abrir árbol de susceptibilidad">` +
+          `<button type="button" class="high-susc-pin__btn" aria-label="${tipPrefix}: ${safeName}. Open susceptibility tree">` +
           `<span class="high-susc-pin__pulse" aria-hidden="true"></span>` +
           `<svg class="high-susc-pin__svg" viewBox="0 0 28 26" width="${size}" height="${Math.round(size * 0.93)}" aria-hidden="true">` +
           `<path d="M14 2.2 L26.2 23.6 Q26.7 24.5 25.6 24.5 L2.4 24.5 Q1.3 24.5 1.8 23.6 Z" fill="#ff3b1f" stroke="#090e0b" stroke-width="2.1" stroke-linejoin="round" />` +
@@ -661,7 +661,7 @@ export function MapStage(props: Props) {
       marker.bindTooltip(
         `<b>${tipPrefix} · ${m.name}</b>` +
           `${m.detail ? `<br/>${m.detail}` : ""}` +
-          `<br/><span style="color:#ff9b7a">Clic → abrir árbol de susceptibilidad</span>`,
+          `<br/><span style="color:#ff9b7a">Click → open susceptibility tree</span>`,
         { direction: "top", offset: [0, -14], opacity: 0.96 }
       );
       marker.on("click", (e) => {
@@ -730,7 +730,7 @@ export function MapStage(props: Props) {
         fillColor: "#ff4a24",
         fillOpacity: 0.45,
       })
-        .bindTooltip("Punto de ignicion hipotetico", { direction: "top" })
+        .bindTooltip("Hypothetical ignition point", { direction: "top" })
         .addTo(layer);
       L.circleMarker(ignition, {
         radius: 2,
@@ -823,28 +823,28 @@ export function MapStage(props: Props) {
 
   const fullExtentLabel = useMemo(() => {
     const feats = territories?.features ?? [];
-    if (feats.length === 0) return "Territorios cargados";
+    if (feats.length === 0) return "Territories loaded";
     const sources = feats.map((f) => f.properties.source ?? "");
     if (sources.some((s) => /ucayali/i.test(s)) && sources.every((s) => !s || /ucayali/i.test(s))) {
       return "Ucayali";
     }
-    if (feats.length >= 150) return "Perú completo";
-    return "Territorios cargados";
+    if (feats.length >= 150) return "All of Peru";
+    return "Territories loaded";
   }, [territories]);
 
   const hint =
     mode === "polygon"
       ? draft.length === 0
-        ? "Clic para el primer vertice"
+        ? "Click for the first vertex"
         : draft.length < 3
-        ? `${draft.length} vertice(s) · faltan ${3 - draft.length}`
-        : "Clic en el primer vertice, doble clic o Enter para cerrar"
+        ? `${draft.length} vertex(es) · ${3 - draft.length} more needed`
+        : "Click the first vertex, double-click or press Enter to close"
       : mode === "rect"
       ? draft.length === 0
-        ? "Clic en una esquina"
-        : "Clic en la esquina opuesta"
+        ? "Click a corner"
+        : "Click the opposite corner"
       : mode === "ignition"
-      ? "Clic para situar la ignicion hipotetica"
+      ? "Click to place the hypothetical ignition"
       : null;
 
   return (
@@ -853,17 +853,17 @@ export function MapStage(props: Props) {
         ref={hostRef}
         className={`map${mode !== "pan" ? " map--drawing" : ""}`}
         role="application"
-        aria-label="Mapa del Peru con focos termicos"
+        aria-label="Map of Peru with thermal hotspots"
       />
 
       <div className="ov ov--tl">
-        <div className="toolbar toolbar--zoom" role="group" aria-label="Control de zoom">
+        <div className="toolbar toolbar--zoom" role="group" aria-label="Zoom control">
           <button
             type="button"
             className="btn"
             onClick={() => mapRef.current?.zoomIn()}
-            title="Acercar el mapa"
-            aria-label="Acercar el mapa"
+            title="Zoom in"
+            aria-label="Zoom in"
           >
             +
           </button>
@@ -871,22 +871,22 @@ export function MapStage(props: Props) {
             type="button"
             className="btn"
             onClick={() => mapRef.current?.zoomOut()}
-            title="Alejar el mapa"
-            aria-label="Alejar el mapa"
+            title="Zoom out"
+            aria-label="Zoom out"
           >
             −
           </button>
         </div>
-        <div className="toolbar" role="toolbar" aria-label="Herramientas del mapa" data-tour="map-toolbar">
+        <div className="toolbar" role="toolbar" aria-label="Map tools" data-tour="map-toolbar">
           <button
             className={`btn${mode === "pan" ? " btn--on" : ""}`}
             onClick={() => {
               setDraft([]);
               onModeChange("pan");
             }}
-            title="Mover el mapa"
+            title="Pan the map"
           >
-            Mover
+            Pan
           </button>
           <button
             className={`btn${mode === "polygon" ? " btn--on" : ""}`}
@@ -894,9 +894,9 @@ export function MapStage(props: Props) {
               setDraft([]);
               onModeChange(mode === "polygon" ? "pan" : "polygon");
             }}
-            title="Dibujar un area poligonal"
+            title="Draw a polygonal area"
           >
-            Poligono
+            Polygon
           </button>
           <button
             className={`btn${mode === "rect" ? " btn--on" : ""}`}
@@ -904,7 +904,7 @@ export function MapStage(props: Props) {
               setDraft([]);
               onModeChange(mode === "rect" ? "pan" : "rect");
             }}
-            title="Dibujar un rectangulo"
+            title="Draw a rectangle"
           >
             Rect
           </button>
@@ -914,9 +914,9 @@ export function MapStage(props: Props) {
               setDraft([]);
               onModeChange(mode === "ignition" ? "pan" : "ignition");
             }}
-            title="Situar el punto de ignicion de la simulacion"
+            title="Place the simulation ignition point"
           >
-            Ignicion
+            Ignition
           </button>
           <button
             className="btn"
@@ -927,32 +927,32 @@ export function MapStage(props: Props) {
               onIgnitionChange(null);
               onModeChange("pan");
             }}
-            title="Borrar el area y la ignicion"
+            title="Clear the area and the ignition"
           >
-            Limpiar
+            Clear
           </button>
         </div>
         <div className="toolbar" role="group" aria-label="Mapa base">
           <button
             className={`btn${baseLayer === "dark" ? " btn--on" : ""}`}
             onClick={() => onBaseLayer("dark")}
-            title="Mapa oscuro (OpenStreetMap)"
+            title="Dark map (OpenStreetMap)"
           >
-            Oscuro
+            Dark
           </button>
           <button
             className={`btn${baseLayer === "relief" ? " btn--on" : ""}`}
             onClick={() => onBaseLayer("relief")}
-            title="Relieve e hidrología (OpenTopoMap)"
+            title="Relief and hydrology (OpenTopoMap)"
           >
-            Relieve
+            Relief
           </button>
           <button
             className={`btn${baseLayer === "satellite" ? " btn--on" : ""}`}
             onClick={() => onBaseLayer("satellite")}
-            title="Imagen satelital (Esri World Imagery)"
+            title="Satellite imagery (Esri World Imagery)"
           >
-            Satélite
+            Satellite
           </button>
         </div>
       </div>
@@ -972,16 +972,16 @@ export function MapStage(props: Props) {
             <b>{ring ? `${Math.round(areaKm2).toLocaleString("es-PE")} km²` : fullExtentLabel}</b>
           </div>
           <div className="hud__row">
-            <span>Focos en vista</span>
+            <span>Hotspots in view</span>
             <b>{hotspots.length.toLocaleString("es-PE")}</b>
           </div>
           {hotspots.length > MAX_DRAWN_POINTS && (
             <div className="hud__row">
-              <span className="muted">Dibujados</span>
-              <b className="muted">1 de cada {Math.ceil(hotspots.length / MAX_DRAWN_POINTS)}</b>
+              <span className="muted">Drawn</span>
+              <b className="muted">1 in every {Math.ceil(hotspots.length / MAX_DRAWN_POINTS)}</b>
             </div>
           )}
-          {hint && <div className="hud__hint">{hint} · Esc cancela</div>}
+          {hint && <div className="hud__hint">{hint} · Esc cancels</div>}
           {dataNotice && (
             <div className="hud__notice" role="status">
               {dataNotice}
@@ -1003,11 +1003,11 @@ export function MapStage(props: Props) {
           {hoverCard.state === "loading" ? (
             <div className="hovercard__wait">
               <i className="hovercard__spark" aria-hidden="true" />
-              Consultando al backend…
+              Querying the backend…
             </div>
           ) : hoverCard.state === "error" ? (
             <div className="hovercard__wait hovercard__wait--err">
-              La data no está disponible o no es válida en este momento (sin respuesta del backend).
+              The data is not available or is not valid at this time (no response from the backend).
             </div>
           ) : (
             <>
@@ -1067,7 +1067,7 @@ export function MapStage(props: Props) {
             )}
             <div className="legend__item legend__item--nodata">
               <i className="legend__swatch" style={{ background: "#1b2a21" }} />
-              <span>Sin datos publicados</span>
+              <span>No data published</span>
             </div>
           </div>
         )}
@@ -1098,7 +1098,7 @@ export function MapStage(props: Props) {
                   }}
                 />
                 <span>
-                  Viento {windSpeedMs?.toFixed(1) ?? "—"} m/s · desde{" "}
+                  Wind {windSpeedMs?.toFixed(1) ?? "—"} m/s · from{" "}
                   {Math.round(windDirDeg)}°
                 </span>
               </div>
@@ -1109,7 +1109,7 @@ export function MapStage(props: Props) {
                   className="legend__swatch"
                   style={{ background: "linear-gradient(90deg,#f3e55c,#e65c2f,#480f62)" }}
                 />
-                <span>Frente simulado · Fase 2 · +6/12/24 h</span>
+                <span>Simulated front · Phase 2 · +6/12/24 h</span>
               </div>
             )}
             {showHighMarkers && highMarkers.length > 0 && (
@@ -1126,12 +1126,11 @@ export function MapStage(props: Props) {
                   const next = targets[(curIdx + 1) % targets.length];
                   onOpenSusceptibilityTree?.(next.targetTerritoryId, next.targetTerritoryType);
                 }}
-                title="Saltar al siguiente territorio o foco en susceptibilidad alta"
+                title="Jump to the next territory or hotspot with high susceptibility"
               >
                 <span className="legend__tri" aria-hidden="true">▲!</span>
                 <span>
-                  {highMarkers.length} alerta{highMarkers.length === 1 ? "" : "s"} alta
-                  {highMarkers.length === 1 ? "" : "s"} · Ir →
+                  {highMarkers.length} high alert{highMarkers.length === 1 ? "" : "s"} · Go →
                 </span>
               </button>
             )}

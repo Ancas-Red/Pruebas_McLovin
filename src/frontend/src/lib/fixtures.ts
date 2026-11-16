@@ -41,7 +41,7 @@ import { daysInMonth, monthRange, pad2, periodOf, splitIso } from "../api/client
 /** Marca que acompaña a todo lo que sale de aquí. */
 export const FIXTURE_ORIGIN = "fixture";
 export const FIXTURE_NOTICE =
-  "DATOS FICTICIOS (muestra). No usar como evidencia ni en la presentación.";
+  "FICTITIOUS DATA (sample). Do not use as evidence or in the presentation.";
 
 /* -------------------------------------------------------------------------- */
 /* Rango cubierto por la muestra                                              */
@@ -166,7 +166,7 @@ export function fixtureTerritories(type: TerritoryType): TerritoryCollection {
       territory_id: s.id,
       territory_name: s.name,
       pfafstetter_level: type === "hydro_unit" ? 5 : null,
-      source: "MUESTRA (geometría aproximada)",
+      source: "SAMPLE (approximate geometry)",
     },
     geometry: { type: "Polygon", coordinates: [boxOf(s)] },
   }));
@@ -349,16 +349,16 @@ export function fixtureMetadata(): Metadata {
       classification: ["conditions_classification"],
     },
     units: {
-      activity_rate: "píxeles-día detectados / píxeles-día válidos (adimensional)",
-      observation_coverage: "fracción 0–1",
-      fire_pixel_days_8_9: "píxeles-día",
-      active_days: "días",
-      max_consecutive_active_days: "días",
+      activity_rate: "detected pixel-days / valid pixel-days (dimensionless)",
+      observation_coverage: "fraction 0–1",
+      fire_pixel_days_8_9: "pixel-days",
+      active_days: "days",
+      max_consecutive_active_days: "days",
       t_amb_c: "°C",
       t_suelo_c: "°C",
-      wind_dir_deg: "grados (0–360, desde dónde sopla)",
+      wind_dir_deg: "degrees (0–360, direction the wind blows from)",
       wind_speed_10m_ms: "m/s",
-      elevation_m: "m s.n.m.",
+      elevation_m: "m a.s.l.",
     },
     dem_by_epoch: [
       {
@@ -385,12 +385,12 @@ export function fixtureMetadata(): Metadata {
       min_baseline_years: 5,
       umbral_veg_pct: null,
       umbral_pend_pct: null,
-      note: "Umbrales de muestra; los reales los definen Tom y Angelo.",
+      note: "Sample thresholds; the real ones are defined by Tom and Angelo.",
     },
     limitations: [
-      "activity_rate no es probabilidad de incendio ni superficie quemada.",
-      "No se suman conteos entre sensores.",
-      "La susceptibilidad contextual es cualitativa, no un índice validado de riesgo.",
+      "activity_rate is not fire probability or burned area.",
+      "Counts are not added across sensors.",
+      "Contextual susceptibility is qualitative, not a validated risk index.",
     ],
   };
 }
@@ -645,7 +645,7 @@ export function fixtureSummary(q: {
       notes:
         status === "usable"
           ? []
-          : ["Cobertura de observación por debajo de lo deseable para este período."],
+          : ["Observation coverage is below what is desirable for this period."],
     },
     provenance: {
       source_products: [daily?.source_product ?? "MOD14A1", "ERA5_LAND_HOURLY"],
@@ -760,15 +760,15 @@ export function fixtureSensorComparison(q: {
 
   const interpretation: Record<ComparisonStatus, string> = {
     concordant_elevated:
-      "[MUESTRA] Los sensores utilizables coinciden en una señal elevada para esta época del año.",
+      "[SAMPLE] The usable sensors agree on an elevated signal for this time of year.",
     concordant_not_elevated:
-      "[MUESTRA] Los sensores utilizables coinciden en que no hay elevación respecto de su propia estación.",
+      "[SAMPLE] The usable sensors agree that there is no elevation relative to their own season.",
     discordant:
-      "[MUESTRA] Los sensores no coinciden; revisar cobertura, hora de sobrevuelo y diferencias instrumentales antes de concluir.",
+      "[SAMPLE] The sensors do not agree; check coverage, overpass time and instrument differences before concluding.",
     single_sensor:
-      "[MUESTRA] Solo un sensor alcanza la cobertura mínima: la señal no se puede contrastar.",
+      "[SAMPLE] Only one sensor reaches the minimum coverage: the signal cannot be cross-checked.",
     insufficient:
-      "[MUESTRA] Ningún sensor alcanza la cobertura mínima en este período: no hay comparación posible.",
+      "[SAMPLE] No sensor reaches the minimum coverage in this period: no comparison is possible.",
   };
 
   return {

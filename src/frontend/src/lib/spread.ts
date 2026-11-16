@@ -44,7 +44,7 @@ export const SPREAD_MODEL_NAME = "heuristic_wind_slope_spread_v1";
 
 /** Aviso que debe acompaniar siempre al resultado (arquitectura v1.2 §12.2). */
 export const SPREAD_DISCLAIMER =
-  "Proyeccion exploratoria basada en viento diario, DEM y cobertura; no sustituye modelos fisicos operativos en tiempo real.";
+  "Exploratory projection based on daily wind, DEM and cover; it does not replace real-time operational physical models.";
 
 export interface SpreadInputs {
   /** Vertices del area de interes, en [lat, lon]. */
@@ -430,15 +430,15 @@ export function simulateSpread(input: SpreadInputs): SpreadResult {
     lengthToBreadth: Math.round(LB * 100) / 100,
     saviMean,
     assumptions: [
-      `Viento constante de ${windSpeedMs.toFixed(1)} m/s desde ${Math.round(windDirDeg)}° en horizonte de ${horizonHours} h`,
-      `Humedad del combustible fino uniforme de ${fuelMoisturePct.toFixed(0)}% (extincion 30%)`,
-      `Vegetacion combustible ${Math.round(vegetationPct)}% (indice SAVI medio estimado ${saviMean.toFixed(2)})`,
-      `Pendiente media ${Math.round(slopeMeanDeg)}° (regla de duplicacion cada +10° cuesta arriba)`,
-      "Sin supresion, cortafuegos, carreteras ni rios explicitos",
-      "Sin focos secundarios por pavesas ni fuego de copas",
+      `Constant wind of ${windSpeedMs.toFixed(1)} m/s from ${Math.round(windDirDeg)}° over a ${horizonHours} h horizon`,
+      `Uniform fine-fuel moisture of ${fuelMoisturePct.toFixed(0)}% (extinction 30%)`,
+      `Combustible vegetation ${Math.round(vegetationPct)}% (estimated mean SAVI index ${saviMean.toFixed(2)})`,
+      `Mean slope ${Math.round(slopeMeanDeg)}° (doubling rule every +10° uphill)`,
+      "No suppression, firebreaks, roads or explicit rivers",
+      "No spot fires from embers or crown fire",
       insideAoi
-        ? "Ignicion dentro del area de interes"
-        : "Ignicion fuera del poligono dibujado",
+        ? "Ignition inside the area of interest"
+        : "Ignition outside the drawn polygon",
     ],
   };
 }

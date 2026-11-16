@@ -33,16 +33,16 @@ import {
 import { ringAreaKm2, type LatLon } from "../lib/geo";
 
 const MONTHS = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 export const LEFT_ITEMS: DockItem[] = [
-  { id: "periodo", label: "Período", icon: "calendar" },
+  { id: "periodo", label: "Period", icon: "calendar" },
   { id: "sensores", label: "Sensor", icon: "satellite" },
-  { id: "area", label: "Territorio", icon: "polygon" },
-  { id: "capas", label: "Capas del mapa", icon: "layers" },
-  { id: "descargas", label: "Descargas", icon: "download" },
+  { id: "area", label: "Territory", icon: "polygon" },
+  { id: "capas", label: "Map layers", icon: "layers" },
+  { id: "descargas", label: "Downloads", icon: "download" },
 ];
 
 interface Props {
@@ -203,11 +203,11 @@ export function ControlRail(p: Props) {
     const lo = Number(lon);
     const r = Number(radius);
     if (!isFinite(la) || !isFinite(lo) || !isFinite(r) || r <= 0) {
-      setCoordError("Revisa los valores: deben ser números y el radio mayor que cero.");
+      setCoordError("Check the values: they must be numbers and the radius must be greater than zero.");
       return;
     }
     if (la < -90 || la > 90 || lo < -180 || lo > 180) {
-      setCoordError("Coordenadas fuera de rango global (latitud -90 a 90, longitud -180 a 180).");
+      setCoordError("Coordinates outside the global range (latitude -90 to 90, longitude -180 to 180).");
       return;
     }
     setCoordError(null);
@@ -224,9 +224,9 @@ export function ControlRail(p: Props) {
   switch (p.section) {
     case "periodo":
       return (
-        <Drawer title="Período" note={`${MONTHS[p.month - 1]} ${p.year}`} onClose={p.onClose}>
+        <Drawer title="Period" note={`${MONTHS[p.month - 1]} ${p.year}`} onClose={p.onClose}>
           <div className="field">
-            <label className="field__label" htmlFor="sel-year">Año</label>
+            <label className="field__label" htmlFor="sel-year">Year</label>
             <select
               id="sel-year"
               value={years.includes(p.year) ? p.year : (years[0] ?? "")}
@@ -243,14 +243,14 @@ export function ControlRail(p: Props) {
               }}
             >
               {years.length === 0 ? (
-                <option value="" disabled>Sin años disponibles</option>
+                <option value="" disabled>No years available</option>
               ) : (
                 years.map((y) => <option key={y} value={y}>{y}</option>)
               )}
             </select>
           </div>
           <div className="field">
-            <label className="field__label" htmlFor="sel-month">Mes</label>
+            <label className="field__label" htmlFor="sel-month">Month</label>
             <select
               id="sel-month"
               value={validMonths.includes(p.month) ? p.month : (validMonths[validMonths.length - 1] ?? "")}
@@ -258,7 +258,7 @@ export function ControlRail(p: Props) {
               onChange={(e) => p.onPeriod(p.year, Number(e.target.value))}
             >
               {validMonths.length === 0 ? (
-                <option value="" disabled>Sin meses disponibles</option>
+                <option value="" disabled>No months available</option>
               ) : (
                 validMonths.map((m) => (
                   <option key={m} value={m}>
@@ -270,7 +270,7 @@ export function ControlRail(p: Props) {
           </div>
           <div className="field">
             <label className="field__label" htmlFor="sel-day">
-              Día <span className="field__value">{p.dateIso}</span>
+              Day <span className="field__value">{p.dateIso}</span>
             </label>
             <input
               id="sel-day"
@@ -292,9 +292,9 @@ export function ControlRail(p: Props) {
               <span>{pad2(usefulDays[0] ?? minDay)}</span>
               <span>
                 {p.dailyLoading
-                  ? "Cargando…"
-                  : `${usefulDays.length} ${usefulDays.length === 1 ? "día útil" : "días útiles"}${
-                      daysWithFiresCount > 0 ? ` · ${daysWithFiresCount} con focos` : ""
+                  ? "Loading…"
+                  : `${usefulDays.length} ${usefulDays.length === 1 ? "usable day" : "usable days"}${
+                      daysWithFiresCount > 0 ? ` · ${daysWithFiresCount} with hotspots` : ""
                     }`}
               </span>
               <span>{pad2(usefulDays[usefulDays.length - 1] ?? maxDay)}</span>
@@ -302,7 +302,7 @@ export function ControlRail(p: Props) {
 
             {monthDaysSpan.length > 0 && (
               <>
-                <div className="day-grid" role="group" aria-label="Días del mes con datos útiles">
+                <div className="day-grid" role="group" aria-label="Days of the month with usable data">
                   {monthDaysSpan.map((d) => {
                     const iso = isoDate(p.year, p.month, d);
                     const row = dailyByDate.get(iso);
@@ -317,20 +317,20 @@ export function ControlRail(p: Props) {
                         : null;
                     const fireLabel =
                       nomHigh > 0
-                        ? `${nomHigh} foco(s) ${SENSOR_LABELS[p.sensor].short}`
+                        ? `${nomHigh} hotspot(s) ${SENSOR_LABELS[p.sensor].short}`
                         : lowOnly > 0
-                          ? `${lowOnly} foco(s) conf. baja`
-                          : "0 focos";
+                          ? `${lowOnly} hotspot(s) low conf.`
+                          : "0 hotspots";
                     const isLive = row?.data_origin === "firms_live_historical";
                     const title = isLive
-                      ? `Día ${iso} · ${fireLabel} · consulta en vivo a NASA FIRMS (sin cobertura/tasa validada)`
+                      ? `Day ${iso} · ${fireLabel} · live NASA FIRMS query (coverage/rate not validated)`
                       : isUseful
-                        ? `Día ${iso} · ${fireLabel}${covPct ? ` · cobertura ${covPct}` : ""}`
+                        ? `Day ${iso} · ${fireLabel}${covPct ? ` · coverage ${covPct}` : ""}`
                         : !isDateAvailable(iso, p.sensor, p.metadata)
-                          ? `Día ${iso} · sin publicación en metadata`
+                          ? `Day ${iso} · not published in metadata`
                           : row?.activity_rate == null
-                            ? `Día ${iso} · sin observación válida`
-                            : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
+                            ? `Day ${iso} · no valid observation`
+                            : `Day ${iso} · not usable (coverage ${covPct ?? "—"} < 70 %)`;
                     return (
                       <button
                         key={d}
@@ -352,43 +352,43 @@ export function ControlRail(p: Props) {
                   })}
                 </div>
                 <div className="day-grid__legend" aria-hidden="true">
-                  <span><i className="day-dot day-dot--fire" /> Con focos</span>
-                  <span><i className="day-dot day-dot--clear" /> Útil sin focos</span>
-                  <span><i className="day-dot day-dot--off" /> Sin cobertura</span>
-                  <span><i className="day-dot day-dot--live" /> En vivo (NASA FIRMS, sin validar)</span>
+                  <span><i className="day-dot day-dot--fire" /> With hotspots</span>
+                  <span><i className="day-dot day-dot--clear" /> Usable, no hotspots</span>
+                  <span><i className="day-dot day-dot--off" /> No coverage</span>
+                  <span><i className="day-dot day-dot--live" /> Live (NASA FIRMS, not validated)</span>
                 </div>
               </>
             )}
 
             {!p.dailyLoading && usefulDays.length === 0 && (
               <div className="note note--warn" style={{ marginTop: 8 }}>
-                Sin días útiles en {MONTHS[p.month - 1]} {p.year} para{" "}
-                {SENSOR_LABELS[p.sensor].long} (cobertura ≥ 70 % requerida).
+                No usable days in {MONTHS[p.month - 1]} {p.year} for{" "}
+                {SENSOR_LABELS[p.sensor].long} (coverage ≥ 70 % required).
               </div>
             )}
           </div>
 
           {p.metadata && !isDateAvailable(p.dateIso, p.sensor, p.metadata) && (
             <div className="note note--warn">
-              {SENSOR_LABELS[p.sensor].long} no publica datos del {p.dateIso}. La API responde
-              <code> PERIOD_NOT_AVAILABLE</code> y no se rellena con ceros.
+              {SENSOR_LABELS[p.sensor].long} does not publish data for {p.dateIso}. The API responds with
+              <code> PERIOD_NOT_AVAILABLE</code> and it is not filled with zeros.
             </div>
           )}
 
           <div className="field">
-            <span className="field__label">Qué pinta el mapa</span>
+            <span className="field__label">What the map paints</span>
             <div className="btn-row">
               <button
                 className={`btn${p.granularity === "day" ? " btn--on" : ""}`}
                 onClick={() => p.onGranularity("day")}
               >
-                Ese día
+                That day
               </button>
               <button
                 className={`btn${p.granularity === "month" ? " btn--on" : ""}`}
                 onClick={() => p.onGranularity("month")}
               >
-                Mes completo
+                Full month
               </button>
             </div>
           </div>
@@ -399,14 +399,14 @@ export function ControlRail(p: Props) {
             onClick={() => p.onShowCalendar(!p.showCalendar)}
           >
             <i className="toggle__box" style={{ background: p.showCalendar ? "var(--acid)" : "transparent" }} />
-            <span>Mostrar el calendario</span>
+            <span>Show the calendar</span>
           </button>
 
           <p className="mono-sm">
-            La API sirve en resolución diaria; el mes solo aporta contexto y anomalía. Las fechas
-            disponibles las publica el backend en <code>metadata</code>
+            The API serves daily resolution; the month only provides context and anomaly. The available
+            dates are published by the backend in <code>metadata</code>
             {p.metadata?.parameters?.min_baseline_years
-              ? ` (línea base mínima: ${p.metadata.parameters.min_baseline_years} años).`
+              ? ` (minimum baseline: ${p.metadata.parameters.min_baseline_years} years).`
               : "."}
           </p>
         </Drawer>
@@ -425,24 +425,24 @@ export function ControlRail(p: Props) {
                 className="toggle"
                 aria-pressed={on}
                 onClick={() => p.onSensor(s)}
-                title={`${meta.product} · ${avail ? "publica" : "sin datos"} el ${p.dateIso}`}
+                title={`${meta.product} · ${avail ? "publishes" : "no data"} on ${p.dateIso}`}
               >
                 <i className="toggle__box" style={{ background: on ? "var(--acid)" : "transparent" }} />
                 <span>{meta.long}</span>
-                <span className="toggle__meta">{avail ? meta.product : "sin datos"}</span>
+                <span className="toggle__meta">{avail ? meta.product : "no data"}</span>
               </button>
             );
           })}
           <hr className="hr" />
           <p className="mono-sm">
-            Una consulta de actividad es de <strong>un</strong> sensor: los conteos nunca se suman
-            entre MODIS Terra, MODIS Aqua y VIIRS, porque cambian la hora de sobrevuelo y el
-            instrumento. El contraste entre los tres se ve en «Comparación», que lo resuelve el
-            backend.
+            An activity query uses <strong>one</strong> sensor: counts are never added
+            across MODIS Terra, MODIS Aqua and VIIRS, because the overpass time and the
+            instrument change. The contrast between the three is seen in “Comparison”, which the
+            backend resolves.
           </p>
           <p className="mono-sm">
-            El indicador principal usa las clases 8–9 (nominal y alta). La clase 7 se informa
-            aparte, nunca sumada.
+            The main indicator uses classes 8–9 (nominal and high). Class 7 is reported
+            separately, never added.
           </p>
         </Drawer>
       );
@@ -450,24 +450,24 @@ export function ControlRail(p: Props) {
     case "area":
       return (
         <Drawer
-          title="Territorio"
+          title="Territory"
           note={TERRITORY_LABELS[p.territoryType].one}
           onClose={p.onClose}
         >
           <div className="field">
-            <span className="field__label">Tipo</span>
+            <span className="field__label">Type</span>
             <div className="btn-row">
               <button
                 className={`btn${p.territoryType === "province" ? " btn--on" : ""}`}
                 onClick={() => p.onTerritoryType("province")}
               >
-                Provincias
+                Provinces
               </button>
               <button
                 className={`btn${p.territoryType === "hydro_unit" ? " btn--on" : ""}`}
                 onClick={() => p.onTerritoryType("hydro_unit")}
               >
-                Cuencas
+                Basins
               </button>
             </div>
           </div>
@@ -475,7 +475,7 @@ export function ControlRail(p: Props) {
           <div className="field">
             <label className="field__label" htmlFor="sel-terr">
               {TERRITORY_LABELS[p.territoryType].one}{" "}
-              <span className="field__value">{features.length} disponibles</span>
+              <span className="field__value">{features.length} available</span>
             </label>
             <select
               id="sel-terr"
@@ -491,39 +491,39 @@ export function ControlRail(p: Props) {
           </div>
 
           <p className="mono-sm">
-            Provincias y cuencas no se mezclan en un mismo ranking: son recortes distintos del
-            territorio y compararlos entre sí no significa nada. También se puede elegir haciendo
-            clic en el mapa.
+            Provinces and basins are not mixed in the same ranking: they are different cuts of the
+            territory and comparing them with each other means nothing. You can also choose by
+            clicking on the map.
           </p>
 
           <hr className="hr" />
 
           <p className="mono-sm" style={{ marginTop: 0 }}>
-            <strong>Fase 2 (opcional).</strong> El recorte de abajo solo alimenta el recorrido
-            simulado; no cambia ninguna consulta de la Fase 1.
+            <strong>Phase 2 (optional).</strong> The cut below only feeds the simulated
+            spread; it does not change any Phase 1 query.
           </p>
           <div className="field">
-            <label className="field__label">Latitud <span className="field__value">°S/N</span></label>
+            <label className="field__label">Latitude <span className="field__value">°S/N</span></label>
             <input type="text" inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} />
           </div>
           <div className="field">
-            <label className="field__label">Longitud <span className="field__value">°E/W</span></label>
+            <label className="field__label">Longitude <span className="field__value">°E/W</span></label>
             <input type="text" inputMode="decimal" value={lon} onChange={(e) => setLon(e.target.value)} />
           </div>
           <div className="field">
-            <label className="field__label">Radio <span className="field__value">{radius} km</span></label>
+            <label className="field__label">Radius <span className="field__value">{radius} km</span></label>
             <input type="text" inputMode="numeric" value={radius} onChange={(e) => setRadius(e.target.value)} />
           </div>
           <div className="btn-row">
-            <button className="btn btn--primary" onClick={applyCoords}>Aplicar</button>
-            <button className="btn" disabled={!p.ring} onClick={() => p.onRing(null)}>Quitar</button>
+            <button className="btn btn--primary" onClick={applyCoords}>Apply</button>
+            <button className="btn" disabled={!p.ring} onClick={() => p.onRing(null)}>Remove</button>
           </div>
           {coordError && <div className="note note--warn" style={{ marginTop: 10 }}>{coordError}</div>}
           {p.ring && (
             <dl className="kv" style={{ marginTop: 12 }}>
-              <dt>Vértices</dt>
+              <dt>Vertices</dt>
               <dd>{p.ring.length}</dd>
-              <dt>Superficie</dt>
+              <dt>Area</dt>
               <dd>{Math.round(ringAreaKm2(p.ring)).toLocaleString("es-PE")} km²</dd>
             </dl>
           )}
@@ -532,38 +532,38 @@ export function ControlRail(p: Props) {
 
     case "capas":
       return (
-        <Drawer title="Capas del mapa" onClose={p.onClose}>
+        <Drawer title="Map layers" onClose={p.onClose}>
           <div className="field">
-            <label className="field__label" htmlFor="sel-base">Mapa base</label>
+            <label className="field__label" htmlFor="sel-base">Base map</label>
             <select
               id="sel-base"
               value={p.baseLayer}
               onChange={(e) => p.onBaseLayer(e.target.value as Props["baseLayer"])}
             >
-              <option value="dark">Oscuro</option>
-              <option value="relief">Relieve</option>
-              <option value="satellite">Satelital</option>
+              <option value="dark">Dark</option>
+              <option value="relief">Relief</option>
+              <option value="satellite">Satellite</option>
             </select>
           </div>
 
           <div className="field">
-            <label className="field__label" htmlFor="sel-metric">Métrica de la coropleta</label>
+            <label className="field__label" htmlFor="sel-metric">Choropleth metric</label>
             <select
               id="sel-metric"
               value={p.metric}
               onChange={(e) => p.onMetric(e.target.value as MetricId)}
             >
-              <optgroup label="Actividad (por sensor)">
+              <optgroup label="Activity (per sensor)">
                 {ACTIVITY_METRICS.map((m) => (
                   <option key={m} value={m}>{METRIC_LABELS[m]}</option>
                 ))}
               </optgroup>
-              <optgroup label="Ambiental (sin sensor)">
+              <optgroup label="Environmental (no sensor)">
                 {ENV_METRICS.map((m) => (
                   <option key={m} value={m}>{METRIC_LABELS[m]}</option>
                 ))}
               </optgroup>
-              <optgroup label="Clasificación">
+              <optgroup label="Classification">
                 <option value="conditions_classification">
                   {METRIC_LABELS.conditions_classification}
                 </option>
@@ -573,38 +573,38 @@ export function ControlRail(p: Props) {
 
           <button className="toggle" aria-pressed={p.showChoropleth} onClick={() => p.onShowChoropleth(!p.showChoropleth)}>
             <i className="toggle__box" style={{ background: p.showChoropleth ? "var(--acid)" : "transparent" }} />
-            <span>Coropleta por territorio</span>
+            <span>Choropleth by territory</span>
           </button>
           <button className="toggle" aria-pressed={p.showHighMarkers} onClick={() => p.onShowHighMarkers(!p.showHighMarkers)}>
             <i className="toggle__box" style={{ background: p.showHighMarkers ? "var(--ember)" : "transparent" }} />
-            <span>Alertas ▲! y subzonas de susceptibilidad alta</span>
+            <span>Alerts ▲! and high-susceptibility subzones</span>
           </button>
           <button className="toggle" aria-pressed={p.showHotspots} onClick={() => p.onShowHotspots(!p.showHotspots)}>
             <i className="toggle__box" style={{ background: p.showHotspots ? "var(--acid)" : "transparent" }} />
-            <span>Focos térmicos</span>
+            <span>Thermal hotspots</span>
           </button>
           <button className="toggle" aria-pressed={p.liveFirms} onClick={() => p.onLiveFirms(!p.liveFirms)}>
             <i className="toggle__box" style={{ background: p.liveFirms ? "var(--acid)" : "transparent" }} />
-            <span>Focos NRT en vivo (NASA FIRMS)</span>
+            <span>Live NRT hotspots (NASA FIRMS)</span>
           </button>
           {p.liveFirms && p.firmsSummary && (
             <p className="mono-sm" style={{ marginTop: 4 }}>{p.firmsSummary}</p>
           )}
           <button className="toggle" aria-pressed={p.showCalendar} onClick={() => p.onShowCalendar(!p.showCalendar)}>
             <i className="toggle__box" style={{ background: p.showCalendar ? "var(--acid)" : "transparent" }} />
-            <span>Calendario</span>
+            <span>Calendar</span>
           </button>
 
           <p className="mono-sm">
-            Mapas base sin clave de API: OpenStreetMap con filtro oscuro, OpenTopoMap para relieve
-            e hidrografía, y Esri World Imagery para satelital.
+            Base maps without an API key: OpenStreetMap with a dark filter, OpenTopoMap for relief
+            and hydrography, and Esri World Imagery for satellite.
           </p>
         </Drawer>
       );
 
     case "descargas":
       return (
-        <Drawer title="Descargas" onClose={p.onClose}>
+        <Drawer title="Downloads" onClose={p.onClose}>
           <div className="btn-row" style={{ flexDirection: "column" }}>
             {p.csvHref && getBackendState() === "online" && (
               <a
@@ -612,7 +612,7 @@ export function ControlRail(p: Props) {
                 style={{ display: "block", textAlign: "center", textDecoration: "none" }}
                 href={p.csvHref}
               >
-                Serie diaria del backend (CSV)
+                Backend daily series (CSV)
               </a>
             )}
             <button
@@ -625,14 +625,14 @@ export function ControlRail(p: Props) {
                 )
               }
             >
-              Serie diaria CSV ({p.daily.length} días)
+              Daily series CSV ({p.daily.length} days)
             </button>
             <button
               className="btn btn--block"
               disabled={p.hotspots.length === 0}
               onClick={() => download(`mchanaq_focos_${stamp}.csv`, hotspotsCsv(p.hotspots, p.origin))}
             >
-              Focos CSV ({p.hotspots.length.toLocaleString("es-PE")})
+              Hotspots CSV ({p.hotspots.length.toLocaleString("es-PE")})
             </button>
             <button
               className="btn btn--block"
@@ -641,7 +641,7 @@ export function ControlRail(p: Props) {
                 download(`mchanaq_calendario_${p.sensor}.csv`, calendarCsv(p.calendar, p.sensor, p.origin))
               }
             >
-              Calendario CSV
+              Calendar CSV
             </button>
             <button
               className="btn btn--block"
@@ -651,14 +651,14 @@ export function ControlRail(p: Props) {
                 download(`mchanaq_area_${stamp}.geojson`, ringGeoJson(p.ring, ringAreaKm2(p.ring)), "application/geo+json")
               }
             >
-              Área GeoJSON (Fase 2)
+              Area GeoJSON (Phase 2)
             </button>
           </div>
           <p className="mono-sm" style={{ marginTop: 12 }}>
-            El CSV del backend es la fuente a citar: trae <code>source_product</code> y{" "}
-            <code>processing_version</code>. Los valores desconocidos van como celda vacía, nunca
-            como <code>0</code>. Cada archivo generado aquí incluye <code>data_origin</code>, que
-            dice si la fila viene de la API o del juego de muestra.
+            The backend CSV is the source to cite: it carries <code>source_product</code> and{" "}
+            <code>processing_version</code>. Unknown values go as an empty cell, never
+            as <code>0</code>. Every file generated here includes <code>data_origin</code>, which
+            says whether the row comes from the API or from the sample dataset.
           </p>
         </Drawer>
       );

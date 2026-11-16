@@ -14,7 +14,7 @@ export function Drawer({ title, note, onClose, children }: Props) {
       <header className="drawer__head">
         <h2 className="drawer__title">{title}</h2>
         {note ? <span className="drawer__note">{note}</span> : null}
-        <button className="drawer__close" onClick={onClose} aria-label="Cerrar panel">
+        <button className="drawer__close" onClick={onClose} aria-label="Close panel">
           ×
         </button>
       </header>

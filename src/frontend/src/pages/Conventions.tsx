@@ -20,10 +20,10 @@ interface Props {
 }
 
 const CONV_SECTIONS = [
-  { id: "resumen", label: "Normativa" },
-  { id: "marcos", label: "Estándares" },
-  { id: "compuertas", label: "Compuertas" },
-  { id: "glosario", label: "Glosario UI" },
+  { id: "resumen", label: "Regulations" },
+  { id: "marcos", label: "Standards" },
+  { id: "compuertas", label: "Gates" },
+  { id: "glosario", label: "UI glossary" },
 ];
 
 export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
@@ -144,7 +144,7 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
         <Starfield />
       </div>
 
-      <nav className="dots" aria-label="Secciones de convenciones y normativa">
+      <nav className="dots" aria-label="Conventions and regulations sections">
         {CONV_SECTIONS.map((s, i) => (
           <button
             key={s.id}
@@ -164,21 +164,21 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
           <div className="tech-hero__grid">
             <div className="tech-hero__head">
               <p className="eyebrow" data-reveal>
-                00 · Marco Normativo y Convenciones
+                00 · Regulatory Framework and Conventions
               </p>
               <h1 className="tech-hero__title" data-reveal>
-                Cada etiqueta responde a una
-                <span className="hero__accent">norma y límite científico.</span>
+                Every label answers to a
+                <span className="hero__accent">standard and a scientific limit.</span>
               </h1>
               <p className="block__lead tech-hero__lead" data-reveal>
-                McHanaq adopta vocabulario estandarizado internacional y marcos normativos de Perú y
-                Argentina para evitar confusiones críticas: distingue anomalía térmica de ignición,
-                susceptibilidad física de riesgo humano, y dato nulo de ausencia real de fuego.
+                McHanaq adopts international standardized vocabulary and the regulatory frameworks of Peru and
+                Argentina to avoid critical confusion: it distinguishes thermal anomaly from ignition,
+                physical susceptibility from human risk, and a null datum from a real absence of fire.
               </p>
 
               <div className="hero__cta tech-hero__cta" data-reveal>
                 <button className="btn btn--lg" onClick={() => goTo("marcos")}>
-                  Explorar marcos y leyes ↓
+                  Explore frameworks and laws ↓
                 </button>
               </div>
             </div>
@@ -190,16 +190,16 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
 
           <dl className="facts tech-facts" data-reveal>
             <div>
-              <dt>Estándares internacionales</dt>
+              <dt>International standards</dt>
               <dd>UNDRR · FAO · Copernicus EFFIS · WMO-No. 1203</dd>
             </div>
             <div>
-              <dt>Reglas satelitales y físicas</dt>
+              <dt>Satellite and physical rules</dt>
               <dd>NASA FIRMS QA · Rothermel · Anderson · Huete SAVI</dd>
             </div>
             <div>
-              <dt>Marco regional documentado</dt>
-              <dd>Perú CENEPRED / INEI / ANA · Arg. Ley N.º 26.815</dd>
+              <dt>Documented regional framework</dt>
+              <dd>Peru CENEPRED / INEI / ANA · Arg. Law No. 26.815</dd>
             </div>
           </dl>
         </div>
@@ -211,23 +211,23 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                01 · Reglamentos, estándares y literatura
+                01 · Regulations, standards and literature
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Fuentes institucionales y científicas de respaldo.
+                Supporting institutional and scientific sources.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Reúne las convenciones ya documentadas en el expediente técnico (CENEPRED/SERFOR, Ley
-              26.815, FIRMS y literatura física) junto con los estándares internacionales UNDRR, FAO,
-              EFFIS y OMM aplicados en el visor.
+              Gathers the conventions already documented in the technical file (CENEPRED/SERFOR, Law
+              26.815, FIRMS and physics literature) together with the international standards UNDRR, FAO,
+              EFFIS and WMO applied in the viewer.
             </p>
           </div>
 
           <div
             className="tech-filters"
             role="tablist"
-            aria-label="Filtrar marcos normativos por ámbito"
+            aria-label="Filter regulatory frameworks by scope"
             data-reveal
           >
             {CONV_CATEGORIES.map((cat) => (
@@ -260,15 +260,15 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                02 · Compuertas metodológicas
+                02 · Methodological gates
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Reglas que impiden inferencias falsas.
+                Rules that prevent false inferences.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Antes de pintar una provincia, cuenca o día en el calendario, cuatro compuertas
-              verifican calidad de píxel, suficiencia histórica y trazabilidad del árbol N0–N3.
+              Before painting a province, basin or day on the calendar, four gates
+              verify pixel quality, historical sufficiency and traceability of the N0–N3 tree.
             </p>
           </div>
 
@@ -282,15 +282,15 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
                 <h3 className="pipeline__title">{gate.title}</h3>
                 <dl className="pipeline__meta">
                   <div>
-                    <dt>Criterio</dt>
+                    <dt>Criterion</dt>
                     <dd>{gate.input}</dd>
                   </div>
                   <div>
-                    <dt>Regla</dt>
+                    <dt>Rule</dt>
                     <dd>{gate.process}</dd>
                   </div>
                   <div>
-                    <dt>Efecto UI</dt>
+                    <dt>UI effect</dt>
                     <dd>{gate.output}</dd>
                   </div>
                 </dl>
@@ -306,15 +306,15 @@ export function Conventions({ onOpenMap, onOpenLanding, onOpenTech }: Props) {
           <div className="tech-head">
             <div>
               <p className="eyebrow" data-reveal>
-                03 · Glosario de estados y etiquetas
+                03 · Glossary of states and labels
               </p>
               <h2 className="block__title tech-head__title" data-reveal>
-                Qué significa exactamente cada estado visible.
+                What exactly each visible state means.
               </h2>
             </div>
             <p className="block__lead" data-reveal>
-              Equivalencia directa entre los códigos del contrato REST (`contracts/data-dictionary.md`)
-              y las etiquetas mostradas en mapas, tarjetas emergentes y calendario.
+              Direct equivalence between the REST contract codes (`contracts/data-dictionary.md`)
+              and the labels shown on maps, popup cards and the calendar.
             </p>
           </div>
 
@@ -371,8 +371,8 @@ function ConventionCard({ item }: { item: ConvStandard }) {
           href={item.href}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Referencia oficial: ${item.name}`}
-          aria-label={`Referencia oficial: ${item.name}`}
+          title={`Official reference: ${item.name}`}
+          aria-label={`Official reference: ${item.name}`}
         >
           ↗
         </a>
@@ -381,7 +381,7 @@ function ConventionCard({ item }: { item: ConvStandard }) {
       <p className="tech-card__summary">{item.summary}</p>
 
       <div className="tech-card__uses">
-        <span className="tech-card__uses-label">Aplicación en McHanaq ({item.traceability})</span>
+        <span className="tech-card__uses-label">Application in McHanaq ({item.traceability})</span>
         <ul>
           {item.adoptions.map((line) => (
             <li key={line}>{line}</li>

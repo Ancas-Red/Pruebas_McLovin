@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MonthCell } from "../lib/calendar";
 import { cividis } from "../lib/palette";
 
-const M_SHORT = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+const M_SHORT = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 const M_FULL = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 // Cámara mirando desde arriba y ligeramente al frente-izquierda (vista cenital-isométrica)
@@ -464,7 +464,7 @@ export function CalendarTerrain3D({
       <canvas
         ref={canvasRef}
         className="cal3d__canvas"
-        aria-label="Vista 3D de valles y crestas de actividad térmica por año y mes"
+        aria-label="3D view of valleys and ridges of thermal activity by year and month"
         onPointerDown={(e) => {
           (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
           dragRef.current = {
@@ -506,7 +506,7 @@ export function CalendarTerrain3D({
       />
 
       <div className="cal3d__hud">
-        <span className="cal3d__hint">Arrastra para rotar · Rueda para zoom · Clic en cresta/valle</span>
+        <span className="cal3d__hint">Drag to rotate · Wheel to zoom · Click a ridge/valley</span>
         <button
           type="button"
           className="cal3d__reset"
@@ -515,9 +515,9 @@ export function CalendarTerrain3D({
             setPitch(DEFAULT_PITCH);
             setZoom(DEFAULT_ZOOM);
           }}
-          title="Restaurar ángulo y zoom 3D inicial"
+          title="Restore the initial 3D angle and zoom"
         >
-          ↺ Vista
+          ↺ View
         </button>
       </div>
 
@@ -536,14 +536,14 @@ export function CalendarTerrain3D({
             <div className="cal3d__tt-meta">
               {hovered.cell.detections.toLocaleString("es-PE")} det. ·{" "}
               {hovered.cell.observation_coverage != null
-                ? `cob. ${Math.round(hovered.cell.observation_coverage * 100)}%`
-                : "cob. s/d"}
+                ? `cov. ${Math.round(hovered.cell.observation_coverage * 100)}%`
+                : "cov. n/a"}
               {hovered.cell.historical_anomaly != null
                 ? ` · z=${hovered.cell.historical_anomaly.toFixed(2)}`
                 : ""}
             </div>
           ) : (
-            <div className="cal3d__tt-meta">Sin datos publicados</div>
+            <div className="cal3d__tt-meta">No data published</div>
           )}
         </div>
       )}

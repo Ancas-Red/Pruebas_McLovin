@@ -48,12 +48,12 @@ export default function App() {
 
       const label =
         next === "mapa"
-          ? "Abriendo visor territorial…"
+          ? "Opening territorial viewer…"
           : next === "tecnologia"
-            ? "Cargando arquitectura…"
+            ? "Loading architecture…"
             : next === "convenciones"
-              ? "Cargando marco normativo…"
-              : "Volviendo a portada…";
+              ? "Loading regulatory framework…"
+              : "Returning to home…";
       setRouteCurtain({ active: true, label, suspendTour: true });
 
       const tSwap = window.setTimeout(() => go(next), 150);

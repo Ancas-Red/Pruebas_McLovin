@@ -105,13 +105,13 @@ import {
 import { simulateSpread, type SpreadResult } from "../lib/spread";
 
 const MONTHS_ES = [
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 const MONTHS_SHORT_ES = [
-  "ene", "feb", "mar", "abr", "may", "jun",
-  "jul", "ago", "sep", "oct", "nov", "dic",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 const DEPT_BY_UBIGEO: Record<string, string> = {
@@ -190,13 +190,13 @@ const MONTHLY_METRICS = new Set<MetricId>([
  */
 function compactTooltipUnit(unit: string | null): string | null {
   if (!unit) return null;
-  if (/adimensional/i.test(unit)) return "(adim.)";
+  if (/adimensional|dimensionless/i.test(unit)) return "(unitless)";
   if (unit.length > 22) return unit.slice(0, 20).trimEnd() + "…";
   return unit;
 }
 
 function formatMetricValue(v: number | string | null | undefined, unit: string | null): string {
-  if (v === null || v === undefined) return "Sin dato";
+  if (v === null || v === undefined) return "No data";
   if (typeof v === "string") return CLASSIFICATION_LABELS[v as Classification] ?? v;
   const n = v.toLocaleString("es-PE", { maximumFractionDigits: 3 });
   const shortUnit = compactTooltipUnit(unit);
@@ -204,14 +204,14 @@ function formatMetricValue(v: number | string | null | undefined, unit: string |
 }
 
 function formatCoverage(v: number | null): string {
-  if (v === null || v === undefined) return "Sin dato";
+  if (v === null || v === undefined) return "No data";
   // La cobertura llega como fracción 0–1; se muestra en porcentaje.
   return `${(v * 100).toLocaleString("es-PE", { maximumFractionDigits: 0 })} %`;
 }
 
 function formatAnomaly(a: ActivitySummary["historical_anomaly"]): string {
-  if (a.status === "insufficient_baseline") return "Serie insuficiente";
-  if (a.status === "not_estimable" || a.value === null) return "No estimable";
+  if (a.status === "insufficient_baseline") return "Insufficient series";
+  if (a.status === "not_estimable" || a.value === null) return "Not estimable";
   const rounded = Math.abs(a.value) < 0.005 ? 0 : a.value;
   const s = rounded > 0 ? "+" : "";
   return `${s}${rounded.toLocaleString("es-PE", { maximumFractionDigits: 2 })} σ`;
@@ -233,11 +233,11 @@ function buildHoverCard(
     (s.activity.activity_rate == null && s.activity.observation_coverage == null);
 
   const notice = dailyInvalid
-    ? "Sin observación válida en esta fecha: la data no es válida en este momento."
+    ? "No valid observation on this date: the data is not valid at this time."
     : noValidSummary
-      ? "La data no es válida en este momento o no está disponible para este territorio."
+      ? "The data is not valid at this time or is not available for this territory."
       : s.data_quality?.status === "partial"
-        ? "Cobertura parcial: algunos indicadores no están disponibles."
+        ? "Partial coverage: some indicators are not available."
         : undefined;
 
   return {
@@ -246,11 +246,11 @@ function buildHoverCard(
     state: "ready",
     rows: [
       painted,
-      { k: "Días activos", v: s.activity.active_days?.toLocaleString("es-PE") ?? "Sin dato" },
-      { k: "Cobertura", v: formatCoverage(s.activity.observation_coverage) },
-      { k: "Anomalía", v: formatAnomaly(s.activity.historical_anomaly) },
+      { k: "Active days", v: s.activity.active_days?.toLocaleString("es-PE") ?? "No data" },
+      { k: "Coverage", v: formatCoverage(s.activity.observation_coverage) },
+      { k: "Anomaly", v: formatAnomaly(s.activity.historical_anomaly) },
       {
-        k: "Condiciones",
+        k: "Conditions",
         v:
           CLASSIFICATION_LABELS[s.environmental_conditions.classification] ??
           s.environmental_conditions.classification,
@@ -261,7 +261,7 @@ function buildHoverCard(
        —fecha no publicada, el backend no contestó, o contestó un error del
        contrato— y atribuirlo al backend sería afirmar algo que aquí no se
        sabe. El rótulo de la cabecera ya informa si hay conexión. */
-    foot: origin === "fixture" ? "Datos de muestra" : "Backend · /api/v1",
+    foot: origin === "fixture" ? "Sample data" : "Backend · /api/v1",
   };
 }
 
@@ -443,7 +443,7 @@ export function MapTool({
     if (prevTabRef.current === tab) return;
     prevTabRef.current = tab;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    setTabTransition(tab === "simulacion" ? "Cambiando a simulación…" : "Modo calendario térmico…");
+    setTabTransition(tab === "simulacion" ? "Switching to simulation…" : "Thermal calendar mode…");
     const timer = window.setTimeout(() => setTabTransition(null), 420);
     return () => window.clearTimeout(timer);
   }, [tab]);
@@ -683,7 +683,7 @@ export function MapTool({
     setUnavailable(
       isDateAvailable(dateIso, sensor, metadata)
         ? null
-        : `${SENSOR_META[sensor].label}: la data del ${dateIso} no es válida o no está disponible`
+        : `${SENSOR_META[sensor].label}: the data for ${dateIso} is not valid or is not available`
     );
   }, [dateIso, sensor, metadata]);
 
@@ -1250,8 +1250,8 @@ export function MapTool({
               title: name,
               state: "ready",
               rows: [localRow],
-              notice: "La data no es válida en este momento o no está disponible para esta fecha.",
-              foot: r.origin === "unavailable" ? "Fecha sin publicación para este sensor" : "Sin ficha publicada",
+              notice: "The data is not valid at this time or is not available for this date.",
+              foot: r.origin === "unavailable" ? "Date not published for this sensor" : "No card published",
             });
             return;
           }
@@ -1331,15 +1331,15 @@ export function MapTool({
       .then((res) => {
         if (ctrl.signal.aborted) return;
         if (!res) {
-          setFirmsSummary("No se pudo consultar /realtime/area.");
+          setFirmsSummary("Could not query /realtime/area.");
           return;
         }
         if (res.hotspots_status === "realtime_disabled") {
-          setFirmsSummary("Modo tiempo real desactivado en el servidor.");
+          setFirmsSummary("Real-time mode is disabled on the server.");
           return;
         }
         if (res.hotspots_status === "firms_map_key_required") {
-          setFirmsSummary("Falta FIRMS_MAP_KEY en el backend.");
+          setFirmsSummary("FIRMS_MAP_KEY is missing on the backend.");
           return;
         }
         if (res.hotspots_status === "unavailable") {
@@ -1379,7 +1379,7 @@ export function MapTool({
         );
       })
       .catch((e) => {
-        if (!isAbort(e)) setFirmsSummary("No se pudo consultar /realtime/area.");
+        if (!isAbort(e)) setFirmsSummary("Could not query /realtime/area.");
       });
     return () => ctrl.abort();
   }, [liveFirms, ring, territoryCenter, dateIso]);
@@ -1520,11 +1520,11 @@ export function MapTool({
           }));
         } else {
           extraAssumptions.push(
-            "Modo offline local: relieve y combustible sintéticos (/api/v1/spread-simulate no disponible)."
+            "Local offline mode: synthetic terrain and fuel (/api/v1/spread-simulate not available)."
           );
           setGlobalTelemetry((prev) => ({
             ...(prev ?? {}),
-            demSource: prev?.demSource ?? "Relieve sintético local (offline)",
+            demSource: prev?.demSource ?? "Local synthetic terrain (offline)",
             coordsLabel: formatLatLon(ignPt, 3),
           }));
         }
@@ -1787,26 +1787,26 @@ export function MapTool({
     if (!ready) return null;
     if (unavailable) return unavailable;
     if (origin === "unavailable") {
-      return `La data de ${dateIso} no es válida en este momento o no está disponible.`;
+      return `The data for ${dateIso} is not valid at this time or is not available.`;
     }
     if (
       dayRow &&
       ((dayRow.valid_land_pixels ?? 0) === 0 || (dayRow.observation_coverage ?? 0) === 0)
     ) {
-      return `Sin observación válida el ${dateIso}: la data no está disponible (0 píxeles de tierra válidos).`;
+      return `No valid observation on ${dateIso}: the data is not available (0 valid land pixels).`;
     }
     if (
       dayRow &&
       (dayRow.activity_rate == null ||
         (dayRow.observation_coverage != null && dayRow.observation_coverage < 0.7))
     ) {
-      return `Cobertura < 70 % el ${dateIso}: la data no es válida para estimar actividad térmica.`;
+      return `Coverage < 70 % on ${dateIso}: the data is not valid for estimating thermal activity.`;
     }
     if (summary?.data_quality?.status === "insufficient") {
-      return "Calidad insuficiente: la data de este período no es válida o no está disponible.";
+      return "Insufficient quality: the data for this period is not valid or is not available.";
     }
     if (!dailyLoading && usefulDays.length === 0) {
-      return `Sin días válidos disponibles en este mes para ${SENSOR_META[sensor].label}.`;
+      return `No valid days available this month for ${SENSOR_META[sensor].label}.`;
     }
     return null;
   }, [ready, unavailable, origin, dateIso, dayRow, summary, dailyLoading, usefulDays.length, sensor]);
@@ -1888,7 +1888,7 @@ export function MapTool({
             kind: "subbasin",
             targetTerritoryType: "hydro_unit",
             targetTerritoryId: hf.properties.territory_id,
-            detail: `Subcuenca prioritaria dentro de ${selectedName}`,
+            detail: `Priority sub-basin within ${selectedName}`,
           });
         }
         markers.push({
@@ -1898,7 +1898,7 @@ export function MapTool({
           kind: "subbasin",
           targetTerritoryType: "hydro_unit",
           targetTerritoryId: hf.properties.territory_id,
-          detail: `Subcuenca en susceptibilidad alta · ${selectedName}`,
+          detail: `Sub-basin with high susceptibility · ${selectedName}`,
         });
       }
     }
@@ -1942,24 +1942,24 @@ export function MapTool({
         clusters.forEach((cl, idx) => {
           zones.push({
             id: `enc-${territoryId}-${idx}`,
-            label: `${selectedName} · Núcleo ${idx + 1}`,
+            label: `${selectedName} · Core ${idx + 1}`,
             rings: [cl.ring],
             kind: "enclosure",
             targetTerritoryType: territoryType,
             targetTerritoryId: territoryId,
             detail: hasCritical
-              ? `${cl.count} foco${cl.count === 1 ? "" : "s"} críticos en región de monitoreo prioritario`
-              : `${cl.count} foco${cl.count === 1 ? "" : "s"} agrupados (conf. baja · verificar área)`,
+              ? `${cl.count} critical hotspot${cl.count === 1 ? "" : "s"} in a priority monitoring region`
+              : `${cl.count} clustered hotspot${cl.count === 1 ? "" : "s"} (low conf. · verify area)`,
           });
           if (hasCritical && (isHighSusceptibility || idx === 0)) {
             markers.push({
               id: `clm-${territoryId}-${idx}`,
-              name: `${selectedName} (núcleo prioritario ${idx + 1})`,
+              name: `${selectedName} (priority core ${idx + 1})`,
               position: cl.center,
               kind: "cluster",
               targetTerritoryType: territoryType,
               targetTerritoryId: territoryId,
-              detail: `${cl.count} foco${cl.count === 1 ? "" : "s"} de alta severidad · clic → árbol`,
+              detail: `${cl.count} high-severity hotspot${cl.count === 1 ? "" : "s"} · click → tree`,
             });
           }
         });
@@ -2094,9 +2094,9 @@ export function MapTool({
               active={!suspendLoader && (!baseLoaded || spreadRunning || Boolean(tabTransition))}
               label={
                 !baseLoaded
-                  ? "Cargando territorios y sensores…"
+                  ? "Loading territories and sensors…"
                   : spreadRunning
-                  ? "Calculando frente de propagación…"
+                  ? "Computing spread front…"
                   : tabTransition ?? undefined
               }
               blocking={!baseLoaded || spreadRunning}
@@ -2106,11 +2106,11 @@ export function MapTool({
               <div className="susc-alert" role="alert" aria-live="polite">
                 <div className="susc-alert__head">
                   <span className="susc-alert__dot" aria-hidden="true" />
-                  <strong>Susceptibilidad alta en {territoryName}</strong>
+                  <strong>High susceptibility in {territoryName}</strong>
                 </div>
                 <p className="susc-alert__body">
-                  El árbol de decisión marca condiciones muy favorables para extensión del fuego en{" "}
-                  {periodLabel}. Conviene revisar la evidencia y comparar sensores.
+                  The decision tree flags conditions very favorable to fire spread in{" "}
+                  {periodLabel}. It is worth reviewing the evidence and comparing sensors.
                 </p>
                 <div className="susc-alert__actions">
                   <button
@@ -2121,14 +2121,14 @@ export function MapTool({
                       setDismissedHighKey(highAlertKey);
                     }}
                   >
-                    Revisar árbol →
+                    Review tree →
                   </button>
                   <button
                     type="button"
                     className="btn"
                     onClick={() => setDismissedHighKey(highAlertKey)}
                   >
-                    Ocultar
+                    Dismiss
                   </button>
                 </div>
               </div>
@@ -2160,12 +2160,12 @@ export function MapTool({
               type="button"
               className="calbar-restore"
               onClick={() => setShowCalendar(true)}
-              aria-label="Mostrar el calendario de actividad térmica"
+              aria-label="Show the thermal activity calendar"
               data-tour="calendar-strip"
             >
               <span className="panel__idx">06</span>
-              <span className="calbar-restore__title">Calendario de actividad térmica</span>
-              <span className="calbar-restore__cta">▲ Mostrar panel</span>
+              <span className="calbar-restore__title">Thermal activity calendar</span>
+              <span className="calbar-restore__cta">▲ Show panel</span>
             </button>
           )}
         </main>
@@ -2249,8 +2249,8 @@ export function MapTool({
         <span title={SENSOR_META[sensor].product}>
           <b>Sensor</b> {SENSOR_META[sensor].label}
         </span>
-        <span title="Píxeles con detección de confianza nominal o alta (clases FireMask 8–9; excluye baja confianza clase 7)">
-          <b>Detecciones (conf. nominal/alta)</b> {nominalHigh.toLocaleString("es-PE")}
+        <span title="Pixels with nominal or high confidence detection (FireMask classes 8–9; excludes low-confidence class 7)">
+          <b>Detections (nominal/high conf.)</b> {nominalHigh.toLocaleString("es-PE")}
         </span>
         <span className="status__spacer" />
         {unavailable ? (
@@ -2260,14 +2260,14 @@ export function MapTool({
           dataValidityNotice && <span className="chip chip--warn">{dataValidityNotice}</span>
         )}
         {origin === "fixture" ? (
-          <span className="chip chip--warn">Indicadores de muestra · no son observaciones reales</span>
+          <span className="chip chip--warn">Sample indicators · not real observations</span>
         ) : origin === "unavailable" ? (
-          <span className="chip chip--warn">Sin datos publicados para esta fecha y sensor</span>
+          <span className="chip chip--warn">No data published for this date and sensor</span>
         ) : (
-          <span className="chip chip--term">Indicadores desde /api/v1</span>
+          <span className="chip chip--term">Indicators from /api/v1</span>
         )}
         {origin === "api" && hotspotsOrigin === "fixture" && (
-          <span className="chip chip--warn">Focos de muestra · el backend no publica /hotspots</span>
+          <span className="chip chip--warn">Sample hotspots · the backend does not publish /hotspots</span>
         )}
         {span.from !== span.to && (
           <span className="status__src">{`${span.from} → ${span.to}`}</span>

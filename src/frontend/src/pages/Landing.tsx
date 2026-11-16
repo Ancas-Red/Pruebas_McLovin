@@ -13,17 +13,17 @@ interface Props {
 }
 
 const BLOCKS = [
-  { id: "inicio", label: "Inicio" },
-  { id: "proyecto", label: "El proyecto" },
-  { id: "equipo", label: "El equipo" },
+  { id: "inicio", label: "Home" },
+  { id: "proyecto", label: "The project" },
+  { id: "equipo", label: "The team" },
 ];
 
 const TEAM_IDX = 2;
 /** Espera breve para que las luces del planeta se atenúen antes de dibujar #equipo. */
 const TEAM_LIGHTS_DELAY_MS = 380;
-const HERO_LINE_1 = "El fuego deja huella.";
-const HERO_TEMP_LINE = "Tranquilo.";
-const HERO_LINE_2 = "Nosotros lo ordenamos.";
+const HERO_LINE_1 = "Fire leaves a mark.";
+const HERO_TEMP_LINE = "Easy.";
+const HERO_LINE_2 = "We bring order to it.";
 
 export function Landing({
   onOpenMap,
@@ -211,7 +211,7 @@ export function Landing({
         <Globe anchorX={0.27} lightsActive={active < TEAM_IDX} />
       </div>
 
-      <nav className="dots" aria-label="Secciones">
+      <nav className="dots" aria-label="Sections">
         {BLOCKS.map((b, i) => (
           <button
             key={b.id}
@@ -234,34 +234,34 @@ export function Landing({
             </p>
             <HeroTypewriterTitle suspended={suspendTypewriter} />
             <p className="hero__lead" data-reveal style={{ "--d": "160ms" } as React.CSSProperties}>
-              Más de catorce años de focos térmicos de MODIS y VIIRS en un calendario territorial
-              del Perú, con las condiciones del terreno ante una ignición hipotética.
+              More than fourteen years of MODIS and VIIRS thermal hotspots in a territorial
+              calendar of Peru, with terrain conditions for a hypothetical ignition.
             </p>
             <div className="hero__cta" data-reveal style={{ "--d": "280ms" } as React.CSSProperties}>
               <button className="btn btn--primary btn--lg" onClick={onOpenMap}>
-                Abrir el mapa →
+                Open the map →
               </button>
               <button className="btn btn--lg" onClick={() => goTo("proyecto")}>
-                El proyecto
+                The project
               </button>
             </div>
             <dl className="facts" data-reveal style={{ "--d": "400ms" } as React.CSSProperties}>
               <div>
-                <dt>Serie</dt>
+                <dt>Series</dt>
                 <dd>2012 — 2026</dd>
               </div>
               <div>
-                <dt>Sensores</dt>
+                <dt>Sensors</dt>
                 <dd>MODIS ×2 · VIIRS</dd>
               </div>
               <div>
-                <dt>Escala</dt>
-                <dd>Provincias y cuencas</dd>
+                <dt>Scale</dt>
+                <dd>Provinces and basins</dd>
               </div>
             </dl>
           </div>
         </div>
-        <button className="scroll-cue" onClick={() => goTo("proyecto")} aria-label="Bajar">
+        <button className="scroll-cue" onClick={() => goTo("proyecto")} aria-label="Scroll down">
           <span />
         </button>
       </section>
@@ -271,33 +271,33 @@ export function Landing({
         <div className="wrap wrap--right">
           <div className="col">
             <p className="eyebrow" data-reveal style={{ "--d": "0ms" } as React.CSSProperties}>
-              01 · El proyecto
+              01 · The project
             </p>
             <h2 className="block__title" data-reveal style={{ "--d": "40ms" } as React.CSSProperties}>
-              De puntos sueltos a una historia del territorio.
+              From scattered points to a story of the territory.
             </h2>
             <p className="block__lead" data-reveal style={{ "--d": "80ms" } as React.CSSProperties}>
-              Ver dónde hay focos hoy es el primer paso, no el último. McHanaq responde si lo
-              observado es inusual para esta época y cuánto alcanzó a ver el satélite.
+              Seeing where hotspots are today is the first step, not the last. McHanaq answers whether
+              what was observed is unusual for this time of year and how much the satellite managed to see.
             </p>
 
             <div className="scope" data-reveal style={{ "--d": "120ms" } as React.CSSProperties}>
               <div className="scope__col scope__col--yes">
-                <h3>Sí hace</h3>
+                <h3>What it does</h3>
                 <ul>
-                  <li>Calendario histórico por provincia y cuenca</li>
-                  <li>Comparación entre sensores con su cobertura</li>
-                  <li>Anomalías contra el mismo mes de otros años</li>
-                  <li>Recorrido simulado desde una ignición hipotética</li>
+                  <li>Historical calendar by province and basin</li>
+                  <li>Sensor comparison with their coverage</li>
+                  <li>Anomalies against the same month of other years</li>
+                  <li>Simulated spread from a hypothetical ignition</li>
                 </ul>
               </div>
               <div className="scope__col scope__col--no">
-                <h3>No hace</h3>
+                <h3>What it does not do</h3>
                 <ul>
-                  <li>Predecir dónde o cuándo se iniciará un incendio</li>
-                  <li>Estimar probabilidad de ignición</li>
-                  <li>Confirmar que un foco térmico sea un incendio</li>
-                  <li>Servir como alerta operativa</li>
+                  <li>Predict where or when a fire will start</li>
+                  <li>Estimate ignition probability</li>
+                  <li>Confirm that a thermal hotspot is a fire</li>
+                  <li>Serve as an operational alert</li>
                 </ul>
               </div>
             </div>
@@ -310,7 +310,7 @@ export function Landing({
         <div className="wrap">
           <div className="team__head">
             <p className="eyebrow" data-reveal>
-              02 · El equipo
+              02 · The team
             </p>
             <h2 className="block__title team__title" data-reveal>
               <span>Los McLovin</span>
@@ -319,7 +319,7 @@ export function Landing({
                 href="https://www.spaceappschallenge.org/2026/find-a-team/los-mclovin/"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Equipo Los McLovin en NASA Space Apps Challenge 2026"
+                aria-label="Los McLovin team at NASA Space Apps Challenge 2026"
                 title="Los McLovin · NASA Space Apps 2026"
               >
                 <McLovinGlasses />
@@ -343,7 +343,7 @@ export function Landing({
               else if (r === "convenciones") onOpenConventions?.();
               else goTo("inicio");
             }}
-            note="Datos: NASA LP DAAC · Copernicus ERA5-Land · COPERNICUS DEM · MapBiomas"
+            note="Data: NASA LP DAAC · Copernicus ERA5-Land · COPERNICUS DEM · MapBiomas"
           />
         </div>
       </section>
@@ -672,7 +672,7 @@ function MemberSocialLink({
       <span
         className="member__link member__link--pending"
         aria-disabled="true"
-        title={`Agrega el ${label} de ${memberName} en team.ts`}
+        title={`Add ${memberName}'s ${label} in team.ts`}
       >
         {icon}
         <span>{label}</span>
@@ -685,7 +685,7 @@ function MemberSocialLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`${label} de ${memberName}`}
+      aria-label={`${memberName}'s ${label}`}
     >
       {icon}
       <span>{label}</span>
@@ -711,7 +711,7 @@ function MemberCard({ member }: { member: Member }) {
         {src ? (
           <img
             src={src}
-            alt={`Fotografía de ${member.name}`}
+            alt={`Photo of ${member.name}`}
             loading="lazy"
             onError={() => setAttempt((a) => a + 1)}
           />

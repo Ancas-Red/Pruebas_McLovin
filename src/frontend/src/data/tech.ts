@@ -43,11 +43,11 @@ export interface TechSpec {
 }
 
 export const TECH_CATEGORIES: { id: TechCategory; label: string }[] = [
-  { id: "todas", label: "Todas" },
-  { id: "satelital", label: "Satelital y Clima" },
-  { id: "procesamiento", label: "Procesamiento" },
-  { id: "backend", label: "Backend e Infra" },
-  { id: "frontend", label: "Frontend y Mapas" },
+  { id: "todas", label: "All" },
+  { id: "satelital", label: "Satellite & Climate" },
+  { id: "procesamiento", label: "Processing" },
+  { id: "backend", label: "Backend & Infra" },
+  { id: "frontend", label: "Frontend & Maps" },
 ];
 
 export const TECH_ITEMS: TechItem[] = [
@@ -55,13 +55,13 @@ export const TECH_ITEMS: TechItem[] = [
     id: "modis",
     name: "NASA MODIS Terra & Aqua",
     category: "satelital",
-    categoryLabel: "Satelital",
+    categoryLabel: "Satellite",
     summary:
-      "Observación térmica diaria a 1 km mediante los productos MOD14A1 (Terra) y MYD14A1 (Aqua), sin mezclar ni sumar conteos entre sensores.",
+      "Daily thermal observation at 1 km using the MOD14A1 (Terra) and MYD14A1 (Aqua) products, without mixing or adding counts across sensors.",
     uses: [
-      "Decodificación de FireMask bits 0–3: clase 7 (baja confianza) y clases 8–9 (nominal/alta)",
-      "Filtro de píxeles válidos en tierra firme mediante QA bits 0–1 == 2",
-      "Cálculo independiente de observation_coverage diario para descartar días nubosos",
+      "FireMask bits 0–3 decoding: class 7 (low confidence) and classes 8–9 (nominal/high)",
+      "Valid land-pixel filter using QA bits 0–1 == 2",
+      "Independent daily observation_coverage calculation to discard cloudy days",
     ],
     href: "https://lpdaac.usgs.gov/products/mod14a1v061/",
     icon: "satellite",
@@ -70,13 +70,13 @@ export const TECH_ITEMS: TechItem[] = [
     id: "viirs",
     name: "VIIRS Suomi-NPP (VNP14A1 / VNP21A1D)",
     category: "satelital",
-    categoryLabel: "Satelital",
+    categoryLabel: "Satellite",
     summary:
-      "Sensor de referencia continua en toda la ventana común verificada (2012-01-19 a 2026-11-02) con focos térmicos y temperatura superficial del suelo.",
+      "Continuous reference sensor across the whole verified common window (2012-01-19 to 2026-11-02) with thermal hotspots and land surface temperature.",
     uses: [
-      "Detecciones diarias VNP14A1 y temperatura superficial LST_1KM (VNP21A1D)",
-      "Control estricto de días útiles: nubosidad < 30 % y valid_land_pixels > 0",
-      "Anulación explícita a null (nunca 0) cuando no hay cobertura satelital suficiente",
+      "Daily VNP14A1 detections and LST_1KM land surface temperature (VNP21A1D)",
+      "Strict usable-day control: cloudiness < 30 % and valid_land_pixels > 0",
+      "Explicit null (never 0) when there is not enough satellite coverage",
     ],
     href: "https://lpdaac.usgs.gov/products/vnp14a1v002/",
     icon: "viirs",
@@ -85,13 +85,13 @@ export const TECH_ITEMS: TechItem[] = [
     id: "gee",
     name: "Google Earth Engine",
     category: "procesamiento",
-    categoryLabel: "Geoespacial",
+    categoryLabel: "Geospatial",
     summary:
-      "Motor de cómputo geoespacial batch en nube encargado de reducir millones de píxeles satelitales a tablas zonales por provincia y cuenca.",
+      "Cloud batch geospatial compute engine that reduces millions of satellite pixels to zonal tables by province and basin.",
     uses: [
-      "Exportación por bloques de 2 años en ucayali_common_window_export.js",
-      "Buffer hídrico de 150 m combinando JRC Global Surface Water y CobVeg",
-      "Cobertura vegetal ESA WorldCover v200 y agregación territorial INEI / ANA",
+      "Export in 2-year blocks in ucayali_common_window_export.js",
+      "150 m water buffer combining JRC Global Surface Water and CobVeg",
+      "ESA WorldCover v200 vegetation cover and INEI / ANA territorial aggregation",
     ],
     href: "https://earthengine.google.com/",
     icon: "gee",
@@ -100,28 +100,28 @@ export const TECH_ITEMS: TechItem[] = [
     id: "era5-dem",
     name: "ERA5-Land, Open-Meteo & Copernicus DEM",
     category: "satelital",
-    categoryLabel: "Clima y Terreno",
+    categoryLabel: "Climate & Terrain",
     summary:
-      "Contexto meteorológico y topográfico para Fase 1 (ERA5-Land + GLO-30) y consulta global en vivo (Open-Meteo + Sentinel-2 SAVI) en Fase 2.",
+      "Meteorological and topographic context for Phase 1 (ERA5-Land + GLO-30) and live global query (Open-Meteo + Sentinel-2 SAVI) in Phase 2.",
     uses: [
-      "Temperatura a 2 m (t_amb_c), humedad relativa y viento vectorial a 10 m en ERA5-Land",
-      "Topografía Copernicus DEM (GLO-30 en GEE y GLO-90 global vía Open-Meteo Elevation, malla 10×10)",
-      "Viento y humedad horarios Open-Meteo (Forecast para fechas recientes, Archive para históricas) e índice SAVI Sentinel-2 L2A (Planetary Computer) en Fase 2",
+      "2 m temperature (t_amb_c), relative humidity and 10 m vector wind in ERA5-Land",
+      "Copernicus DEM topography (GLO-30 in GEE and global GLO-90 via Open-Meteo Elevation, 10×10 grid)",
+      "Hourly Open-Meteo wind and humidity (Forecast for recent dates, Archive for historical ones) and Sentinel-2 L2A SAVI index (Planetary Computer) in Phase 2",
     ],
     href: "https://cds.climate.copernicus.eu/",
     icon: "climate",
   },
   {
     id: "python-analytics",
-    name: "Python 3.11 + Pipeline Analítico",
+    name: "Python 3.11 + Analytics Pipeline",
     category: "procesamiento",
-    categoryLabel: "Analítica",
+    categoryLabel: "Analytics",
     summary:
-      "Módulo reproducible en src/analytics/ que armoniza las tablas exportadas en indicadores diarios, anomalías estacionales y reglas explicables.",
+      "Reproducible module in src/analytics/ that harmonizes the exported tables into daily indicators, seasonal anomalies and explainable rules.",
     uses: [
-      "Normalización de tasas por área útil observable (detections_high_per_1000km2)",
-      "Anomalías comparando cada mes contra ≥ 5 años de línea base histórica",
-      "Árbol de decisión contextual (niveles N0–N3) desacoplado del servidor HTTP",
+      "Rate normalization by observable usable area (detections_high_per_1000km2)",
+      "Anomalies comparing each month against ≥ 5 years of historical baseline",
+      "Contextual decision tree (levels N0–N3) decoupled from the HTTP server",
     ],
     href: "https://www.python.org/",
     icon: "python",
@@ -130,13 +130,13 @@ export const TECH_ITEMS: TechItem[] = [
     id: "fastapi",
     name: "FastAPI + Uvicorn (/api/v1)",
     category: "backend",
-    categoryLabel: "API REST",
+    categoryLabel: "REST API",
     summary:
-      "API en src/backend/: Fase 1 estrictamente de solo lectura sobre JSON/GeoJSON y endpoints globales opcionales de Fase 2 desacoplados que consultan fuentes externas en vivo.",
+      "API in src/backend/: strictly read-only Phase 1 over JSON/GeoJSON and optional, decoupled global Phase 2 endpoints that query external live sources.",
     uses: [
-      "Endpoints diarios de Fase 1 (date=YYYY-MM-DD, from/to) y preservación estricta de null",
-      "Rutas globales opcionales de Fase 2, activas por defecto (MCHANAQ_ENABLE_REALTIME=0 las apaga): /reverse-geocode (OSM Nominatim), /realtime/area (Open-Meteo + focos NASA FIRMS NRT) y /spread-simulate",
-      "Focos NRT con FIRMS_MAP_KEY o, si falta, con los feeds CSV públicos de NASA FIRMS (caché de 10 min); respaldo liviano en Python puro (httpx + Open-Meteo DEM) si no hay geopandas/numpy",
+      "Daily Phase 1 endpoints (date=YYYY-MM-DD, from/to) and strict null preservation",
+      "Optional global Phase 2 routes, enabled by default (MCHANAQ_ENABLE_REALTIME=0 turns them off): /reverse-geocode (OSM Nominatim), /realtime/area (Open-Meteo + NASA FIRMS NRT hotspots) and /spread-simulate",
+      "NRT hotspots with FIRMS_MAP_KEY or, if missing, with the public NASA FIRMS CSV feeds (10 min cache); lightweight pure-Python fallback (httpx + Open-Meteo DEM) if geopandas/numpy are unavailable",
     ],
     href: "https://fastapi.tiangolo.com/",
     icon: "api",
@@ -145,13 +145,13 @@ export const TECH_ITEMS: TechItem[] = [
     id: "azure-cloudflare",
     name: "Cloudflare R2, Azure App Service & Cloudflare Pages",
     category: "backend",
-    categoryLabel: "Infraestructura",
+    categoryLabel: "Infrastructure",
     summary:
-      "Snapshots procesados en Cloudflare R2, API Linux en Azure App Service (Premium v3, 8 GB RAM por el snapshot nacional de 427 territorios) y frontend estático en Cloudflare Pages.",
+      "Processed snapshots in Cloudflare R2, Linux API on Azure App Service (Premium v3, 8 GB RAM because of the national snapshot of 427 territories) and static frontend on Cloudflare Pages.",
     uses: [
-      "Subida del snapshot de data/processed/ a Cloudflare R2 con r2_sync.py (boto3 solo en la máquina de quien sube)",
-      "Arranque en Azure App Service (Python 3.11) con infra/azure/startup.sh, que descarga el snapshot desde R2 si faltan archivos",
-      "Distribución SPA en Cloudflare Pages / Azure SWA apuntando a VITE_API_BASE",
+      "Upload of the data/processed/ snapshot to Cloudflare R2 with r2_sync.py (boto3 only on the uploader's machine)",
+      "Startup on Azure App Service (Python 3.11) with infra/azure/startup.sh, which downloads the snapshot from R2 if files are missing",
+      "SPA distribution on Cloudflare Pages / Azure SWA pointing to VITE_API_BASE",
     ],
     href: "https://azure.microsoft.com/",
     icon: "cloud",
@@ -162,26 +162,26 @@ export const TECH_ITEMS: TechItem[] = [
     category: "frontend",
     categoryLabel: "Frontend",
     summary:
-      "Aplicación web compilada con Vite en tipado estricto, enrutamiento por hash sin dependencias pesadas y gráficos de series comparativas.",
+      "Web application built with Vite in strict typing, hash routing without heavy dependencies and comparative series charts.",
     uses: [
-      "Sincronización continua entre calendario térmico, selector de sensor y ficha territorial",
-      "Gráficos históricos con Recharts y contingencia automática sobre data/fixtures/",
-      "Verificación visual automatizada con Playwright en desktop (1440×900, 1280×720) y móvil",
+      "Continuous synchronization between the thermal calendar, the sensor selector and the territory card",
+      "Historical charts with Recharts and automatic fallback to data/fixtures/",
+      "Automated visual verification with Playwright on desktop (1440×900, 1280×720) and mobile",
     ],
     href: "https://react.dev/",
     icon: "react",
   },
   {
     id: "leaflet",
-    name: "Leaflet + Cartografía Libre",
+    name: "Leaflet + Free Cartography",
     category: "frontend",
-    categoryLabel: "Cartografía",
+    categoryLabel: "Cartography",
     summary:
-      "Visor geográfico interactivo basado en mapas base abiertos sin claves de pago, con polígonos oficiales simplificados preservando topología.",
+      "Interactive geographic viewer based on open basemaps with no paid keys, with simplified official polygons that preserve topology.",
     uses: [
-      "Capas base libres: OpenStreetMap, OpenTopoMap (relieve/hidrología) y Esri Imagery",
-      "Polígonos territoriales nacionales: 196 provincias INEI y 231 cuencas ANA nivel 4 (427 en total, < 1 MB GeoJSON)",
-      "Simulación global 1 clic (Open-Meteo + DEM + SAVI), focos NASA FIRMS NRT en vivo y etiqueta administrativa OSM Nominatim",
+      "Free base layers: OpenStreetMap, OpenTopoMap (relief/hydrology) and Esri Imagery",
+      "National territorial polygons: 196 INEI provinces and 231 ANA level-4 basins (427 in total, < 1 MB GeoJSON)",
+      "One-click global simulation (Open-Meteo + DEM + SAVI), live NASA FIRMS NRT hotspots and OSM Nominatim administrative label",
     ],
     href: "https://leafletjs.com/",
     icon: "map",
@@ -191,68 +191,68 @@ export const TECH_ITEMS: TechItem[] = [
 export const PIPELINE_STAGES: PipelineStage[] = [
   {
     step: "01",
-    title: "Extracción Batch",
+    title: "Batch Extraction",
     layer: "src/gee/",
     input: "MOD14A1 · MYD14A1 · VNP14A1 · ERA5-Land · COPERNICUS_DEM",
-    process: "Filtrado QA, enmascaramiento hídrico (150 m) y reducción zonal por bloque de 2 años.",
-    output: "Tablas CSV intermedias en data/intermediate/",
+    process: "QA filtering, water masking (150 m) and zonal reduction per 2-year block.",
+    output: "Intermediate CSV tables in data/intermediate/",
   },
   {
     step: "02",
-    title: "Armonización Analítica",
+    title: "Analytical Harmonization",
     layer: "src/analytics/",
-    input: "Series diarias crudas + contexto ambiental mensual + manifest GEE",
-    process: "Tasas normalizadas, persistencia, anomalías mensuales y árbol contextual N0–N3.",
-    output: "Artefactos JSON y territories.geojson en data/processed/",
+    input: "Raw daily series + monthly environmental context + GEE manifest",
+    process: "Normalized rates, persistence, monthly anomalies and N0–N3 contextual tree.",
+    output: "JSON artifacts and territories.geojson in data/processed/",
   },
   {
     step: "03",
-    title: "Puente Nube y API",
+    title: "Cloud Bridge & API",
     layer: "infra/azure/ · src/backend/",
-    input: "Snapshot procesado publicado en Cloudflare R2",
-    process: "FastAPI en modo solo lectura para Fase 1 (0 consultas a GEE por petición HTTP); la Fase 2 opcional consulta Open-Meteo, Planetary Computer y NASA FIRMS NRT en vivo.",
-    output: "Contrato REST diario /api/v1 y modelo opcional Fase 2",
+    input: "Processed snapshot published on Cloudflare R2",
+    process: "FastAPI in read-only mode for Phase 1 (0 GEE queries per HTTP request); the optional Phase 2 queries Open-Meteo, Planetary Computer and NASA FIRMS NRT live.",
+    output: "Daily REST contract /api/v1 and optional Phase 2 model",
   },
   {
     step: "04",
-    title: "Visor Territorial",
+    title: "Territorial Viewer",
     layer: "src/frontend/",
-    input: "Respuestas /api/v1 (o data/fixtures/ en contingencia offline)",
-    process: "Calendario de días útiles, comparativa por sensor y mapa Leaflet interactivo.",
-    output: "Evidencia territorial trazable sin confundir foco con ignición",
+    input: "/api/v1 responses (or data/fixtures/ as offline fallback)",
+    process: "Usable-day calendar, per-sensor comparison and interactive Leaflet map.",
+    output: "Traceable territorial evidence without confusing a hotspot with an ignition",
   },
 ];
 
 export const TECH_SPECS: TechSpec[] = [
   {
-    label: "Ventana común verificada",
+    label: "Verified common window",
     value: "2012-01-19 → 2026-11-02",
-    detail: "~14.8 años donde coinciden Terra, Aqua, VIIRS S-NPP y ERA5-Land. El snapshot publicado llega hasta 2025-12; lo posterior se ve como focos NRT en vivo (NASA FIRMS), sin mezclarlo con la serie histórica.",
+    detail: "~14.8 years where Terra, Aqua, VIIRS S-NPP and ERA5-Land overlap. The published snapshot runs up to 2025-12; anything later is shown as live NRT hotspots (NASA FIRMS), without mixing it into the historical series.",
   },
   {
-    label: "Umbral de nubosidad",
+    label: "Cloudiness threshold",
     value: "< 30 % (≥ 0.70)",
-    detail: "Solo se exponen días útiles con cobertura válida sobre tierra firme.",
+    detail: "Only usable days with valid coverage over land are exposed.",
   },
   {
-    label: "Regla hídrica",
-    value: "Buffer de 150 m",
-    detail: "Descuento de cuerpos de agua sobre vegetación efectiva (CobVeg / JRC GSW).",
+    label: "Water rule",
+    value: "150 m buffer",
+    detail: "Water bodies are discounted from effective vegetation (CobVeg / JRC GSW).",
   },
   {
-    label: "Compuertas base (N0)",
-    value: "Veg ≥ 0.20 · Pend ≥ 15 %",
-    detail: "Condiciones mínimas verificables de combustible disponible y relieve.",
+    label: "Base gates (N0)",
+    value: "Veg ≥ 0.20 · Slope ≥ 15 %",
+    detail: "Minimum verifiable conditions of available fuel and terrain.",
   },
   {
-    label: "Integridad multisensor",
-    value: "Cero suma cruzada",
-    detail: "Cada sensor conserva su serie separada; null jamás se convierte en 0.",
+    label: "Multi-sensor integrity",
+    value: "No cross-sensor sums",
+    detail: "Each sensor keeps its own separate series; null is never turned into 0.",
   },
   {
-    label: "Línea base estacional",
-    value: "≥ 5 años mínimos",
-    detail: "Anomalías evaluadas contra el mismo mes de años previos con datos válidos.",
+    label: "Seasonal baseline",
+    value: "≥ 5 years minimum",
+    detail: "Anomalies are evaluated against the same month of previous years with valid data.",
   },
 ];
 
@@ -266,31 +266,31 @@ export interface TechConvention {
 export const TECH_CONVENTIONS: TechConvention[] = [
   {
     code: "SUSC · 01",
-    title: "Susceptibilidad contextual (Alta / Moderada / Baja)",
+    title: "Contextual susceptibility (High / Moderate / Low)",
     standard: "UNDRR · FAO · Copernicus EFFIS",
     description:
-      "Siguiendo la jerarquía internacional UNDRR/FAO y EFFIS, «Susceptibilidad» describe la predisposición del entorno (vegetación combustible, sequedad < p25, viento > p75 y pendiente) ante una ignición. No afirma peligro físico (intensidad de llama) ni riesgo (Peligro × Exposición × Vulnerabilidad).",
+      "Following the international UNDRR/FAO and EFFIS hierarchy, “Susceptibility” describes how predisposed the environment is to an ignition (combustible vegetation, dryness < p25, wind > p75 and slope). It does not claim physical hazard (flame intensity) or risk (Hazard × Exposure × Vulnerability).",
   },
   {
     code: "N0 · 02",
-    title: "Evaluación parcial y No evaluable",
+    title: "Partial assessment and Not assessable",
     standard: "NASA FIRMS QA · OMM (Cobertura)",
     description:
-      "Si la compuerta N0 detecta que falta algún bloque ambiental o menos de 5 años para percentiles estacionales, pero existen variables parciales válidas, se reporta «Evaluación parcial» (o «No evaluable» sin evidencia) en vez de imputar un nivel definitivo.",
+      "If gate N0 detects a missing environmental block or fewer than 5 years for seasonal percentiles, but valid partial variables exist, “Partial assessment” (or “Not assessable” without evidence) is reported instead of imputing a definitive level.",
   },
   {
     code: "NULL · 03",
-    title: "Cero observado vs. Sin observación / No estimable",
+    title: "Observed zero vs. No observation / Not estimable",
     standard: "MODIS / VIIRS FireMask (Clases 7–9)",
     description:
-      "«0» significa día observado con cobertura válida (≥ 70 %) y cero detecciones nominal/alta (clases 8–9). «Sin dato» o «Sin observación» indica nulidad por nubes o cero píxeles de tierra válidos; «No estimable» señala línea base < 5 años.",
+      "“0” means a day observed with valid coverage (≥ 70 %) and zero nominal/high detections (classes 8–9). “No data” or “No observation” indicates nullity due to clouds or zero valid land pixels; “Not estimable” flags a baseline of < 5 years.",
   },
   {
     code: "SENS · 04",
-    title: "Cero suma cruzada entre sensores y procedencia",
+    title: "No cross-sensor sums and provenance",
     standard: "NASA LP DAAC · Contrato McHanaq",
     description:
-      "MODIS Terra (~10:30), MODIS Aqua (~13:30) y VIIRS S-NPP (~13:30) mantienen series separadas por resolución y hora de sobrevuelo. Toda vista separa explícitamente observaciones de «/api/v1» frente a respaldos de «Datos de muestra».",
+      "MODIS Terra (~10:30), MODIS Aqua (~13:30) and VIIRS S-NPP (~13:30) keep separate series because of resolution and overpass time. Every view explicitly separates observations from “/api/v1” from fallbacks of “Sample data”.",
   },
 ];
 
@@ -305,30 +305,30 @@ export interface PhaseGate {
 export const PHASE1_TREE_GATES: PhaseGate[] = [
   {
     node: "N0",
-    label: "Calidad y línea base",
-    rule: "Bloques ambientales completos + ≥ 5 años para cuantiles (p25 / p75)",
-    outcome: "Si falla → Evaluable parcial o No evaluable (sin ceros falsos)",
+    label: "Quality and baseline",
+    rule: "Complete environmental blocks + ≥ 5 years for quantiles (p25 / p75)",
+    outcome: "If it fails → Partially assessable or Not assessable (no false zeros)",
     tone: "muted",
   },
   {
     node: "N1",
-    label: "Combustible vegetal",
-    rule: "Vegetación efectiva ≥ 20.0 % (descontando cuerpos de agua)",
-    outcome: "< 20 % → Susceptibilidad Baja (low)",
+    label: "Plant fuel",
+    rule: "Effective vegetation ≥ 20.0 % (discounting water bodies)",
+    outcome: "< 20 % → Low susceptibility (low)",
     tone: "term",
   },
   {
     node: "N2",
-    label: "Sequedad estacional",
-    rule: "precip_30d_mm < p25 o soil_moisture_surface < p25 del mismo mes",
-    outcome: "Activa rama seca (N3a) o rama húmeda con relieve (N3b)",
+    label: "Seasonal dryness",
+    rule: "precip_30d_mm < p25 or soil_moisture_surface < p25 for the same month",
+    outcome: "Activates the dry branch (N3a) or the wet branch with terrain (N3b)",
     tone: "acid",
   },
   {
     node: "N3",
-    label: "Viento, clima y agua",
-    rule: "Viento > p75, (T > p75 ∧ HR < p25) o pendiente ≥ 15 % + buffer 150 m",
-    outcome: "Alta / Moderada / Baja + atenuación hídrica (-1 nivel si buf ≥ 5 %)",
+    label: "Wind, climate and water",
+    rule: "Wind > p75, (T > p75 ∧ RH < p25) or slope ≥ 15 % + 150 m buffer",
+    outcome: "High / Moderate / Low + water attenuation (-1 level if buf ≥ 5 %)",
     tone: "ember",
   },
 ];
@@ -342,45 +342,45 @@ export interface PhasePhysicalStep {
 
 export const PHASE2_SPREAD_STEPS: PhasePhysicalStep[] = [
   {
-    code: "VIENTO",
-    title: "Viento y humedad en vivo",
+    code: "WIND",
+    title: "Live wind and humidity",
     source: "Open-Meteo Forecast / Archive",
     detail:
-      "Viento horario a 10 m (velocidad y dirección) y humedad relativa de la fecha y el punto elegidos: ya no son valores fijos de la interfaz. Solo se respeta el viento si el usuario lo fija a mano; sin conexión se usa un perfil diurno ERA5 y la fuente queda etiquetada.",
+      "Hourly 10 m wind (speed and direction) and relative humidity for the chosen date and point: they are no longer fixed interface values. Wind is only held fixed if the user sets it by hand; offline, a daytime ERA5 profile is used and the source is labeled.",
   },
   {
     code: "SAVI",
-    title: "Combustible (Huete, 1988)",
+    title: "Fuel (Huete, 1988)",
     source: "Sentinel-2 L2A · Planetary Computer · L = 0.5",
     detail:
-      "((NIR − RED) / (NIR + RED + 0.5)) × 1.5 sobre la mejor escena con < 35 % de nubes de los 45 días previos, normalizado a carga combustible [0, 1] por celda. Sin escena disponible se usa un SAVI calibrado por cobertura y la fuente lo indica.",
+      "((NIR − RED) / (NIR + RED + 0.5)) × 1.5 over the best scene with < 35 % cloud from the previous 45 days, normalized to fuel load [0, 1] per cell. If no scene is available, a cover-calibrated SAVI is used and the source says so.",
   },
   {
     code: "DEM",
-    title: "Relieve (Copernicus GLO-90)",
-    source: "Open-Meteo Elevation · malla 10 × 10",
+    title: "Terrain (Copernicus GLO-90)",
+    source: "Open-Meteo Elevation · 10 × 10 grid",
     detail:
-      "Elevación remuestreada y suavizada a la grilla de la simulación; la pendiente media y máxima se derivan de ella y se muestran en el panel de resultados.",
+      "Elevation resampled and smoothed to the simulation grid; mean and maximum slope are derived from it and shown in the results panel.",
   },
   {
     code: "ROS",
-    title: "Velocidad base y humedad (Rothermel)",
-    source: "Humedad de combustible (ext. 30 %)",
+    title: "Base speed and moisture (Rothermel)",
+    source: "Fuel moisture (ext. 30 %)",
     detail:
-      "Tasa head_ros_m_min amortiguada cuadráticamente por humedad (1 − M / 30 %)² y cobertura; la humedad del combustible se estima desde la humedad relativa en vivo si no se fija.",
+      "head_ros_m_min rate quadratically damped by moisture (1 − M / 30 %)² and cover; fuel moisture is estimated from live relative humidity if not fixed.",
   },
   {
     code: "L/B",
-    title: "Elipse y relieve (Anderson · DEM)",
-    source: "Viento 10 m · Copernicus DEM",
+    title: "Ellipse and terrain (Anderson · DEM)",
+    source: "10 m wind · Copernicus DEM",
     detail:
-      "Relación largo/ancho L/B ∈ [1.0, 8.0] acoplada a exp(0.0693 · pendiente°): ×2 cada +10° cuesta arriba.",
+      "Length/width ratio L/B ∈ [1.0, 8.0] coupled to exp(0.0693 · slope°): ×2 for every +10° uphill.",
   },
   {
     code: "48h",
-    title: "Frente mínimo e isócronas",
+    title: "Minimum front and isochrones",
     source: "/api/v1/spread-simulate",
     detail:
-      "Expansión por celdas hasta 6 · 12 · 24 · 36 · 48 h + GIF/MP4, infografías PNG y Shapefiles QGIS (.zip).",
+      "Cell-by-cell expansion up to 6 · 12 · 24 · 36 · 48 h + GIF/MP4, PNG infographics and QGIS Shapefiles (.zip).",
   },
 ];

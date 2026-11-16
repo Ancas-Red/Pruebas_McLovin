@@ -12,7 +12,7 @@ const DECK_CARDS: ShuffleCard[] = [
   {
     id: "undrr",
     tag: "UNDRR · FAO",
-    title: "Susceptibilidad ≠ Riesgo",
+    title: "Susceptibility ≠ Risk",
     tone: "acid",
   },
   {
@@ -24,13 +24,13 @@ const DECK_CARDS: ShuffleCard[] = [
   {
     id: "cenepred",
     tag: "CENEPRED",
-    title: "Árbol N0–N3",
+    title: "N0–N3 Tree",
     tone: "ember",
   },
   {
     id: "ley26815",
-    tag: "LEY 26.815",
-    title: "SNMF · Fase 2 48 h",
+    tag: "LAW 26.815",
+    title: "SNMF · Phase 2 48 h",
     tone: "violet",
   },
 ];
@@ -53,7 +53,7 @@ export function McTropicReader() {
   return (
     <div
       className="mctropic-float-scene"
-      aria-label="McTropic astronauta flotando en el espacio con el emblema orbital de McHanaq detrás mientras lee y alterna tarjetas normativas"
+      aria-label="McTropic the astronaut floating in space with the McHanaq orbital emblem behind while reading and flipping regulatory cards"
     >
       <div className="mctropic-bg-logo" aria-hidden="true">
         <Logo size={84} tone="light" animate />
@@ -67,7 +67,7 @@ export function McTropicReader() {
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           role="img"
-          aria-label="McTropic astronauta con casco espacial y lentes estilo McLovin flotando en el espacio"
+          aria-label="McTropic the astronaut with a space helmet and McLovin-style glasses floating in space"
         >
           <defs>
             <linearGradient id="mct-trunk" x1="106" y1="88" x2="146" y2="232" gradientUnits="userSpaceOnUse">

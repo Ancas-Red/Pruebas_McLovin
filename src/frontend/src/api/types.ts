@@ -446,61 +446,61 @@ export const SENSOR_META: Record<
 export const SENSOR_LABELS = SENSOR_META;
 
 export const TERRITORY_LABELS: Record<TerritoryType, { one: string; many: string }> = {
-  province: { one: "Provincia", many: "Provincias" },
-  hydro_unit: { one: "Unidad hidrográfica", many: "Cuencas" },
+  province: { one: "Province", many: "Provinces" },
+  hydro_unit: { one: "Hydrographic unit", many: "Basins" },
 };
 
 export const CLASSIFICATION_LABELS: Record<Classification, string> = {
-  high: "Susceptibilidad alta",
-  moderate: "Susceptibilidad moderada",
-  low: "Susceptibilidad baja",
-  partial: "Evaluación parcial",
-  not_evaluable: "No evaluable",
+  high: "High susceptibility",
+  moderate: "Moderate susceptibility",
+  low: "Low susceptibility",
+  partial: "Partial assessment",
+  not_evaluable: "Not assessable",
 };
 
 export const COMPARISON_LABELS: Record<ComparisonStatus, string> = {
-  concordant_elevated: "Concordante y elevada",
-  concordant_not_elevated: "Concordante, sin elevación",
-  discordant: "Discordante entre sensores",
-  single_sensor: "Un solo sensor utilizable",
-  insufficient: "Información insuficiente",
+  concordant_elevated: "Concordant and elevated",
+  concordant_not_elevated: "Concordant, not elevated",
+  discordant: "Discordant between sensors",
+  single_sensor: "Only one usable sensor",
+  insufficient: "Insufficient information",
 };
 
 export const ANOMALY_LABELS: Record<AnomalyStatus, string> = {
-  estimated: "Estimada",
-  insufficient_baseline: "Historial insuficiente",
-  not_estimable: "No estimable",
+  estimated: "Estimated",
+  insufficient_baseline: "Insufficient history",
+  not_estimable: "Not estimable",
 };
 
 export const QUALITY_LABELS: Record<DataQualityStatus, string> = {
-  usable: "Utilizable",
-  partial: "Parcial",
-  insufficient: "Insuficiente",
+  usable: "Usable",
+  partial: "Partial",
+  insufficient: "Insufficient",
 };
 
 export const SIGNAL_LABELS: Record<"elevated" | "not_elevated", string> = {
-  elevated: "Elevada",
-  not_elevated: "Sin elevación",
+  elevated: "Elevated",
+  not_elevated: "Not elevated",
 };
 
 export const METRIC_LABELS: Record<MetricId, string> = {
-  activity_rate: "Tasa de actividad",
-  fire_pixel_days_8_9: "Píxeles-día (8–9)",
-  active_days: "Días activos",
-  max_consecutive_active_days: "Racha activa máxima",
-  observation_coverage: "Cobertura de observación",
-  t_amb_c: "Temp. del aire",
-  t_suelo_c: "Temp. de la superficie",
-  wind_dir_deg: "Dirección del viento",
-  wind_speed_10m_ms: "Velocidad del viento",
-  elevation_m: "Elevación",
-  conditions_classification: "Susceptibilidad contextual",
+  activity_rate: "Activity rate",
+  fire_pixel_days_8_9: "Pixel-days (8–9)",
+  active_days: "Active days",
+  max_consecutive_active_days: "Longest active streak",
+  observation_coverage: "Observation coverage",
+  t_amb_c: "Air temp.",
+  t_suelo_c: "Surface temp.",
+  wind_dir_deg: "Wind direction",
+  wind_speed_10m_ms: "Wind speed",
+  elevation_m: "Elevation",
+  conditions_classification: "Contextual susceptibility",
 };
 
 /** Texto para un valor ausente. `null` jamás se muestra como `0`. */
-export const NO_DATA = "Sin datos";
-export const NO_OBSERVATION = "Sin observación";
-export const NOT_ESTIMABLE = "No estimable";
+export const NO_DATA = "No data";
+export const NO_OBSERVATION = "No observation";
+export const NOT_ESTIMABLE = "Not estimable";
 
 /* -------------------------------------------------------------------------- */
 /* Fase 2 — opcional y desacoplada de la Fase 1                               */

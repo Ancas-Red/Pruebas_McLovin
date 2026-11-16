@@ -28,8 +28,8 @@ export const TEAM: Member[] = [
   {
     slug: "angelo",
     name: "Angelo",
-    role: "Datos NASA, propagación y backend",
-    blurb: "Integra datos ambientales de fuentes abiertas y de la NASA, implementa el modelo de propagación y desarrolla el backend.",
+    role: "NASA data, spread model and backend",
+    blurb: "Integrates environmental data from open sources and NASA, implements the spread model and develops the backend.",
     linkedin: "https://www.linkedin.com/in/angelo-castillo-guanilo/",
     github: "https://github.com/Ancas-Red",
     branch: "feature/gee-data-pipeline",
@@ -37,8 +37,8 @@ export const TEAM: Member[] = [
   {
     slug: "tom",
     name: "Tom",
-    role: "Líder, analítica e integración",
-    blurb: "Lidera el proyecto, articula el motor analítico con la arquitectura general y coordina la integración entre áreas.",
+    role: "Lead, analytics and integration",
+    blurb: "Leads the project, connects the analytics engine with the overall architecture and coordinates integration across areas.",
     linkedin: "https://www.linkedin.com/in/tomjordanpl/",
     github: "https://github.com/TomJordan1",
     branch: "feature/analytics-engine",
@@ -46,8 +46,8 @@ export const TEAM: Member[] = [
   {
     slug: "sebastian",
     name: "Sebastian",
-    role: "Frontend, hosting y despliegue",
-    blurb: "Desarrolló el frontend inicial y configura el hosting, el dominio y todo el despliegue de la plataforma.",
+    role: "Frontend, hosting and deployment",
+    blurb: "Built the initial frontend and sets up the hosting, the domain and the whole platform deployment.",
     linkedin: "https://www.linkedin.com/in/sebastian-esteban-quispe-rosas-b7a652378/",
     github: "https://github.com/sebastiansb1232-boop",
     branch: "feature/frontend-dashboard",
@@ -55,8 +55,8 @@ export const TEAM: Member[] = [
   {
     slug: "jean-pierrer",
     name: "Jean Pierrer",
-    role: "Documentación, revisión y presentación",
-    blurb: "Desarrolla la documentación y la presentación del proyecto, realizando revisiones para evitar omisiones clave.",
+    role: "Documentation, review and presentation",
+    blurb: "Develops the project documentation and presentation, running reviews to avoid key omissions.",
     linkedin: "https://www.linkedin.com/in/jean-pierrer-anthony-cercado-flores-aa9731210/",
     github: "https://github.com/jeancercado",
     branch: "feature/product-qa-demo",

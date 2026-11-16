@@ -93,7 +93,7 @@ async function sourced<T>(
       origin: "unavailable",
       error: new ApiError(
         "PERIOD_NOT_AVAILABLE",
-        "La fecha o el período no está publicado para esta consulta",
+        "The date or period is not published for this query",
         422
       ),
     };
@@ -121,7 +121,7 @@ export async function getMetadata(signal?: AbortSignal): Promise<Sourced<Metadat
     async () => {
       const m = await fetchMetadata(signal);
       if (!hasUsableMetadata(m)) {
-        throw new Error("Metadatos incompletos o vacíos en /api/v1/metadata");
+        throw new Error("Incomplete or empty metadata in /api/v1/metadata");
       }
       return m;
     },
@@ -142,7 +142,7 @@ export function getTerritories(
       const c = await fetchTerritories(type, signal);
       // Un backend en pie pero sin geometrías dejaría el mapa en blanco; se
       // prefiere la muestra, rotulada, a una pantalla vacía sin explicación.
-      if (!c.features?.length) throw new ApiError("NOT_FOUND", "Sin territorios publicados", 404);
+      if (!c.features?.length) throw new ApiError("NOT_FOUND", "No territories published", 404);
       return c;
     },
     () => fixtureTerritories(type),

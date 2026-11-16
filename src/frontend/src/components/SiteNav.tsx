@@ -25,12 +25,12 @@ interface Props {
 }
 
 const STATE: Record<BackendState, { dot: string; text: string; title: string }> = {
-  checking: { dot: "dot", text: "Sondeando", title: "Comprobando si el backend responde" },
-  online: { dot: "dot dot--live", text: "Conectado", title: "Los datos vienen de /api/v1" },
+  checking: { dot: "dot", text: "Checking", title: "Checking whether the backend responds" },
+  online: { dot: "dot dot--live", text: "Connected", title: "Data comes from /api/v1" },
   offline: {
     dot: "dot dot--fixture",
-    text: "Datos de muestra",
-    title: "El backend no responde: la interfaz usa su juego de muestra",
+    text: "Sample data",
+    title: "The backend is not responding: the interface is using its sample dataset",
   },
 };
 
@@ -41,15 +41,15 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
   const showTerritory =
     Boolean(territory) && (!dept || territory.toLowerCase() !== dept.toLowerCase());
   const placeTitle = [
-    dept ? `Departamento: ${dept}` : null,
-    territory ? `${navContext?.territoryType === "hydro_unit" ? "Cuenca" : "Provincia"}: ${territory}` : null,
+    dept ? `Department: ${dept}` : null,
+    territory ? `${navContext?.territoryType === "hydro_unit" ? "Basin" : "Province"}: ${territory}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
   return (
     <header className={`hdr${route !== "mapa" ? " hdr--over" : ""}`}>
-      <button className="brand" onClick={() => onRoute("inicio")} title="Ir al inicio">
+      <button className="brand" onClick={() => onRoute("inicio")} title="Go to home">
         {/* Blanco: las pantallas comparten cabecera oscura, y la marca
             monocroma se lee mejor sobre negro que cualquier versión con
             color. `tone="dark"` queda disponible para fondos claros.
@@ -59,44 +59,44 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
         <Logo size={36} tone="light" compact={false} animate />
         <span className="brand__text">
           <span className="brand__name">McHanaq</span>
-          <span className="brand__tag">Actividad térmica</span>
+          <span className="brand__tag">Thermal activity</span>
         </span>
       </button>
 
-      <nav className="hdr__nav" aria-label="Secciones del sitio">
+      <nav className="hdr__nav" aria-label="Site sections">
         <button className="tab" aria-selected={route === "inicio"} onClick={() => onRoute("inicio")}>
-          Inicio
+          Home
         </button>
         <button className="tab" aria-selected={route === "mapa"} onClick={() => onRoute("mapa")}>
-          Mapa
+          Map
         </button>
         <button
           className="tab"
           aria-selected={route === "tecnologia"}
           onClick={() => onRoute("tecnologia")}
         >
-          Tecnología
+          Technology
         </button>
         <button
           className="tab"
           aria-selected={route === "convenciones"}
           onClick={() => onRoute("convenciones")}
         >
-          Marco normativo
+          Regulatory framework
         </button>
       </nav>
 
       {route === "mapa" && tab && onTab && (
         <>
           <span className="hdr__sep" aria-hidden="true" />
-          <nav className="hdr__nav" role="tablist" aria-label="Vistas de la herramienta">
+          <nav className="hdr__nav" role="tablist" aria-label="Tool views">
             <button
               role="tab"
               className="tab tab--sub"
               aria-selected={tab === "calendario"}
               onClick={() => onTab("calendario")}
             >
-              Calendario
+              Calendar
             </button>
             <button
               role="tab"
@@ -105,7 +105,7 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
               onClick={() => onTab("simulacion")}
               data-tour="tab-simulacion"
             >
-              Simulación
+              Simulation
             </button>
           </nav>
         </>
@@ -116,8 +116,8 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
       {route === "mapa" && navContext && (
         <div
           className="hdr__ctx"
-          aria-label="Departamento, región y fecha seleccionados"
-          title={`${placeTitle} · Fecha: ${navContext.dateIso}`}
+          aria-label="Selected department, region and date"
+          title={`${placeTitle} · Date: ${navContext.dateIso}`}
         >
           <span className="hdr__ctx-loc">
             <strong className="hdr__ctx-dept">{dept ?? territory}</strong>
@@ -139,9 +139,9 @@ export function SiteNav({ route, onRoute, tab, onTab, backend, navContext, onSta
               type="button"
               className="btn hdr__tour-btn"
               onClick={onStartTour}
-              title="Abrir guía visual interactiva de la herramienta"
+              title="Open the tool's interactive visual guide"
             >
-              ? Guía
+              ? Guide
             </button>
           )}
           {s && (
