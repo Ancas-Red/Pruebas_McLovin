@@ -70,6 +70,8 @@ import {
   SENSOR_META,
   CLASSIFICATION_LABELS,
   METRIC_LABELS,
+  isLiveHistorical,
+  isUnobserved,
   type ActivitySummary,
   type Classification,
   type DailyRow,
@@ -226,8 +228,7 @@ function buildHoverCard(
   origin: Origin
 ): HoverCard {
   const dailyInvalid =
-    s.daily != null &&
-    ((s.daily.valid_land_pixels ?? 0) === 0 || (s.daily.observation_coverage ?? 0) === 0);
+    s.daily != null && isUnobserved(s.daily);
   const noValidSummary =
     s.data_quality?.status === "insufficient" ||
     (s.activity.activity_rate == null && s.activity.observation_coverage == null);
@@ -1789,10 +1790,10 @@ export function MapTool({
     if (origin === "unavailable") {
       return `La data de ${dateIso} no es válida en este momento o no está disponible.`;
     }
-    if (
-      dayRow &&
-      ((dayRow.valid_land_pixels ?? 0) === 0 || (dayRow.observation_coverage ?? 0) === 0)
-    ) {
+    if (isLiveHistorical(dayRow)) {
+      return `Detecciones del ${dateIso} consultadas en vivo a NASA FIRMS: sin cobertura ni tasa calculadas (no hay ráster para esta fecha).`;
+    }
+    if (dayRow && isUnobserved(dayRow)) {
       return `Sin observación válida el ${dateIso}: la data no está disponible (0 píxeles de tierra válidos).`;
     }
     if (

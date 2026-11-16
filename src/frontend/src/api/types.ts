@@ -120,6 +120,11 @@ export interface DailyRow extends DailyEnv {
   data_origin?: string | null;
 }
 
+/** Día complementado en vivo con NASA FIRMS: trae detecciones, pero nunca cobertura ni píxeles válidos. */
+export function isLiveHistorical(row: Pick<DailyRow, "data_origin"> | null | undefined): boolean {
+  return row?.data_origin === "firms_live_historical";
+}
+
 /** Un día sin observación no es «cero fuego»: se rotula «Sin observación». */
 export function isUnobserved(
   row: Pick<DailyRow, "valid_land_pixels" | "observation_coverage" | "data_origin">
