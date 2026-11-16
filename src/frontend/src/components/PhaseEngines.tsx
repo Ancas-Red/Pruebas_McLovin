@@ -125,11 +125,13 @@ export function PhaseEngines({ onOpenMap }: Props) {
             <span className="phase-badge phase-badge--opt">Phase 2 · Optional and decoupled</span>
             <code className="phase-code">src/analytics/spread_model.py</code>
           </div>
-          <h3 className="phase-card__title">Spatial spread simulator (48 h)</h3>
+          <h3 className="phase-card__title">Spatial spread simulator (1 day – 1 year)</h3>
           <p className="phase-card__lead">
-            For a hypothetical point ignition, projects hourly isochrones up to 48 h integrating
-            SAVI fuel (Sentinel-2), Copernicus DEM terrain and live wind and humidity from
-            Open-Meteo; NASA FIRMS NRT hotspots cover everything after the historical snapshot.
+            For a hypothetical point ignition, projects isochrones over a chosen horizon — 1 day,
+            1 week, 1 month or 1 year — integrating SAVI fuel (Sentinel-2), Copernicus DEM terrain
+            and live wind and humidity from Open-Meteo; NASA FIRMS NRT hotspots cover everything
+            after the historical snapshot. The farther out the horizon, the less reliable this
+            exploratory model gets.
           </p>
         </div>
 
@@ -201,10 +203,10 @@ export function PhaseEngines({ onOpenMap }: Props) {
         <div className="phase-card__foot">
           <div className="phase-card__note">
             <span>Scope:</span>{" "}
-            <code>Hypothetical scenario · does not predict a real ignition</code>
+            <code>Hypothetical scenario (1 day to 1 year) · does not predict a real ignition</code>
           </div>
           <button type="button" className="btn btn--primary" onClick={onOpenMap}>
-            Simulate 48 h spread →
+            Simulate hypothetical spread →
           </button>
         </div>
       </article>

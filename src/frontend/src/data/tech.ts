@@ -377,10 +377,10 @@ export const PHASE2_SPREAD_STEPS: PhasePhysicalStep[] = [
       "Length/width ratio L/B ∈ [1.0, 8.0] coupled to exp(0.0693 · slope°): ×2 for every +10° uphill.",
   },
   {
-    code: "48h",
+    code: "1D-1Y",
     title: "Minimum front and isochrones",
     source: "/api/v1/spread-simulate",
     detail:
-      "Cell-by-cell expansion up to 6 · 12 · 24 · 36 · 48 h + GIF/MP4, PNG infographics and QGIS Shapefiles (.zip).",
+      "Cell-by-cell expansion over a chosen horizon — 1 day, 1 week, 1 month or 1 year, hypothetical conditions — with 6 · 12 · 24 · 36 · 48 h isochrones plus GIF, PNG infographics. The Python/GIS report (MP4 + QGIS Shapefiles .zip) stays fixed at 48 h.",
   },
 ];

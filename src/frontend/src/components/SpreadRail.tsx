@@ -398,8 +398,7 @@ export function SpreadRail(p: Props) {
     case "escenario":
       return (
         <Drawer title="Scenario" onClose={p.onClose}>
-          <span className="chip chip--warn">Phase 2 · optional</span>
-          <div className="note note--ember" style={{ marginTop: 10 }}>
+          <div className="note note--ember">
             <b>Exploratory, unvalidated model.</b> Estimates how far a front could advance
             from a <i>hypothetical</i> ignition, under the conditions you set. It does not predict whether there will be
             a fire, or where, or when. Do not use for operational or evacuation decisions.
