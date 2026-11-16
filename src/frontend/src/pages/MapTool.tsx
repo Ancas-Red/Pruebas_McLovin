@@ -321,6 +321,12 @@ export function MapTool({
 
   const [showHotspots, setShowHotspots] = useState(true);
   const [liveFirms, setLiveFirms] = useState(true);
+  const [liveFirmsAutoOffNotice, setLiveFirmsAutoOffNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!liveFirmsAutoOffNotice) return;
+    const t = window.setTimeout(() => setLiveFirmsAutoOffNotice(null), 7000);
+    return () => window.clearTimeout(t);
+  }, [liveFirmsAutoOffNotice]);
   const [firmsSummary, setFirmsSummary] = useState<string | null>(null);
   const [showChoropleth, setShowChoropleth] = useState(true);
   const [showHighMarkers, setShowHighMarkers] = useState(true);
@@ -590,18 +596,53 @@ export function MapTool({
     setSensor(nextSensor);
   }, []);
 
-  const handlePeriod = useCallback((nextYear: number, nextMonth: number) => {
-    userPickedPeriodRef.current = true;
-    userPickedDayRef.current = false;
-    fallbackTriedPeriodsRef.current.clear();
-    setYear(nextYear);
-    setMonth(nextMonth);
-  }, []);
+  /**
+   * "Live NRT hotspots" (NASA FIRMS) siempre muestra las últimas ~72 h, sin importar
+   * qué día del calendario esté elegido: si quedara prendido al elegir un día pasado,
+   * el mapa parecería ignorar esa elección. Al elegir explícitamente un día/periodo
+   * que no es "hoy", se apaga solo y se avisa con un popup — así el usuario ve los
+   * focos reales de ESE día (vía /hotspots) y no los de "ahora".
+   */
+  const maybeAutoDisableLiveFirms = useCallback(
+    (targetIso: string) => {
+      if (!liveFirms) return;
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+      if (targetIso === todayIso) return;
+      setLiveFirms(false);
+      setLiveFirmsAutoOffNotice(
+        `"Live NRT hotspots" turned off: showing the real MODIS/VIIRS points for ${targetIso} instead of the last ~72 h. Turn it back on from Map layers any time.`
+      );
+    },
+    [liveFirms]
+  );
 
-  const handleDay = useCallback((nextDay: number) => {
-    userPickedDayRef.current = true;
-    setDay(nextDay);
-  }, []);
+  const handlePeriod = useCallback(
+    (nextYear: number, nextMonth: number) => {
+      userPickedPeriodRef.current = true;
+      userPickedDayRef.current = false;
+      fallbackTriedPeriodsRef.current.clear();
+      setYear(nextYear);
+      setMonth(nextMonth);
+      // El día concreto dentro de este mes aún se resolverá después (último día útil
+      // disponible), pero si el año/mes elegido ya no es el actual, no hay forma de
+      // que termine siendo "hoy" — se puede decidir ya mismo.
+      const now = new Date();
+      if (nextYear !== now.getFullYear() || nextMonth !== now.getMonth() + 1) {
+        maybeAutoDisableLiveFirms(`${nextYear}-${pad2(nextMonth)}-01`);
+      }
+    },
+    [maybeAutoDisableLiveFirms]
+  );
+
+  const handleDay = useCallback(
+    (nextDay: number) => {
+      userPickedDayRef.current = true;
+      setDay(nextDay);
+      maybeAutoDisableLiveFirms(`${year}-${pad2(month)}-${pad2(nextDay)}`);
+    },
+    [year, month, maybeAutoDisableLiveFirms]
+  );
 
   /**
    * Al llegar o actualizarse los metadatos (o al cambiar de sensor), ubica
@@ -1997,6 +2038,37 @@ export function MapTool({
 
   return (
     <>
+      {liveFirmsAutoOffNotice && (
+        <div
+          role="status"
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 2000,
+            maxWidth: 480,
+            border: "1px solid var(--acid)",
+            background: "var(--surface-1)",
+            color: "var(--text-0, #fff)",
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+            boxShadow: "0 4px 18px rgba(0,0,0,0.4)",
+          }}
+        >
+          <span className="mono-sm">{liveFirmsAutoOffNotice}</span>
+          <button
+            type="button"
+            className="btn"
+            style={{ flexShrink: 0 }}
+            onClick={() => setLiveFirmsAutoOffNotice(null)}
+          >
+            OK
+          </button>
+        </div>
+      )}
       <div
         className="tool"
         data-left={leftOpen ? "open" : "closed"}
