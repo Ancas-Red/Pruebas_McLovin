@@ -320,7 +320,7 @@ export function MapTool({
   const [metric, setMetric] = useState<MetricId>("activity_rate");
 
   const [showHotspots, setShowHotspots] = useState(true);
-  const [liveFirms, setLiveFirms] = useState(false);
+  const [liveFirms, setLiveFirms] = useState(true);
   const [firmsSummary, setFirmsSummary] = useState<string | null>(null);
   const [showChoropleth, setShowChoropleth] = useState(true);
   const [showHighMarkers, setShowHighMarkers] = useState(true);
@@ -368,7 +368,7 @@ export function MapTool({
     fuelMoisturePct: 9,
     vegetationPct: 72,
     slopeMeanDeg: 8,
-    horizonHours: 12,
+    horizonHours: 24,
   });
   const [spread, setSpread] = useState<SpreadResult | null>(null);
   const [spreadRunning, setSpreadRunning] = useState(false);
@@ -1574,7 +1574,7 @@ export function MapTool({
       setIgnition(ignPt);
 
       setEnvLoading(true);
-      let nextParams: SpreadParams = { ...spreadParams, horizonHours: 48 };
+      let nextParams: SpreadParams = { ...spreadParams, horizonHours: 24 };
       try {
         const rt = await fetchRealtimeArea({ south, west, north, east }, 3);
         const w = rt?.weather;

@@ -41,7 +41,7 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="map-toolbar"]',
     title: "Map and polygonal zone",
     body:
-      "Click any polygon of Peru to inspect it, or use the tools to draw an area and ignition in the exploratory simulation.",
+      "Click any polygon of Peru to inspect it, or use the tools to draw an area and ignition in the exploratory simulation. Thermal hotspots and live NRT hotspots (NASA FIRMS) are shown on by default — turn them off anytime from Map layers.",
     placement: "bottom",
   },
   {
@@ -96,16 +96,16 @@ export const SPREAD_TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="map-toolbar"]',
     title: "Free area and Physical conditions",
     body:
-      "Use POLYGON or RECT to delimit an exact cut on the map and adjust wind, fuel moisture, SAVI vegetation, slope and horizon (up to 48 h) in the Conditions drawer.",
+      "Use POLYGON or RECT to delimit an exact cut on the map and adjust wind, fuel moisture, SAVI vegetation, slope and horizon in the Conditions drawer. Pick 1 day, 1 week, 1 month or 1 year — it always starts at 1 day; the farther out you go, the less reliable this exploratory model gets.",
     placement: "bottom",
   },
   {
     id: "spread-exports",
     selector: '[data-tour="spread-exports"]',
     fallbackSelector: '[data-tour="right-dock"]',
-    title: "48 h visualization and outputs (GIF, MP4, QGIS)",
+    title: "Visualization and outputs (GIF, MP4, QGIS)",
     body:
-      "Preview the animated 48 h GIF, the executive infographic or the SAVI+DEM panel here, generate new packages on demand with the Python backend or download the Shapefiles for QGIS.",
+      "Preview the animated GIF for whatever horizon you picked (1 day by default), the executive infographic or the SAVI+DEM panel here. The Python/GIS report, MP4 and Shapefiles for QGIS stay fixed at 48 h, generated on demand with the backend.",
     placement: "left",
   },
   {

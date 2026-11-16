@@ -18,6 +18,34 @@ export interface SpreadParams {
   horizonHours: number;
 }
 
+/** Quick horizon picks for the exploratory spread model. Always defaults to 1 day. */
+export const HORIZON_PRESETS: { label: string; hours: number }[] = [
+  { label: "1 day", hours: 24 },
+  { label: "1 week", hours: 24 * 7 },
+  { label: "1 month", hours: 24 * 30 },
+  { label: "1 year", hours: 24 * 365 },
+];
+
+function formatHorizon(hours: number): string {
+  if (hours % (24 * 365) === 0 && hours >= 24 * 365) {
+    const n = hours / (24 * 365);
+    return `${n} year${n === 1 ? "" : "s"} (${hours} h)`;
+  }
+  if (hours % (24 * 30) === 0 && hours >= 24 * 30) {
+    const n = hours / (24 * 30);
+    return `${n} month${n === 1 ? "" : "s"} (${hours} h)`;
+  }
+  if (hours % (24 * 7) === 0 && hours >= 24 * 7) {
+    const n = hours / (24 * 7);
+    return `${n} week${n === 1 ? "" : "s"} (${hours} h)`;
+  }
+  if (hours % 24 === 0) {
+    const n = hours / 24;
+    return `${n} day${n === 1 ? "" : "s"} (${hours} h)`;
+  }
+  return `${hours} h`;
+}
+
 export interface GlobalTelemetry {
   locationLabel?: string;
   weatherSource?: string;
@@ -247,7 +275,7 @@ export function SpreadRail(p: Props) {
   const exportsBlock = (
     <div data-tour="spread-exports">
       <div className="legend__title" style={{ marginTop: 14 }}>
-        48 h visualization and outputs · Python / GIS
+        {formatHorizon(v.horizonHours)} visualization and outputs · Python / GIS
       </div>
       <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 5 }}>
         <button
@@ -257,7 +285,7 @@ export function SpreadRail(p: Props) {
           title={p.result ? undefined : "Run a simulation first"}
           onClick={handleBrowserGif}
         >
-          {gifBusy ?? (gifUrl ? "View 48h GIF" : "Generate 48h GIF")}
+          {gifBusy ?? (gifUrl ? "View GIF" : "Generate GIF")}
         </button>
         {gifUrl && (
           <a className="btn" href={gifUrl} download={`mchanaq_simulacion_${Math.round(v.horizonHours)}h.gif`}>
@@ -621,14 +649,26 @@ export function SpreadRail(p: Props) {
 
           <div className="field">
             <label className="field__label" htmlFor="sp-h">
-              Horizon <span className="field__value">{v.horizonHours} h</span>
+              Horizon <span className="field__value">{formatHorizon(v.horizonHours)}</span>
             </label>
-            <input id="sp-h" type="range" min={3} max={48} step={1}
+            <input id="sp-h" type="range" min={3} max={Math.max(48, v.horizonHours)} step={1}
               value={v.horizonHours} onChange={(e) => set("horizonHours", Number(e.target.value))} />
-            <div className="btn-row" style={{ marginTop: 6 }}>
-              <button type="button" className="btn" onClick={() => set("horizonHours", 24)}>24 h</button>
-              <button type="button" className="btn" onClick={() => set("horizonHours", 48)}>48 h forecast (SAVI + DEM)</button>
+            <div className="btn-row" style={{ marginTop: 6, flexWrap: "wrap", gap: 5 }}>
+              {HORIZON_PRESETS.map((preset) => (
+                <button
+                  key={preset.hours}
+                  type="button"
+                  className={`btn${v.horizonHours === preset.hours ? " btn--on" : ""}`}
+                  onClick={() => set("horizonHours", preset.hours)}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
+            <p className="mono-sm" style={{ marginTop: 6 }}>
+              Default: 1 day. Beyond 48 h the model (SAVI + DEM + constant wind) is a rough
+              long-range extrapolation — treat it as even less reliable the longer the horizon.
+            </p>
           </div>
 
           <button className="btn btn--ember btn--block" disabled={!ready || p.running} onClick={p.onRun}>
