@@ -733,8 +733,17 @@ def _fetch_firms_historical_range(
             _FIRMS_HIST_RANGE_CACHE[key] = (now + _FIRMS_HIST_RANGE_CACHE_TTL_S, [])
         return []
 
+    # Una fila por CADA día del rango (0 focos si no hubo ninguno), no solo los días
+    # con detecciones: igual que _fetch_firms_historical_day para un día puntual
+    # (que responde fire_pixels_nominal_high=0, nunca una fila ausente). Si solo se
+    # devolviera fila para días con foco, un mes entero sin incendios se vería
+    # idéntico a "sin dato" (data.length === 0) en el frontend, cuando en realidad
+    # sí se consultó la API y la respuesta honesta es "cero detecciones ese día".
     result: list[dict] = []
-    for d, rows in sorted(by_date.items()):
+    d_cursor = start
+    while d_cursor <= end:
+        d = d_cursor.isoformat()
+        rows = by_date.get(d, [])
         fire_low = sum(1 for r in rows if _is_low_confidence_row(sensor, r[4]))
         result.append({
             "date": d,
@@ -760,6 +769,7 @@ def _fetch_firms_historical_range(
             "processing_version": META.get("processing_version"),
             "data_origin": "firms_live_historical",
         })
+        d_cursor += timedelta(days=1)
     with _FIRMS_HIST_RANGE_CACHE_LOCK:
         if len(_FIRMS_HIST_RANGE_CACHE) >= _FIRMS_HIST_RANGE_CACHE_MAX and key not in _FIRMS_HIST_RANGE_CACHE:
             oldest_key = next(iter(_FIRMS_HIST_RANGE_CACHE))

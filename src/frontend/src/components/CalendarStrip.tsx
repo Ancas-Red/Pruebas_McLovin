@@ -300,6 +300,9 @@ export function CalendarStrip(p: Props) {
                         if (isUnobserved(row) || row.fire_pixels_nominal_high == null) {
                           return `Día ${d} · ${NO_OBSERVATION}`;
                         }
+                        if (row.data_origin === "firms_live_historical") {
+                          return `Día ${d} · consulta en vivo a NASA FIRMS (sin cobertura/tasa validada)`;
+                        }
                         if (!usefulDates.has(d)) {
                           const pct =
                             row.observation_coverage != null

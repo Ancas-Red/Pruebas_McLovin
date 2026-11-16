@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { renderSpreadReport } from "../lib/spreadReport";
 import { renderSpreadGif } from "../lib/spreadGif";
 import { Lightbox } from "./Lightbox";
@@ -95,24 +95,41 @@ export function SpreadRail(p: Props) {
   const [lightbox, setLightbox] = useState<{ src: string; title: string; name: string } | null>(null);
   // Infografía generada en el navegador a partir de la simulación ACTUAL
   // (antes se mostraba un PNG precalculado del servidor con otra zona fija).
-  const reportUrl = useMemo(() => {
-    if (!p.result) return null;
-    try {
-      return renderSpreadReport({
-        result: p.result,
-        ignition: p.ignition,
-        horizonHours: v.horizonHours,
-        windSpeedMs: v.windSpeedMs,
-        windDirDeg: v.windDirDeg,
-        fuelMoisturePct: v.fuelMoisturePct,
-        vegetationPct: v.vegetationPct,
-        slopeMeanDeg: v.slopeMeanDeg,
-        locationLabel: p.globalTelemetry?.locationLabel,
-        dateIso: p.dateIso,
-      });
-    } catch {
-      return null;
+  // Es async porque arma el fondo con teselas reales (satélite/relieve) del
+  // lugar simulado; mientras carga, el botón "Ver infografía" queda deshabilitado.
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  useEffect(() => {
+    if (!p.result) {
+      setReportUrl(null);
+      return;
     }
+    let cancelled = false;
+    setReportBusy(true);
+    renderSpreadReport({
+      result: p.result,
+      ignition: p.ignition,
+      horizonHours: v.horizonHours,
+      windSpeedMs: v.windSpeedMs,
+      windDirDeg: v.windDirDeg,
+      fuelMoisturePct: v.fuelMoisturePct,
+      vegetationPct: v.vegetationPct,
+      slopeMeanDeg: v.slopeMeanDeg,
+      locationLabel: p.globalTelemetry?.locationLabel,
+      dateIso: p.dateIso,
+    })
+      .then((url) => {
+        if (!cancelled) setReportUrl(url || null);
+      })
+      .catch(() => {
+        if (!cancelled) setReportUrl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setReportBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.result, p.ignition, p.globalTelemetry?.locationLabel, p.dateIso]);
   const defaultPt = p.ignition ?? p.center ?? [-8.198, -75.267];
@@ -144,7 +161,7 @@ export function SpreadRail(p: Props) {
     }
     setGifBusy("Generando GIF…");
     try {
-      const out = await renderSpreadGif(p.result, p.ignition, v.horizonHours, (d, t) =>
+      const out = await renderSpreadGif(p.result, p.ignition, v.horizonHours, v.windDirDeg, (d, t) =>
         setGifBusy(`Generando GIF… ${d}/${t}`)
       );
       setGifUrl(URL.createObjectURL(out.blob));
@@ -251,13 +268,13 @@ export function SpreadRail(p: Props) {
           type="button"
           className={`btn${showReport ? " btn--on" : ""}`}
           disabled={!reportUrl}
-          title={reportUrl ? undefined : "Ejecuta una simulación primero"}
+          title={reportBusy ? "Armando el fondo real (satélite/relieve)…" : reportUrl ? undefined : "Ejecuta una simulación primero"}
           onClick={() => {
             setShowGif(false);
             setShowReport((x) => !x);
           }}
         >
-          Ver infografía
+          {reportBusy ? "Generando infografía…" : "Ver infografía"}
         </button>
         {reportUrl && (
           <a

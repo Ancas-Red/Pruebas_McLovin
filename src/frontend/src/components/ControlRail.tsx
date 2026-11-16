@@ -321,18 +321,22 @@ export function ControlRail(p: Props) {
                         : lowOnly > 0
                           ? `${lowOnly} foco(s) conf. baja`
                           : "0 focos";
-                    const title = isUseful
-                      ? `Día ${iso} · ${fireLabel}${covPct ? ` · cobertura ${covPct}` : ""}`
-                      : !isDateAvailable(iso, p.sensor, p.metadata)
-                        ? `Día ${iso} · sin publicación en metadata`
-                        : row?.activity_rate == null
-                          ? `Día ${iso} · sin observación válida`
-                          : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
+                    const isLive = row?.data_origin === "firms_live_historical";
+                    const title = isLive
+                      ? `Día ${iso} · ${fireLabel} · consulta en vivo a NASA FIRMS (sin cobertura/tasa validada)`
+                      : isUseful
+                        ? `Día ${iso} · ${fireLabel}${covPct ? ` · cobertura ${covPct}` : ""}`
+                        : !isDateAvailable(iso, p.sensor, p.metadata)
+                          ? `Día ${iso} · sin publicación en metadata`
+                          : row?.activity_rate == null
+                            ? `Día ${iso} · sin observación válida`
+                            : `Día ${iso} · no útil (cobertura ${covPct ?? "—"} < 70 %)`;
                     return (
                       <button
                         key={d}
                         type="button"
                         className="day-pill"
+                        data-live={isUseful && isLive ? "true" : undefined}
                         data-fires={isUseful && hasFires ? "true" : undefined}
                         disabled={Boolean(p.dailyLoading) || !isUseful}
                         aria-pressed={isSelected}
@@ -351,6 +355,7 @@ export function ControlRail(p: Props) {
                   <span><i className="day-dot day-dot--fire" /> Con focos</span>
                   <span><i className="day-dot day-dot--clear" /> Útil sin focos</span>
                   <span><i className="day-dot day-dot--off" /> Sin cobertura</span>
+                  <span><i className="day-dot day-dot--live" /> En vivo (NASA FIRMS, sin validar)</span>
                 </div>
               </>
             )}

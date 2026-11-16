@@ -6,12 +6,17 @@
  * (`/spread-outputs/infografia_impacto_48h.png`, `panel_modelo_48h.png`), que
  * siempre mostraban la misma zona fija sin importar dónde se simulara.
  *
- * - Sin mapa base de fondo: solo la grilla del modelo sobre un fondo neutro,
- *   así nada en la imagen sugiere un lugar distinto al simulado.
+ * - Fondo real: satélite (Esri World Imagery) en el panel principal y relieve
+ *   real (OpenTopoMap) en el panel "Relieve", recortados exactamente a
+ *   `bounds` de la corrida actual — nunca un mosaico de otro lugar ni un
+ *   fondo plano que se vería igual con o sin un río/cuenca cerca. Si la red
+ *   falla, se cae al fondo neutro con la grilla del propio modelo (nunca se
+ *   inventa ni se reutiliza una tesela equivocada).
  * - Todas las ubicaciones se expresan en UTM (WGS84), en la zona del punto de
  *   ignición.
  */
 
+import { RELIEF_TILES, SATELLITE_TILES, stitchBasemap, type Basemap } from "./basemap";
 import { inferno } from "./palette";
 import { SPREAD_DISCLAIMER, SPREAD_MODEL_NAME, type SpreadResult } from "./spread";
 import { formatUtm, toUtm } from "./utm";
@@ -121,7 +126,7 @@ const greyRamp = (t: number): [number, number, number] => {
 };
 
 /** Genera la infografía y devuelve un data URL PNG. */
-export function renderSpreadReport(c: ReportContext): string {
+export async function renderSpreadReport(c: ReportContext): Promise<string> {
   const { result } = c;
   const { cols, rows, arrival, fuel, elevation, bounds } = result;
   const W = 1600;
@@ -131,6 +136,13 @@ export function renderSpreadReport(c: ReportContext): string {
   canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
+
+  // Mosaicos reales del lugar simulado (en paralelo); si fallan quedan en
+  // `null` y cada panel cae a su fondo neutro de siempre.
+  const [satBasemap, reliefBasemap]: [Basemap | null, Basemap | null] = await Promise.all([
+    stitchBasemap(bounds, 800, 800, SATELLITE_TILES).catch(() => null),
+    stitchBasemap(bounds, 200, 200, RELIEF_TILES).catch(() => null),
+  ]);
 
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, W, H);
@@ -173,19 +185,30 @@ export function renderSpreadReport(c: ReportContext): string {
   const gw = mapS - 120;
   const gh = mapS - 90;
 
-  // fondo neutro (sin mapa base): el combustible del propio modelo en gris
-  // tenue da contexto sin sugerir un lugar distinto.
-  drawGrid(ctx, cols, rows, gx, gy, gw, gh, (i) => {
-    const v = Math.max(0, Math.min(1, fuel[i]));
-    const g = Math.round(22 + v * 30);
-    return [g, g + 4, g + 6, 255];
-  });
-  // frente al horizonte, pixel a pixel
+  if (satBasemap) {
+    // Foto satelital real del lugar simulado (Esri World Imagery), recortada
+    // exacta a `bounds`: se ve el río/cuenca/vegetación reales, no un fondo
+    // plano igual en cualquier zona. Oscurecida un poco para que el frente
+    // de fuego (encima) resalte.
+    ctx.save();
+    ctx.filter = "brightness(0.55) saturate(0.9)";
+    ctx.drawImage(satBasemap.canvas, gx, gy, gw, gh);
+    ctx.restore();
+  } else {
+    // Sin red / tesela no disponible: fondo neutro con el combustible del
+    // propio modelo, nunca una imagen inventada o de otro lugar.
+    drawGrid(ctx, cols, rows, gx, gy, gw, gh, (i) => {
+      const v = Math.max(0, Math.min(1, fuel[i]));
+      const g = Math.round(22 + v * 30);
+      return [g, g + 4, g + 6, 255];
+    });
+  }
+  // frente al horizonte, pixel a pixel (semitransparente sobre la foto real)
   drawGrid(ctx, cols, rows, gx, gy, gw, gh, (i) => {
     const t = arrival[i];
     if (!isFinite(t) || t > c.horizonHours) return null;
     const [r, g, b] = inferno(0.15 + 0.85 * (1 - t / Math.max(1, c.horizonHours)));
-    return [r, g, b, 255];
+    return [r, g, b, satBasemap ? 235 : 255];
   });
   ctx.strokeStyle = LINE;
   ctx.strokeRect(gx + 0.5, gy + 0.5, gw - 1, gh - 1);
@@ -243,7 +266,7 @@ export function renderSpreadReport(c: ReportContext): string {
     ctx.lineWidth = 1;
   }
 
-  // norte + viento
+  // norte
   const nx = gx + gw - 34;
   const ny = gy + 40;
   ctx.fillStyle = TEXT;
@@ -255,6 +278,30 @@ export function renderSpreadReport(c: ReportContext): string {
   ctx.fill();
   ctx.font = "700 13px 'JetBrains Mono', ui-monospace, monospace";
   ctx.fillText("N", nx - 4, ny + 16);
+
+  // flecha de viento: apunta hacia donde avanza el viento (windDirDeg es "desde").
+  const wx = nx;
+  const wy = ny + 64;
+  ctx.save();
+  ctx.translate(wx, wy);
+  ctx.rotate(((c.windDirDeg + 180) * Math.PI) / 180);
+  ctx.fillStyle = ACCENT;
+  ctx.strokeStyle = ACCENT;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(0, 16);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.lineTo(-7, -12);
+  ctx.lineTo(7, -12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = ACCENT;
+  ctx.font = "700 11px 'JetBrains Mono', ui-monospace, monospace";
+  ctx.fillText("VIENTO", wx - 22, wy + 34);
 
   rampBar(ctx, gx, mapY + mapS + 14, 260, 10, (t) => inferno(0.15 + 0.85 * (1 - t)), "0 h", `${horizon} h`);
   ctx.fillStyle = MUTED;
@@ -279,12 +326,18 @@ export function renderSpreadReport(c: ReportContext): string {
     if (elevation[i] > eHi) eHi = elevation[i];
   }
   const ex = sx + miniS + 20;
-  panelFrame(ctx, ex, mapY, miniS, miniS + 30, "Relieve (modelo)");
-  drawGrid(ctx, cols, rows, ex + 12, mapY + 30, miniS - 24, miniS - 24, (i) => {
-    const t = eHi > eLo ? (elevation[i] - eLo) / (eHi - eLo) : 0.5;
-    const [r, g, b] = greyRamp(t);
-    return [r, g, b, 255];
-  });
+  panelFrame(ctx, ex, mapY, miniS, miniS + 30, reliefBasemap ? "Relieve (real, OpenTopoMap)" : "Relieve (modelo)");
+  if (reliefBasemap) {
+    // Relieve REAL del lugar (OpenTopoMap/SRTM), no un degradado sintético
+    // del DEM del modelo: se ve el río/quebrada/curvas de nivel reales.
+    ctx.drawImage(reliefBasemap.canvas, ex + 12, mapY + 30, miniS - 24, miniS - 24);
+  } else {
+    drawGrid(ctx, cols, rows, ex + 12, mapY + 30, miniS - 24, miniS - 24, (i) => {
+      const t = eHi > eLo ? (elevation[i] - eLo) / (eHi - eLo) : 0.5;
+      const [r, g, b] = greyRamp(t);
+      return [r, g, b, 255];
+    });
+  }
   rampBar(ctx, ex + 12, mapY + miniS + 10, miniS - 24, 6, greyRamp, `${Math.round(eLo)} m`, `${Math.round(eHi)} m`);
 
   // -------------------------------------------------------------- métricas

@@ -111,10 +111,23 @@ export interface DailyRow extends DailyEnv {
   activity_rate: number | null;
   source_product?: string | null;
   processing_version?: string | null;
+  /**
+   * `"firms_live_historical"` cuando la fila no viene de la tabla diaria local
+   * validada sino de un complemento en vivo a NASA FIRMS (años sin tabla local,
+   * p. ej. 2012-2021): trae detecciones reales pero nunca
+   * `valid_land_pixels`/`observation_coverage`/`activity_rate` inventados.
+   */
+  data_origin?: string | null;
 }
 
 /** Un día sin observación no es «cero fuego»: se rotula «Sin observación». */
-export function isUnobserved(row: Pick<DailyRow, "valid_land_pixels" | "observation_coverage">): boolean {
+export function isUnobserved(
+  row: Pick<DailyRow, "valid_land_pixels" | "observation_coverage" | "data_origin">
+): boolean {
+  // Un día complementado en vivo (NASA FIRMS) nunca trae valid_land_pixels/observation_coverage
+  // (serían inventados), pero sí es una observación real: solo se genera fila cuando hubo al
+  // menos una detección. No confundir "sin ese campo validado" con "sin observación".
+  if (row.data_origin === "firms_live_historical") return false;
   return (row.valid_land_pixels ?? 0) === 0 || (row.observation_coverage ?? 0) === 0;
 }
 

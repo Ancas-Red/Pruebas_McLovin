@@ -659,8 +659,19 @@ export function isDateAvailable(date: string, sensor: Sensor, meta: Metadata | n
 export function isPeriodAvailable(period: string, sensor: Sensor, meta: Metadata | null): boolean {
   if (!meta) return false;
   const rng = meta.available_date_ranges_by_sensor?.[sensor];
-  if (rng?.length) return periodInRanges(period, rng);
-  return meta.available_periods_by_sensor?.[sensor]?.includes(period) ?? false;
+  const periods = meta.available_periods_by_sensor?.[sensor];
+  const inPublished = rng?.length ? periodInRanges(period, rng) : (periods?.includes(period) ?? false);
+  if (inPublished) return true;
+  // Fuera de la tabla diaria local validada (p. ej. 2012-2021): igual que
+  // isDateAvailable/isSummaryDateAvailable, se habilita si cae dentro del piso
+  // histórico "en vivo" (NASA FIRMS) que expone el backend.
+  const liveSince = meta.firms_live_available_since_by_sensor?.[sensor];
+  if (liveSince) {
+    const liveSincePeriod = liveSince.slice(0, 7);
+    const nowPeriod = new Date().toISOString().slice(0, 7);
+    return period >= liveSincePeriod && period <= nowPeriod;
+  }
+  return false;
 }
 
 /** ¿Hay variables ambientales ese día? (métricas sin sensor) */
@@ -813,10 +824,17 @@ export function publishedDaysInMonth(
  * respetar `available_useful_dates_by_sensor` si el backend lo publica.
  */
 export function isUsefulDailyRow(
-  row: Pick<DailyRow, "date" | "activity_rate" | "observation_coverage">,
+  row: Pick<DailyRow, "date" | "activity_rate" | "observation_coverage" | "data_origin">,
   sensor?: Sensor,
   meta?: Metadata | null
 ): boolean {
+  if (row.data_origin === "firms_live_historical") {
+    // Complemento en vivo (NASA FIRMS): nunca trae activity_rate (no se inventa), pero sí
+    // es seleccionable — el backend solo arma esta fila cuando hubo al menos una detección
+    // real para esa fecha. "Útil" aquí no implica "día útil" validado como en la tabla
+    // diaria local (ver AGENTS.md), solo que hay un dato real que mostrar.
+    return sensor && meta ? isDateAvailable(row.date, sensor, meta) : true;
+  }
   if (row.activity_rate === null || row.activity_rate === undefined) return false;
   if (
     row.observation_coverage !== null &&
