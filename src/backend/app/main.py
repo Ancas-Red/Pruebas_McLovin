@@ -1428,7 +1428,10 @@ def _run_phase2_simulation(
     )
     precip = _ev_num("precip_30d_mm")
     fm = fuel_moisture_pct if fuel_moisture_pct is not None else (
-        max(4.0, min(28.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
+        # Tope 18 %: igual que el frontend (MapTool). Con 28 % (casi el contenido de
+        # extinción de 30 %) el factor de humedad de Rothermel queda en ~0.004 y el frente
+        # no sale de la celda de ignición (área constante en 24/36/48 h).
+        max(4.0, min(18.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
     )
 
     t0 = time.perf_counter()
