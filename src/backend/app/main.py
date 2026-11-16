@@ -705,18 +705,24 @@ def _fetch_firms_historical_range(
     west, south, east, north = bbox
     bbox_str = f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}"
     by_date: dict[str, list] = {}
-    try:
-        start = dt_date.fromisoformat(from_date)
-        end = dt_date.fromisoformat(to_date)
-        chunk_end = end
-        with httpx.Client(timeout=15.0) as client:
-            while chunk_end >= start:
-                span_days = min(10, (chunk_end - start).days + 1)
-                chunk_start = chunk_end - timedelta(days=span_days - 1)
-                url = (
-                    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/"
-                    f"{firms_source}/{bbox_str}/{span_days}/{chunk_end.isoformat()}"
-                )
+    start = dt_date.fromisoformat(from_date)
+    end = dt_date.fromisoformat(to_date)
+    chunk_end = end
+    any_chunk_ok = False
+    # Un rango de hasta 31 días se parte en bloques de <=10 días (límite de day_range
+    # de la Area API). Cada bloque se intenta por separado: si UN bloque falla (red,
+    # límite de la API), no debe tirar los días de los demás bloques que sí llegaron —
+    # antes un solo bloque fallido dejaba el mes entero en "[]" aunque el resto hubiera
+    # respondido bien.
+    with httpx.Client(timeout=15.0) as client:
+        while chunk_end >= start:
+            span_days = min(10, (chunk_end - start).days + 1)
+            chunk_start = chunk_end - timedelta(days=span_days - 1)
+            url = (
+                f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/"
+                f"{firms_source}/{bbox_str}/{span_days}/{chunk_end.isoformat()}"
+            )
+            try:
                 resp = client.get(url)
                 resp.raise_for_status()
                 text = resp.text.strip()
@@ -727,8 +733,14 @@ def _fetch_firms_historical_range(
                         d = r[2] or ""
                         if from_date <= d <= to_date:
                             by_date.setdefault(d, []).append(r)
-                chunk_end = chunk_start - timedelta(days=1)
-    except Exception:
+                any_chunk_ok = True
+            except Exception:
+                pass
+            chunk_end = chunk_start - timedelta(days=1)
+    if not any_chunk_ok:
+        # Ningún bloque respondió (red caída, clave inválida, etc.): "sin dato", no
+        # "cero detecciones" — no se puede afirmar que no hubo fuego sin haber podido
+        # preguntarle a la API.
         with _FIRMS_HIST_RANGE_CACHE_LOCK:
             _FIRMS_HIST_RANGE_CACHE[key] = (now + _FIRMS_HIST_RANGE_CACHE_TTL_S, [])
         return []
