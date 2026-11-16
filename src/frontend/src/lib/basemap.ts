@@ -95,8 +95,25 @@ export async function stitchBasemap(
   pxHeight: number,
   source: TileSource
 ): Promise<Basemap | null> {
+  try {
+    return await stitchBasemapInner(bounds, pxWidth, pxHeight, source);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[basemap] stitchBasemap failed", { bounds, pxWidth, pxHeight, source: source.urlTemplate, err });
+    return null;
+  }
+}
+
+async function stitchBasemapInner(
+  bounds: LonLatBounds,
+  pxWidth: number,
+  pxHeight: number,
+  source: TileSource
+): Promise<Basemap | null> {
   if (!(pxWidth > 0) || !(pxHeight > 0)) return null;
   const z = pickZoom(bounds, pxWidth, pxHeight, source.maxZoom);
+  // eslint-disable-next-line no-console
+  console.log("[basemap] bounds", bounds, "z", z);
   const xMinF = lon2x(bounds.west, z);
   const xMaxF = lon2x(bounds.east, z);
   const yMinF = lat2y(bounds.north, z); // norte → y menor
@@ -143,6 +160,8 @@ export async function stitchBasemap(
     }
   }
   await Promise.all(jobs);
+  // eslint-disable-next-line no-console
+  console.log("[basemap] attempted", attempted, "loaded", loaded, "mosaic", mosaicW, mosaicH);
   // Si se perdió más de un tercio de las teselas, mejor no mostrar un mosaico
   // con huecos que podrían confundirse con el lugar real.
   if (attempted === 0 || loaded < attempted * 0.67) return null;
