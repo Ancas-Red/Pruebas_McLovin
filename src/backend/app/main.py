@@ -78,13 +78,23 @@ ENV_METRICS = {
 }
 
 
+FIXTURES_DATA = ROOT / "data" / "fixtures"
+
+
 def load_json(name: str):
-    """Carga un JSON/GeoJSON desde DATA si existe."""
+    """Carga un JSON/GeoJSON desde DATA si existe, con respaldo en data/fixtures."""
     path = DATA / name
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    fallback = FIXTURES_DATA / name
+    return json.loads(fallback.read_text(encoding="utf-8")) if fallback.exists() else None
 
 
 META = load_json("metadata.json") or {}
+if not any((META.get("available_date_ranges_by_sensor") or {}).values()):
+    _fx_meta = FIXTURES_DATA / "metadata.json"
+    if _fx_meta.exists():
+        META = json.loads(_fx_meta.read_text(encoding="utf-8"))
 TERR = (
     load_json("peru_territories.geojson")
     or load_json("territories.geojson")
