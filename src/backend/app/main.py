@@ -2108,7 +2108,7 @@ def _reverse_geocode_coords(lat: float, lon: float) -> dict:
         "addressdetails": "1",
         "accept-language": "es",
     }
-    headers = {"User-Agent": "McHanaq/1.0 (+https://github.com/TomJordan1/McHanaq)"}
+    headers = {"User-Agent": "Pruebas_McLovin/1.0 (+https://github.com/Ancas-Red/Pruebas_McLovin)"}
     try:
         with httpx.Client(timeout=4.5, headers=headers) as client:
             resp = client.get(url, params=params)
