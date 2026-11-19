@@ -37,7 +37,7 @@
 | 6 | `GET /territories/{type}/{id}/activity` | 2 | `from`, `to` (o `period`), `sensor` | Serie diaria del rango con variables ambientales diarias. |
 | 7 | `GET /territories/{type}/{id}/sensor-comparison` | 2 | `date` (o `period`) | Indicadores separados por sensor + `status` + `interpretation`. |
 | 8 | `GET /territories/{type}/{id}/export.csv` | 2 | `from`, `to`, `sensor` | CSV (20 columnas) con la serie diaria del territorio. |
-| 9 | `GET /territories/{type}/{id}/hotspots` | 3 | `date`, `sensor` | Puntos de detección. Solo si existe `hotspots.geojson`. |
+| 9 | `GET /territories/{type}/{id}/hotspots` | 3 | `date`, `sensor` | Puntos de detección. Lee `hotspots.geojson` si existe; si no hay puntos para la fecha, los complementa con la Area API histórica de NASA FIRMS (requiere `FIRMS_MAP_KEY`, desde 2012-01-19, recortados al polígono, con `data_origin: "firms_live_historical"`). Responde `200` con `features: []` (nunca 404) cuando no hay focos. |
 | 10 | `GET /territories/{type}/{id}/calendar` | 2 | `sensor`, opcionales `from_period`, `to_period` (`YYYY-MM`) | Serie mensual longitudinal del calendario con `historical_anomaly`. |
 
 \* `sensor` es **obligatorio** para métricas de actividad y **opcional** para `conditions_classification` y métricas ambientales.

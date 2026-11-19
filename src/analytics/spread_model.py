@@ -904,6 +904,12 @@ def simulate_spread_48h(
         f"Humedad del combustible fino {fuel_moisture_pct:.0f}% (contenido de extincion Rothermel 30%).",
         "Modelo exploratorio condicional a ignicion hipotetica; sin supresion activa, pavesas ni fuego de copas.",
     ]
+    if fuel_moisture_pct >= 0.85 * 30.0:
+        assumptions.insert(
+            0,
+            f"Humedad del combustible {fuel_moisture_pct:.0f}% cercana al contenido de extincion (30%): el frente casi no avanza; "
+            "baje la humedad para explorar un escenario con propagacion.",
+        )
 
     return SpreadGridResult(
         territory_type=territory_type,

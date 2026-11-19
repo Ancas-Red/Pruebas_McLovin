@@ -653,6 +653,98 @@ def _fetch_firms_historical_day(t_type: str, t_id: str, sensor: str, date: str) 
     return result
 
 
+_FIRMS_HIST_POINTS_CACHE: dict[tuple, tuple[float, list[dict]]] = {}
+_FIRMS_HIST_POINTS_CACHE_MAX = 500
+
+
+def _territory_geometry(t_type: str, t_id: str):
+    """Geometría shapely del territorio, o None si shapely no está o no hay geometría
+    (shapely se importa de forma diferida: su ausencia no debe romper el backend)."""
+    try:
+        from shapely.geometry import shape
+    except ImportError:
+        return None
+    for feat in TERR.get("features", []):
+        props = feat.get("properties", {})
+        if props.get("territory_type") == t_type and str(props.get("territory_id")) == t_id:
+            try:
+                geom = shape(feat["geometry"]) if feat.get("geometry") else None
+            except Exception:
+                return None
+            return geom if geom is not None and not geom.is_empty else None
+    return None
+
+
+def _fetch_firms_historical_points(t_type: str, t_id: str, sensor: str, date: str) -> list[dict]:
+    """Puntos reales (lat/lon) de un día/territorio/sensor vía la Area API histórica de
+    NASA FIRMS (Standard Processing). Es el complemento de /hotspots para fechas sin
+    hotspots.geojson. Requiere FIRMS_MAP_KEY; sin ella, o fuera del piso histórico,
+    devuelve []. Los puntos se recortan al polígono del territorio cuando shapely está
+    disponible (si no, quedan los del bbox). Cacheado 6 h."""
+    if not _date_has_live_firms_fallback(sensor, date):
+        return []
+    firms_key = os.getenv("FIRMS_MAP_KEY", "").strip()
+    src = _FIRMS_HIST_SOURCE_BY_SENSOR.get(sensor)
+    bbox = _territory_bbox(t_type, t_id)
+    if not firms_key or not src or not bbox:
+        return []
+    firms_source, sat_filter = src
+
+    key = (t_type, t_id, sensor, date)
+    now = time.monotonic()
+    with _FIRMS_HIST_CACHE_LOCK:
+        hit = _FIRMS_HIST_POINTS_CACHE.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+
+    west, south, east, north = bbox
+    url = (
+        f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{firms_key}/{firms_source}/"
+        f"{west:.4f},{south:.4f},{east:.4f},{north:.4f}/1/{date}"
+    )
+    features: list[dict] = []
+    cacheable = True
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            text = resp.text.strip()
+        if text and not text.lower().startswith("invalid"):
+            rows = _parse_firms_csv_tuples(text)
+            if sat_filter:
+                rows = [r for r in rows if r[6] == sat_filter]
+            geom = _territory_geometry(t_type, t_id)
+            if geom is not None:
+                from shapely.geometry import Point
+
+                rows = [r for r in rows if geom.covers(Point(r[1], r[0]))]
+            for lat_v, lon_v, acq_date, _acq_time, confidence, frp_val, _sat, _dn in rows:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [lon_v, lat_v]},
+                    "properties": {
+                        "date": date,
+                        "sensor": sensor,
+                        "territory_type": t_type,
+                        "territory_id": t_id,
+                        "confidence": confidence,
+                        "frp_mw": frp_val,
+                        "data_origin": "firms_live_historical",
+                    },
+                })
+    except Exception:
+        # Error de red/NASA: no se cachea para reintentar en la próxima petición.
+        cacheable = False
+        features = []
+
+    if cacheable:
+        with _FIRMS_HIST_CACHE_LOCK:
+            if len(_FIRMS_HIST_POINTS_CACHE) >= _FIRMS_HIST_POINTS_CACHE_MAX and key not in _FIRMS_HIST_POINTS_CACHE:
+                _FIRMS_HIST_POINTS_CACHE.pop(next(iter(_FIRMS_HIST_POINTS_CACHE)), None)
+            _FIRMS_HIST_POINTS_CACHE[key] = (now + _FIRMS_HIST_CACHE_TTL_S, features)
+    return features
+
+
 def _is_low_confidence_row(sensor: str, raw: str | None) -> bool:
     """Mismo criterio que firms_to_daily_activity.py (_confidence_bucket): VIIRS usa
     letras l/n/h, MODIS usa 0-100."""
@@ -1422,7 +1514,10 @@ def _run_phase2_simulation(
     )
     precip = _ev_num("precip_30d_mm")
     fm = fuel_moisture_pct if fuel_moisture_pct is not None else (
-        max(4.0, min(28.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
+        # Tope 18 %: igual que el frontend (MapTool). Con 28 % (casi el contenido de
+        # extinción de 30 %) el factor de humedad de Rothermel queda en ~0.004 y el frente
+        # no sale de la celda de ignición (área constante en 24/36/48 h).
+        max(4.0, min(18.0, round(4.0 + precip * 0.18, 1))) if precip is not None else 9.0
     )
 
     t0 = time.perf_counter()
